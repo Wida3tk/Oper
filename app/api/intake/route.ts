@@ -46,11 +46,20 @@ export async function POST(req: Request) {
   const purchaseType = String(body.purchaseType || "برنامج");
   if (!(amount > 0)) return Response.json({ error: "المبلغ مطلوب" }, { status: 400 });
   const intentId = id("PAYI");
-  await db.batch([
-    db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,'بانتظار المالية',?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,now,now),
-    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),String(body.proofAssetKey||""),method==="تحويل بنكي"?"بانتظار المالية":"مدفوع",auth.email,now,now),
-    db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment_intent',?,'المالية','مراجعة الدفعة وتفعيل العميل','مفتوحة','عالية',?,?)").bind(id("TSK"),intentId,auth.email,now),
-    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'CREATE_PAYMENT_INTENT','payment_intent',?,?,?)").bind(id("AUD"),auth.email,intentId,JSON.stringify({programId,purchaseType,amount,method}),now),
-  ]);
-  return Response.json({ ok: true, prospectId, paymentIntentId: intentId, status: method==="تحويل بنكي"?"بانتظار المالية":"مدفوع" }, { status: 201 });
+  const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
+  const customerId=existing?.id||id("CUS"),orderId=id("ORD"),paymentId=id("PAY"),isReservation=purchaseType==="حجز مقعد",reservationId=isReservation?id("RSV"):null,enrollmentId=isReservation?null:id("ENR");
+  const statements=[];
+  statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
+  if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":"مسجل",intentId,now,now));
+  statements.push(
+    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,created_at,updated_at) VALUES(?,?,?,?,?,'غير محدد','غير محدد','العربية',?,'دفع كامل',?,?,'مدفوع',?,'غير مسند',?,?)").bind(orderId,customerId,purchaseType,programId,program.name,String(body.source||"طلب أولي"),amount,amount,isReservation?"غير مطبق":"جديد",now,now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),String(body.proofAssetKey||""),now),
+    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),String(body.proofAssetKey||""),"مسجلة",customerId,orderId,auth.email,now,now),
+    db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)
+  );
+  if(isReservation)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,status,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,'مؤكد',?,?,?)").bind(reservationId,customerId,programId,orderId,amount,now,now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات','متابعة حجز المقعد حتى فتح البرنامج','مفتوحة','عادية',?,?)").bind(id("TSK"),reservationId,auth.email,now));
+  else statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(enrollmentId,customerId,programId,orderId,"جديد",now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'الأكاديمية','التواصل مع العميل وبدء التسجيل','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,auth.email,now));
+  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_PAYMENT_AND_ADMIT','payment',?,?,?)").bind(id("AUD"),auth.email,paymentId,JSON.stringify({programId,purchaseType,amount,method,customerId,orderId}),now));
+  await db.batch(statements);
+  return Response.json({ok:true,prospectId,paymentIntentId:intentId,customerId,orderId,reservationId,enrollmentId,status:"تم إنشاء العميل"},{status:201});
 }

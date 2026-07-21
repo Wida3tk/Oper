@@ -100,7 +100,7 @@ export const paymentIntents = sqliteTable("payment_intents", {
   method: text("method").notNull(),
   reference: text("reference"),
   proofAssetKey: text("proof_asset_key"),
-  status: text("status").notNull().default("بانتظار المالية"),
+  status: text("status").notNull().default("مسجلة"),
   reviewedByFinanceEmail: text("reviewed_by_finance_email"),
   reviewedAt: text("reviewed_at"),
   rejectionReason: text("rejection_reason"),
