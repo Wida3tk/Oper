@@ -1,12 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type View="dashboard"|"work"|"customers"|"academy"|"finance"|"reports"|"new";
+type View="dashboard"|"work"|"customers"|"reservations"|"academy"|"finance"|"reports"|"new";
 type NavItem=[View,string,string,number?];
 const navGroups:{label:string,items:NavItem[]}[]=[
  {label:"الرئيسية",items:[["dashboard","لوحة القيادة","⌂"],["work","عملي اليوم","✓",8]]},
  {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","◎"]]},
- {label:"العمليات",items:[["academy","عمليات الأكاديمية","◫",5],["finance","المالية والتحصيل","﷼",3]]},
+ {label:"العمليات",items:[["reservations","حجوزات المقاعد","▣"],["academy","عمليات الأكاديمية","◫",5],["finance","المالية والتحصيل","﷼",3]]},
  {label:"التحليلات",items:[["reports","التقارير","↗"]]}
 ];
 const initialPeople=[
@@ -25,7 +25,7 @@ const tasks=[
  ["12:30","إسناد مقررات برنامج OBM","عمر خالد · الدفعة 18","إسناد","blue"],
  ["14:00","مراجعة طلب جديد من المتجر","نجلاء صالح · SLK-2049","مبيعات","violet"]
 ];
-const titles:Record<View,[string,string]>={dashboard:["صباح الخير، أحمد","هذه صورة العمل الحية ليوم الثلاثاء 21 يوليو"],work:["عملي اليوم","الأولويات والمتابعات المسندة إليك"],customers:["العملاء والتسجيلات","ملف موحد لكل عميل وجميع تسجيلاته"],academy:["عمليات الأكاديمية","من الاستلام حتى التحقق من دخول المتعلم"],finance:["المالية والتحصيل","المستحقات، الدفعات وخطط الأقساط"],reports:["التقارير الإدارية","مؤشرات الأداء وجودة العمليات"],new:["تسجيل عميل جديد","سجّل الطلب مرة واحدة وسيُنشئ النظام إجراءات الأقسام تلقائياً"]};
+const titles:Record<View,[string,string]>={dashboard:["صباح الخير، أحمد","هذه صورة العمل الحية ليوم الثلاثاء 21 يوليو"],work:["عملي اليوم","الأولويات والمتابعات المسندة إليك"],customers:["العملاء والتسجيلات","ملف موحد لكل عميل وجميع تسجيلاته"],reservations:["حجوزات المقاعد","الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل"],academy:["عمليات الأكاديمية","من الاستلام حتى التحقق من دخول المتعلم"],finance:["المالية والتحصيل","مطابقة الدفعات وتنظيمها دون تعطيل رحلة العميل"],reports:["التقارير الإدارية","مؤشرات الأداء وجودة العمليات"],new:["تسجيل عميل جديد","سجّل الطلب مرة واحدة وسيُنشئ النظام إجراءات الأقسام تلقائياً"]};
 
 export default function Home(){
  const[view,setView]=useState<View>("dashboard"),[query,setQuery]=useState(""),[people,setPeople]=useState(initialPeople),[selected,setSelected]=useState(initialPeople[0]),[panel,setPanel]=useState(false);
@@ -35,7 +35,7 @@ export default function Home(){
  return <main className="shell" dir="rtl">
   <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><nav>{navGroups.map(group=><section className="nav-group" key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(([id,label,icon,badge])=><button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i>{icon}</i>{label}{badge&&<em>{badge}</em>}</button>)}</section>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
   <section className="main"><header className="topbar"><b className="mobile-logo">سلوكيرا</b><label><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن عميل، رقم طلب أو برنامج..."/></label><button className="bell">♢<i/></button><button className="primary" onClick={()=>setView("new")}>＋ تسجيل جديد</button></header><div className="content"><header className="heading"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><span>اليوم · 21 يوليو 2026</span></header>
-   {view==="dashboard"&&<Dashboard open={open}/>} {view==="work"&&<Work/>} {view==="customers"&&<Customers list={list} open={open}/>} {view==="academy"&&<Academy open={open}/>} {view==="finance"&&<Finance open={open}/>} {view==="reports"&&<Reports/>} {view==="new"&&<Registration done={()=>setView("customers")}/>} 
+   {view==="dashboard"&&<Dashboard open={open}/>} {view==="work"&&<LiveWork/>} {view==="customers"&&<Customers list={list} open={open}/>} {view==="reservations"&&<Reservations/>} {view==="academy"&&<LiveAcademy/>} {view==="finance"&&<LiveFinance/>} {view==="reports"&&<Reports/>} {view==="new"&&<Registration done={()=>setView("customers")}/>} 
   </div></section>
   {panel&&<><div className="overlay" onClick={()=>setPanel(false)}/><aside className="drawer"><button className="close" onClick={()=>setPanel(false)}>×</button><div className="person"><i>{selected.name.slice(0,2)}</i><div><h2>{selected.name}</h2><p>{selected.id} · {selected.phone}</p></div></div><div className="actions"><button>واتساب</button><button>اتصال</button><button>تعديل</button></div><Section title="التسجيل الحالي"><div className="info"><label>البرنامج<b>{selected.program}</b></label><label>المسار<b>{selected.track}</b></label><label>قناة الشراء<b>{selected.source}</b></label><label>المسؤول<b>{selected.owner}</b></label></div></Section><Section title="حالة الأكاديمية"><div className={`status ${selected.tone}`}><b>{selected.state}</b><span>{selected.due}</span></div><div className="workflow-actions"><button className={selected.state==="تم التواصل"?"current":""} onClick={()=>updateWorkflow("تم التواصل","violet","بانتظار إكمال التسجيل")}>✓ تم التواصل</button><button className={selected.state==="بانتظار الإسناد"?"current":""} onClick={()=>updateWorkflow("بانتظار الإسناد","blue","جاهز لإسناد المقررات")}>✓ اكتمل التسجيل</button><button className={selected.state==="مكتمل"?"current":""} onClick={()=>updateWorkflow("مكتمل","green","تم الإسناد والتحقق من الدخول")}>✓ تم الإسناد</button></div><p className="workflow-help">اختاري الإجراء الذي تم فعلياً، وستنتقل البطاقة إلى حالتها الجديدة.</p></Section><Section title="الملخص المالي"><div className="money"><p>قيمة الطلب<b>{selected.total.toLocaleString()} ر.س</b></p><p>المحصل<b>{selected.paid.toLocaleString()} ر.س</b></p></div><div className="progress"><i style={{width:`${selected.paid/selected.total*100}%`}}/></div></Section><Section title="آخر النشاطات"><div className="timeline"><p>تم تحديث حالة التسجيل<small>الآن · {selected.owner}</small></p><p>تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small></p></div></Section></aside></>}
  </main>
@@ -71,6 +71,51 @@ function Registration({done}:{done:()=>void}){
   {saveError&&<div className="save-error">{saveError}</div>}<footer className="wizard-actions"><button className="secondary" onClick={()=>step>1?setStep(step-1):done()}>{step>1?"السابق":"إلغاء"}</button><span>الخطوة {step} من 4</span>{step<4?<button className="primary" onClick={()=>setStep(step+1)}>التالي</button>:<button className="primary" disabled={saving} onClick={submit}>{saving?"جارٍ الحفظ...":"حفظ وتسليم للأقسام"}</button>}</footer>
  </section></div>
 }
+type LiveTask={id:string;title:string;department:string;priority:string;status:string;due_at?:string;assignee_email?:string};
+type LiveEnrollment={id:string;status:string;customer_name:string;phone:string;program_name:string;order_id:string;owner_email?:string};
+type LiveReservation={id:string;status:string;customer_name:string;program_name:string;program_id:string;fee_amount:number;cohort_label?:string};
+type LivePayment={payment_intent_id:string;reconciliation_status:string;amount:number;method:string;reference?:string;customer_name:string;phone:string;program_name:string;order_id:string};
+type Program={id:string;name:string};
+
+async function apiJson(url:string,init?:RequestInit){const response=await fetch(url,init);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"تعذر تحميل البيانات. تأكد من تسجيل الدخول والصلاحية.");return data}
+function LiveState({loading,error,empty}:{loading:boolean;error:string;empty:boolean}){if(loading)return <div className="ops-empty">جارٍ تحميل البيانات الحية…</div>;if(error)return <div className="ops-error">{error}</div>;if(empty)return <div className="ops-empty">لا توجد بيانات بعد. ستظهر السجلات هنا فور إنشائها.</div>;return null}
+
+function LiveWork(){
+ const[rows,setRows]=useState<LiveTask[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const load=async()=>{setLoading(true);setError("");try{setRows((await apiJson("/api/tasks")).tasks||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
+ useEffect(()=>{void load()},[]);
+ const act=async(taskId:string,action:string)=>{try{await apiJson("/api/tasks",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({taskId,action})});await load()}catch(e){setError((e as Error).message)}};
+ const groups=["عاجلة","عالية","عادية"];
+ if(loading||error||!rows.length)return <LiveState loading={loading} error={error} empty={!rows.length}/>;
+ return <div className="board">{groups.map(priority=><section key={priority}><header><b>{priority}</b><span>{rows.filter(x=>x.priority===priority).length}</span></header>{rows.filter(x=>x.priority===priority).map(t=><article key={t.id}><em className={priority==="عاجلة"?"red":priority==="عالية"?"amber":"blue"}>{t.department}</em><h3>{t.title}</h3><p>{t.assignee_email||"غير مسندة"}</p><footer>{t.due_at?new Date(t.due_at).toLocaleDateString("ar-SA"):"دون موعد"}<button className="link" onClick={()=>act(t.id,"complete")}>إكمال</button><button className="link" onClick={()=>act(t.id,"assign")}>إسناد لي</button></footer></article>)}</section>)}</div>
+}
+
+const enrollmentSteps:Record<string,[string,string]>={"جديد":["contacted","تم التواصل"],"تم التواصل":["registered","إكمال التسجيل"],"اكتمل التسجيل":["account_created","إنشاء الحساب"],"تم إنشاء الحساب":["assigned","تم الإسناد"],"تم الإسناد":["access_verified","تأكيد الدخول"],"نشط":["completed","إكمال البرنامج"]};
+function LiveAcademy(){
+ const[rows,setRows]=useState<LiveEnrollment[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const load=async()=>{setLoading(true);setError("");try{setRows((await apiJson("/api/enrollments")).enrollments||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
+ const advance=async(row:LiveEnrollment)=>{const step=enrollmentSteps[row.status];if(!step)return;try{await apiJson("/api/enrollments/transition",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.id,action:step[0]})});await load()}catch(e){setError((e as Error).message)}};
+ const states=["جديد","تم التواصل","اكتمل التسجيل","تم إنشاء الحساب","تم الإسناد","نشط","مكتمل"];
+ if(loading||error||!rows.length)return <LiveState loading={loading} error={error} empty={!rows.length}/>;
+ return <div className="kanban live-kanban">{states.map(state=><section key={state}><header><b>{state}</b><span>{rows.filter(x=>x.status===state).length}</span></header>{rows.filter(x=>x.status===state).map(row=><article key={row.id}><b>{row.customer_name}</b><small>{row.id}</small><p>{row.program_name}</p><em>{row.phone}</em><footer><span>{row.order_id}</span>{enrollmentSteps[row.status]&&<button className="link" onClick={()=>advance(row)}>{enrollmentSteps[row.status][1]}</button>}</footer></article>)}</section>)}</div>
+}
+
+function Reservations(){
+ const[rows,setRows]=useState<LiveReservation[]>([]),[programs,setPrograms]=useState<Program[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const load=async()=>{setLoading(true);setError("");try{const[a,b]=await Promise.all([apiJson("/api/reservations"),apiJson("/api/programs")]);setRows(a.reservations||[]);setPrograms(b.programs||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
+ const post=async(body:Record<string,string>)=>{try{await apiJson("/api/reservations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});await load()}catch(e){setError((e as Error).message)}};
+ const transfer=(row:LiveReservation)=>{const target=programs.find(p=>p.id!==row.program_id);if(!target){setError("لا يوجد برنامج آخر متاح للنقل.");return}void post({action:"request_transfer",reservationId:row.id,targetProgramId:target.id,targetCohortLabel:"الدفعة القادمة"})};
+ if(loading||error||!rows.length)return <LiveState loading={loading} error={error} empty={!rows.length}/>;
+ return <Card title="الحجوزات الفعلية" action="تتحدث تلقائياً"><div className="table-wrap"><table><thead><tr><th>العميل</th><th>البرنامج</th><th>رسوم الحجز</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.customer_name}</b><small>{row.id}</small></td><td>{row.program_name}<small>{row.cohort_label||"دون دفعة محددة"}</small></td><td>{Number(row.fee_amount).toLocaleString("ar-SA")} ر.س</td><td><span className="pill blue">{row.status}</span></td><td><div className="ops-actions">{row.status==="مؤكد"&&<><button className="link" onClick={()=>post({action:"convert_to_enrollment",reservationId:row.id})}>بدء البرنامج</button><button className="link" onClick={()=>transfer(row)}>طلب نقل</button></>}</div></td></tr>)}</tbody></table></div></Card>
+}
+
+function LiveFinance(){
+ const[rows,setRows]=useState<LivePayment[]>([]),[summary,setSummary]=useState({total:0,count:0,reconciled:0,flagged:0}),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const load=async()=>{setLoading(true);setError("");try{const data=await apiJson("/api/finance");setRows(data.payments||[]);setSummary(data.summary||summary)}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
+ const review=async(paymentIntentId:string,action:"reconcile"|"flag")=>{const note=action==="flag"?"تحتاج مراجعة بيانات الإيصال":"";try{await apiJson("/api/payments/review",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({paymentIntentId,action,note})});await load()}catch(e){setError((e as Error).message)}};
+ return <>{<div className="kpis"><Kpi title="إجمالي الدفعات" value={Number(summary.total).toLocaleString("ar-SA")} tag="ر.س" note={`${summary.count} عملية`} tone="blue"/><Kpi title="تمت المطابقة" value={Number(summary.reconciled).toLocaleString("ar-SA")} tag="ر.س" note="إجراء تنظيمي فقط" tone="green"/><Kpi title="تحتاج مراجعة" value={Number(summary.flagged).toLocaleString("ar-SA")} tag="ر.س" note="لا توقف رحلة العميل" tone="amber"/></div>}<LiveState loading={loading} error={error} empty={!rows.length}/>{!loading&&!error&&rows.length>0&&<Card title="مطابقة الإيصالات" action="لا تحتاج اعتماداً"><div className="table-wrap"><table><thead><tr><th>العميل</th><th>البرنامج</th><th>المبلغ</th><th>الوسيلة</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{rows.map(row=><tr key={row.payment_intent_id}><td><b>{row.customer_name}</b><small>{row.order_id}</small></td><td>{row.program_name}</td><td><b>{Number(row.amount).toLocaleString("ar-SA")} ر.س</b></td><td>{row.method}<small>{row.reference||"دون مرجع"}</small></td><td><span className="pill blue">{row.reconciliation_status}</span></td><td><div className="ops-actions"><button className="link" onClick={()=>review(row.payment_intent_id,"reconcile")}>تمت المطابقة</button><button className="link" onClick={()=>review(row.payment_intent_id,"flag")}>وضع للمراجعة</button></div></td></tr>)}</tbody></table></div></Card>}</>
+}
+
 function FormHead({n,title,text}:{n:string,title:string,text:string}){return <header className="form-head"><i>{n}</i><div><h2>{title}</h2><p>{text}</p></div></header>}
 function Field({label,children}:{label:string,children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}</label>}
 function Review({label,value}:{label:string,value:string}){return <p className="review-row"><span>{label}</span><b>{value}</b></p>}
