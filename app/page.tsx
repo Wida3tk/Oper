@@ -2,8 +2,14 @@
 import { useMemo, useState } from "react";
 
 type View="dashboard"|"work"|"customers"|"academy"|"finance"|"reports"|"new";
-const nav:[View,string,string,number?][]=[["dashboard","لوحة القيادة","⌂"],["work","عملي اليوم","✓",8],["customers","العملاء والتسجيلات","◎"],["academy","عمليات الأكاديمية","◫",5],["finance","المالية والتحصيل","﷼",3],["reports","التقارير","↗"]];
-const people=[
+type NavItem=[View,string,string,number?];
+const navGroups:{label:string,items:NavItem[]}[]=[
+ {label:"الرئيسية",items:[["dashboard","لوحة القيادة","⌂"],["work","عملي اليوم","✓",8]]},
+ {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","◎"]]},
+ {label:"العمليات",items:[["academy","عمليات الأكاديمية","◫",5],["finance","المالية والتحصيل","﷼",3]]},
+ {label:"التحليلات",items:[["reports","التقارير","↗"]]}
+];
+const initialPeople=[
  {id:"SLK-2048",name:"سارة محمد",phone:"055 321 9840",program:"تحليل السلوك التطبيقي",track:"ABAT",source:"المتجر",owner:"ليان",state:"بانتظار التسجيل",tone:"amber",due:"متابعة اليوم، 12:30 م",paid:4250,total:6500},
  {id:"SLK-2047",name:"عمر خالد",phone:"050 918 3721",program:"إدارة السلوك التنظيمي",track:"P",source:"تسجيل مباشر",owner:"نور",state:"بانتظار الإسناد",tone:"blue",due:"منذ ساعتين",paid:8000,total:8000},
  {id:"SLK-2046",name:"ريم عبدالله",phone:"053 645 2280",program:"تحليل السلوك التطبيقي",track:"QBA",source:"المنصة",owner:"ليان",state:"تم التواصل",tone:"violet",due:"متابعة غداً",paid:3000,total:9500},
@@ -12,6 +18,7 @@ const people=[
  {id:"SLK-2043",name:"هدى إبراهيم",phone:"057 422 6951",program:"الاقتصاد السلوكي",track:"التصميم السلوكي",source:"سلة",owner:"ليان",state:"بانتظار الإسناد",tone:"blue",due:"إسناد اليوم",paid:1500,total:3000},
  {id:"SLK-2042",name:"محمد القحطاني",phone:"059 731 2840",program:"الاقتصاد السلوكي",track:"برنامج الممارس",source:"دفع مباشر",owner:"مها",state:"تم التواصل",tone:"violet",due:"متابعة غداً",paid:1000,total:3200}
 ];
+const people=initialPeople;
 const tasks=[
  ["09:30","التواصل مع سارة لاستكمال التسجيل","سارة محمد · SLK-2048","أكاديمية","amber"],
  ["11:00","التحقق من الدفعة الثانية","ريم عبدالله · 2,000 ر.س","مالية","red"],
@@ -21,15 +28,16 @@ const tasks=[
 const titles:Record<View,[string,string]>={dashboard:["صباح الخير، أحمد","هذه صورة العمل الحية ليوم الثلاثاء 21 يوليو"],work:["عملي اليوم","الأولويات والمتابعات المسندة إليك"],customers:["العملاء والتسجيلات","ملف موحد لكل عميل وجميع تسجيلاته"],academy:["عمليات الأكاديمية","من الاستلام حتى التحقق من دخول المتعلم"],finance:["المالية والتحصيل","المستحقات، الدفعات وخطط الأقساط"],reports:["التقارير الإدارية","مؤشرات الأداء وجودة العمليات"],new:["تسجيل عميل جديد","سجّل الطلب مرة واحدة وسيُنشئ النظام إجراءات الأقسام تلقائياً"]};
 
 export default function Home(){
- const[view,setView]=useState<View>("dashboard"),[query,setQuery]=useState(""),[selected,setSelected]=useState(people[0]),[panel,setPanel]=useState(false);
+ const[view,setView]=useState<View>("dashboard"),[query,setQuery]=useState(""),[people,setPeople]=useState(initialPeople),[selected,setSelected]=useState(initialPeople[0]),[panel,setPanel]=useState(false);
  const list=useMemo(()=>people.filter(p=>`${p.name} ${p.id} ${p.program}`.includes(query)),[query]);
- const open=(p:typeof people[number])=>{setSelected(p);setPanel(true)};
+ const open=(p:typeof initialPeople[number])=>{setSelected(p);setPanel(true)};
+ const updateWorkflow=(state:string,tone:string,due:string)=>{Object.assign(selected,{state,tone,due});setSelected({...selected});setPeople([...people])};
  return <main className="shell" dir="rtl">
-  <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><p className="nav-label">مساحة العمل</p><nav>{nav.map(([id,label,icon,badge])=><button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i>{icon}</i>{label}{badge&&<em>{badge}</em>}</button>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
+  <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><nav>{navGroups.map(group=><section className="nav-group" key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(([id,label,icon,badge])=><button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i>{icon}</i>{label}{badge&&<em>{badge}</em>}</button>)}</section>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
   <section className="main"><header className="topbar"><b className="mobile-logo">سلوكيرا</b><label><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن عميل، رقم طلب أو برنامج..."/></label><button className="bell">♢<i/></button><button className="primary" onClick={()=>setView("new")}>＋ تسجيل جديد</button></header><div className="content"><header className="heading"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><span>اليوم · 21 يوليو 2026</span></header>
    {view==="dashboard"&&<Dashboard open={open}/>} {view==="work"&&<Work/>} {view==="customers"&&<Customers list={list} open={open}/>} {view==="academy"&&<Academy open={open}/>} {view==="finance"&&<Finance open={open}/>} {view==="reports"&&<Reports/>} {view==="new"&&<Registration done={()=>setView("customers")}/>} 
   </div></section>
-  {panel&&<><div className="overlay" onClick={()=>setPanel(false)}/><aside className="drawer"><button className="close" onClick={()=>setPanel(false)}>×</button><div className="person"><i>{selected.name.slice(0,2)}</i><div><h2>{selected.name}</h2><p>{selected.id} · {selected.phone}</p></div></div><div className="actions"><button>واتساب</button><button>اتصال</button><button>تعديل</button></div><Section title="التسجيل الحالي"><div className="info"><label>البرنامج<b>{selected.program}</b></label><label>المسار<b>{selected.track}</b></label><label>قناة الشراء<b>{selected.source}</b></label><label>المسؤول<b>{selected.owner}</b></label></div></Section><Section title="حالة الأكاديمية"><div className={`status ${selected.tone}`}><b>{selected.state}</b><span>{selected.due}</span></div></Section><Section title="الملخص المالي"><div className="money"><p>قيمة الطلب<b>{selected.total.toLocaleString()} ر.س</b></p><p>المحصل<b>{selected.paid.toLocaleString()} ر.س</b></p></div><div className="progress"><i style={{width:`${selected.paid/selected.total*100}%`}}/></div></Section><Section title="آخر النشاطات"><div className="timeline"><p>تم تحديث حالة التسجيل<small>اليوم، 10:42 · {selected.owner}</small></p><p>تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small></p></div></Section></aside></>}
+  {panel&&<><div className="overlay" onClick={()=>setPanel(false)}/><aside className="drawer"><button className="close" onClick={()=>setPanel(false)}>×</button><div className="person"><i>{selected.name.slice(0,2)}</i><div><h2>{selected.name}</h2><p>{selected.id} · {selected.phone}</p></div></div><div className="actions"><button>واتساب</button><button>اتصال</button><button>تعديل</button></div><Section title="التسجيل الحالي"><div className="info"><label>البرنامج<b>{selected.program}</b></label><label>المسار<b>{selected.track}</b></label><label>قناة الشراء<b>{selected.source}</b></label><label>المسؤول<b>{selected.owner}</b></label></div></Section><Section title="حالة الأكاديمية"><div className={`status ${selected.tone}`}><b>{selected.state}</b><span>{selected.due}</span></div><div className="workflow-actions"><button className={selected.state==="تم التواصل"?"current":""} onClick={()=>updateWorkflow("تم التواصل","violet","بانتظار إكمال التسجيل")}>✓ تم التواصل</button><button className={selected.state==="بانتظار الإسناد"?"current":""} onClick={()=>updateWorkflow("بانتظار الإسناد","blue","جاهز لإسناد المقررات")}>✓ اكتمل التسجيل</button><button className={selected.state==="مكتمل"?"current":""} onClick={()=>updateWorkflow("مكتمل","green","تم الإسناد والتحقق من الدخول")}>✓ تم الإسناد</button></div><p className="workflow-help">اختاري الإجراء الذي تم فعلياً، وستنتقل البطاقة إلى حالتها الجديدة.</p></Section><Section title="الملخص المالي"><div className="money"><p>قيمة الطلب<b>{selected.total.toLocaleString()} ر.س</b></p><p>المحصل<b>{selected.paid.toLocaleString()} ر.س</b></p></div><div className="progress"><i style={{width:`${selected.paid/selected.total*100}%`}}/></div></Section><Section title="آخر النشاطات"><div className="timeline"><p>تم تحديث حالة التسجيل<small>الآن · {selected.owner}</small></p><p>تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small></p></div></Section></aside></>}
  </main>
 }
 
