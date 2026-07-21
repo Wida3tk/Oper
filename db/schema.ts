@@ -89,6 +89,28 @@ export const payments = sqliteTable("payments", {
   createdAt: text("created_at").notNull(),
 }, (table) => [index("payments_order_idx").on(table.orderId), index("payments_status_idx").on(table.status)]);
 
+// Captures money evidence before a customer/order exists. Finance approval is
+// the admission event that promotes the prospect and creates durable records.
+export const paymentIntents = sqliteTable("payment_intents", {
+  id: text("id").primaryKey(),
+  prospectId: text("prospect_id").notNull().references(() => prospects.id),
+  programId: text("program_id").notNull().references(() => programs.id),
+  purchaseType: text("purchase_type").notNull().default("برنامج"),
+  amount: real("amount").notNull(),
+  method: text("method").notNull(),
+  reference: text("reference"),
+  proofAssetKey: text("proof_asset_key"),
+  status: text("status").notNull().default("بانتظار المالية"),
+  reviewedByFinanceEmail: text("reviewed_by_finance_email"),
+  reviewedAt: text("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+  resultingCustomerId: text("resulting_customer_id").references(() => customers.id),
+  resultingOrderId: text("resulting_order_id").references(() => orders.id),
+  createdByEmail: text("created_by_email").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [index("payment_intents_prospect_idx").on(table.prospectId), index("payment_intents_status_idx").on(table.status)]);
+
 export const paymentReviews = sqliteTable("payment_reviews", {
   id: text("id").primaryKey(),
   paymentId: text("payment_id").notNull().references(() => payments.id),
@@ -117,6 +139,8 @@ export const reservationTransfers = sqliteTable("reservation_transfers", {
   id: text("id").primaryKey(),
   fromReservationId: text("from_reservation_id").notNull().references(() => seatReservations.id),
   toReservationId: text("to_reservation_id").references(() => seatReservations.id),
+  targetProgramId: text("target_program_id").notNull().references(() => programs.id),
+  targetCohortLabel: text("target_cohort_label"),
   status: text("status").notNull().default("بانتظار المالية"),
   requestedByEmail: text("requested_by_email").notNull(),
   requestedAt: text("requested_at").notNull(),
@@ -157,6 +181,16 @@ export const workflowTasks = sqliteTable("workflow_tasks", {
   createdAt: text("created_at").notNull(),
   completedAt: text("completed_at"),
 }, (table) => [index("workflow_tasks_entity_idx").on(table.entityType, table.entityId), index("workflow_tasks_assignee_idx").on(table.assigneeEmail, table.status)]);
+
+export const staffRoles = sqliteTable("staff_roles", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  role: text("role").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  grantedByEmail: text("granted_by_email").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [uniqueIndex("staff_roles_email_role_uq").on(table.email, table.role), index("staff_roles_email_idx").on(table.email)]);
 
 // Kept while the current UI is migrated to workflow_tasks.
 export const tasks = sqliteTable("tasks", {

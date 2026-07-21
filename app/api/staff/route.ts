@@ -1,0 +1,7 @@
+import { authorize, id, operationalDb } from "../_lib/operations";
+
+export const dynamic="force-dynamic";
+const validRoles=["admin","sales","finance","academy","viewer"];
+
+export async function GET(req:Request){const auth=await authorize(req,[]);if(!auth.ok)return auth.response;const {results}=await operationalDb().prepare("SELECT email,role,active,created_at FROM staff_roles ORDER BY email,role").all();return Response.json({staff:results})}
+export async function POST(req:Request){const auth=await authorize(req,[]);if(!auth.ok)return auth.response;const body=await req.json() as Record<string,unknown>,email=String(body.email||"").trim().toLowerCase(),role=String(body.role||""),active=body.active!==false;if(!email||!validRoles.includes(role))return Response.json({error:"البريد أو الدور غير صالح"},{status:400});const db=operationalDb(),now=new Date().toISOString();await db.batch([db.prepare("INSERT INTO staff_roles(id,email,role,active,granted_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(email,role) DO UPDATE SET active=excluded.active,granted_by_email=excluded.granted_by_email,updated_at=excluded.updated_at").bind(id("ROL"),email,role,active?1:0,auth.email,now,now),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_STAFF_ROLE','staff_role',?,?,?)").bind(id("AUD"),auth.email,`${email}:${role}`,JSON.stringify({active}),now)]);return Response.json({ok:true,email,role,active})}
