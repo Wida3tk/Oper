@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     db.prepare("SELECT COUNT(*) count,COALESCE(SUM(amount),0) amount FROM payments WHERE substr(created_at,1,10)=?").bind(today).first<{count:number;amount:number}>(),
     db.prepare("SELECT COUNT(*) count FROM enrollments WHERE status!='مكتمل'").first<{count:number}>(),
   ]);
-  const localName = auth.email.split("@")[0].replace(/[._-]+/g, " ");
-  const name = localName.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const account=await db.prepare("SELECT display_name FROM staff_accounts WHERE email=?").bind(auth.email).first<{display_name:string}>();
+  const name = account?.display_name || auth.email.split("@")[0].replace(/[._-]+/g, " ");
   return Response.json({ user: { email: auth.email, name, roles: auth.roles }, today, stats: { tasks: tasks.results.length, customers: Number(customers?.count||0), payments: canSeeFinance?Number(payments?.count||0):0, paymentAmount: canSeeFinance?Number(payments?.amount||0):0, enrollments: Number(enrollments?.count||0) }, tasks: tasks.results, canSeeFinance });
 }
