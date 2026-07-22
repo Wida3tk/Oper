@@ -3,7 +3,7 @@ import { authorize, id, operationalDb } from "../_lib/operations";
 export const dynamic="force-dynamic";
 const validRoles=["admin","sales","finance","academy","viewer"],validPermissions=["customers.view","customers.manage","reservations.manage","programs.activate","finance.view","finance.total.edit","finance.installments.manage","finance.payments.record","reports.view","users.manage"];
 const enc=new TextEncoder(),hex=(b:ArrayBuffer)=>Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("");
-async function hashPassword(password:string,salt:string){const key=await crypto.subtle.importKey("raw",enc.encode(password),"PBKDF2",false,["deriveBits"]);return hex(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:enc.encode(salt),iterations:210000},key,256))}
+async function hashPassword(password:string,salt:string){const key=await crypto.subtle.importKey("raw",enc.encode(password),"PBKDF2",false,["deriveBits"]);return hex(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:enc.encode(salt),iterations:25000},key,256))}
 const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x.toString(16).padStart(2,"0")).join("");
 
 export async function GET(req:Request){const auth=await authorize(req,[]);if(!auth.ok)return auth.response;const {results}=await operationalDb().prepare("SELECT r.email,r.role,r.active,r.created_at,a.permissions,CASE WHEN a.email IS NULL THEN 0 ELSE 1 END has_password FROM staff_roles r LEFT JOIN staff_accounts a ON a.email=r.email ORDER BY r.email,r.role").all();return Response.json({staff:results,permissionOptions:validPermissions})}
