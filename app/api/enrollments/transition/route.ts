@@ -15,12 +15,12 @@ export async function POST(req:Request){
   const auth=await authorize(req,["academy"]);if(!auth.ok)return auth.response;
   const body=await req.json() as Record<string,unknown>, enrollmentId=String(body.enrollmentId||""), action=String(body.action||"");
   const transition=transitions[action];if(!transition)return Response.json({error:"الانتقال غير صالح"},{status:400});
-  const db=operationalDb();const enrollment=await db.prepare("SELECT status FROM enrollments WHERE id=?").bind(enrollmentId).first<{status:string}>();
+  const db=operationalDb();const enrollment=await db.prepare("SELECT status,order_id FROM enrollments WHERE id=?").bind(enrollmentId).first<{status:string;order_id:string}>();
   if(!enrollment)return Response.json({error:"التسجيل غير موجود"},{status:404});
   if(!transition.from.includes(enrollment.status))return Response.json({error:`لا يمكن تنفيذ الإجراء من حالة ${enrollment.status}`},{status:409});
   const now=new Date().toISOString(), column=transition.column?`,${transition.column}=?`:"";
   const update=transition.column?db.prepare(`UPDATE enrollments SET status=?,updated_at=?${column} WHERE id=?`).bind(transition.to,now,now,enrollmentId):db.prepare("UPDATE enrollments SET status=?,updated_at=? WHERE id=?").bind(transition.to,now,enrollmentId);
-  const statements=[update,db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='enrollment' AND entity_id=? AND status!='مكتملة'").bind(now,enrollmentId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'ENROLLMENT_TRANSITION','enrollment',?,?,?)").bind(id("AUD"),auth.email,enrollmentId,JSON.stringify({from:enrollment.status,to:transition.to,action}),now)];
+  const statements=[update,db.prepare("UPDATE orders SET academy_status=?,updated_at=? WHERE id=?").bind(transition.to,now,enrollment.order_id),db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='enrollment' AND entity_id=? AND status!='مكتملة'").bind(now,enrollmentId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'ENROLLMENT_TRANSITION','enrollment',?,?,?)").bind(id("AUD"),auth.email,enrollmentId,JSON.stringify({from:enrollment.status,to:transition.to,action}),now)];
   if(transition.next)statements.splice(1,0,db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'الأكاديمية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,transition.next,auth.email,now));
   await db.batch(statements);return Response.json({ok:true,status:transition.to});
 }
