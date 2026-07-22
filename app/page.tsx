@@ -123,14 +123,15 @@ function LiveWork(){
  return <div className="board">{groups.map(priority=><section key={priority}><header><b>{priority}</b><span>{rows.filter(x=>x.priority===priority).length}</span></header>{rows.filter(x=>x.priority===priority).map(t=><article key={t.id}><em className={priority==="عاجلة"?"red":priority==="عالية"?"amber":"blue"}>{t.department}</em><h3>{t.title}</h3><p>{t.assignee_email||"غير مسندة"}</p><footer>{t.due_at?new Date(t.due_at).toLocaleDateString("ar-SA"):"دون موعد"}<button className="link" onClick={()=>act(t.id,"complete")}>إكمال</button><button className="link" onClick={()=>act(t.id,"assign")}>إسناد لي</button></footer></article>)}</section>)}</div>
 }
 
-const enrollmentSteps:Record<string,[string,string]>={"جديد":["contacted","تم التواصل"],"تم التواصل":["registered","إكمال التسجيل"],"اكتمل التسجيل":["account_created","إنشاء الحساب"],"تم إنشاء الحساب":["assigned","تم الإسناد"],"تم الإسناد":["access_verified","تأكيد الدخول"],"نشط":["completed","إكمال البرنامج"]};
+const enrollmentSteps:Record<string,[string,string]>={"جديد":["contacted","تأكيد التواصل"],"تم التواصل":["registered","إكمال التسجيل"],"اكتمل التسجيل":["assigned","تأكيد الإسناد"],"تم إنشاء الحساب":["assigned","تأكيد الإسناد"],"تم الإسناد":["completed","إكمال البرنامج"],"نشط":["completed","إكمال البرنامج"]};
 function LiveAcademy(){
  const[rows,setRows]=useState<LiveEnrollment[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const load=async()=>{setLoading(true);setError("");try{setRows((await apiJson("/api/enrollments")).enrollments||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
  const advance=async(row:LiveEnrollment)=>{const step=enrollmentSteps[row.status];if(!step)return;try{await apiJson("/api/enrollments/transition",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.id,action:step[0]})});await load()}catch(e){setError((e as Error).message)}};
- const states=["جديد","تم التواصل","اكتمل التسجيل","تم إنشاء الحساب","تم الإسناد","نشط","مكتمل"];
+ const displayState=(status:string)=>status==="تم إنشاء الحساب"?"اكتمل التسجيل":status==="نشط"?"تم الإسناد":status;
+ const states=["جديد","تم التواصل","اكتمل التسجيل","تم الإسناد","مكتمل"];
  if(loading||error||!rows.length)return <LiveState loading={loading} error={error} empty={!rows.length}/>;
- return <div className="kanban live-kanban">{states.map(state=><section key={state}><header><b>{state}</b><span>{rows.filter(x=>x.status===state).length}</span></header>{rows.filter(x=>x.status===state).map(row=><article key={row.id}><b>{row.customer_name}</b><small>{row.id}</small><p>{row.program_name}</p><em>{row.phone}</em><footer><span>{row.order_id}</span>{enrollmentSteps[row.status]&&<button className="link" onClick={()=>advance(row)}>{enrollmentSteps[row.status][1]}</button>}</footer></article>)}</section>)}</div>
+ return <div className="kanban live-kanban simplified">{states.map(state=><section key={state}><header><b>{state}</b><span>{rows.filter(x=>displayState(x.status)===state).length}</span></header>{rows.filter(x=>displayState(x.status)===state).map(row=><article key={row.id}><b>{row.customer_name}</b><small>{row.id}</small><p>{row.program_name}</p><em>{row.phone}</em><footer><span>{row.order_id}</span>{enrollmentSteps[row.status]&&<button className="academy-action" onClick={()=>advance(row)}>{enrollmentSteps[row.status][1]}</button>}</footer></article>)}</section>)}</div>
 }
 
 function Reservations(){

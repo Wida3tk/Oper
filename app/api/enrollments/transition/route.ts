@@ -4,11 +4,11 @@ export const dynamic = "force-dynamic";
 
 const transitions:Record<string,{from:string[],to:string,column?:string,next?:string}>={
   contacted:{from:["جديد"],to:"تم التواصل",next:"استكمال بيانات التسجيل"},
-  registered:{from:["تم التواصل"],to:"اكتمل التسجيل",next:"إنشاء حساب المتعلم"},
+  registered:{from:["تم التواصل"],to:"اكتمل التسجيل",next:"إسناد البرنامج والمقررات"},
   account_created:{from:["اكتمل التسجيل"],to:"تم إنشاء الحساب",column:"account_created_at",next:"إسناد البرنامج والمقررات"},
-  assigned:{from:["تم إنشاء الحساب"],to:"تم الإسناد",column:"assigned_at",next:"التحقق من دخول المتعلم"},
+  assigned:{from:["اكتمل التسجيل","تم إنشاء الحساب"],to:"تم الإسناد",column:"assigned_at",next:"متابعة إكمال البرنامج"},
   access_verified:{from:["تم الإسناد"],to:"نشط",column:"access_verified_at"},
-  completed:{from:["نشط"],to:"مكتمل",column:"completed_at"},
+  completed:{from:["تم الإسناد","نشط"],to:"مكتمل",column:"completed_at"},
 };
 
 export async function POST(req:Request){
