@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const { results } = await operationalDb().prepare(`
     SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,c.created_at,
            o.id order_id,o.program,o.track,o.purchase_source source,o.owner,
-           o.academy_status state,o.status order_status,o.paid,o.total,
+           o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,
            p.name program_name
     FROM customers c
     LEFT JOIN orders o ON o.id=(

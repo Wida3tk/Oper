@@ -72,6 +72,7 @@ export const orders = sqliteTable("orders", {
   owner: text("owner").notNull().default("غير مسند"),
   competency: integer("competency", { mode: "boolean" }).notNull().default(false),
   seatReservation: integer("seat_reservation", { mode: "boolean" }).notNull().default(false),
+  cohortLabel: text("cohort_label"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [index("orders_customer_idx").on(table.customerId), index("orders_program_id_idx").on(table.programId)]);
@@ -150,6 +151,7 @@ export const seatReservations = sqliteTable("seat_reservations", {
   feeAmount: real("fee_amount").notNull(),
   status: text("status").notNull().default("بانتظار الدفع"),
   cohortLabel: text("cohort_label"),
+  startDate: text("start_date"),
   convertedEnrollmentId: text("converted_enrollment_id"),
   confirmedAt: text("confirmed_at"),
   createdAt: text("created_at").notNull(),
