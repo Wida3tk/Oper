@@ -1,13 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { Armchair, BadgeDollarSign, ChartNoAxesCombined, ClipboardCheck, LayoutDashboard, ListChecks, PhoneCall, ShieldCheck, UserRoundCheck, UsersRound, type LucideIcon } from "lucide-react";
 
 type View="dashboard"|"work"|"customers"|"reservations"|"contact"|"registration"|"assignment"|"finance"|"reports"|"users"|"new";
-type NavItem=[View,string,string,number?];
+type NavIcon="dashboard"|"tasks"|"customers"|"contact"|"registration"|"assignment"|"reservations"|"finance"|"users"|"reports";
+type NavItem=[View,string,NavIcon,number?];
+const navIcons:Record<NavIcon,LucideIcon>={dashboard:LayoutDashboard,tasks:ListChecks,customers:UsersRound,contact:PhoneCall,registration:ClipboardCheck,assignment:UserRoundCheck,reservations:Armchair,finance:BadgeDollarSign,users:ShieldCheck,reports:ChartNoAxesCombined};
 const navGroups:{label:string,items:NavItem[]}[]=[
- {label:"الرئيسية",items:[["dashboard","لوحة القيادة","⌂"],["work","عملي اليوم","✓",8]]},
- {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","◎"]]},
- {label:"خطوات العميل",items:[["contact","التواصل","☎"],["registration","التسجيل","✓"],["assignment","الإسناد","⇢"],["reservations","حجوزات المقاعد","▣"]]},
- {label:"الإدارة",items:[["finance","المالية والتحصيل","﷼",3],["users","المستخدمون والصلاحيات","♙"],["reports","التقارير","↗"]]}
+ {label:"الرئيسية",items:[["dashboard","لوحة القيادة","dashboard"],["work","عملي اليوم","tasks",8]]},
+ {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","customers"]]},
+ {label:"خطوات العميل",items:[["contact","التواصل","contact"],["registration","التسجيل","registration"],["assignment","الإسناد","assignment"],["reservations","حجوزات المقاعد","reservations"]]},
+ {label:"الإدارة",items:[["finance","المالية والتحصيل","finance",3],["users","المستخدمون والصلاحيات","users"],["reports","التقارير","reports"]]}
 ];
 const initialPeople=[
  {id:"SLK-2048",name:"سارة محمد",phone:"055 321 9840",program:"تحليل السلوك التطبيقي",track:"ABAT",source:"المتجر",owner:"ليان",state:"بانتظار التسجيل",tone:"amber",due:"متابعة اليوم، 12:30 م",paid:4250,total:6500},
@@ -34,7 +37,7 @@ export default function Home(){
  const updateWorkflow=(state:string,tone:string,due:string)=>{Object.assign(selected,{state,tone,due});setSelected({...selected});setPeople([...people])};
  const openWhatsApp=()=>{const digits=selected.phone.replace(/\D/g,"").replace(/^0/,"966");const message=`مرحباً ${selected.name}، معك فريق سلوكيرا بخصوص تسجيلك في برنامج ${selected.program}. يسعدنا خدمتك واستكمال الإجراء معك.`;window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`,"_blank","noopener,noreferrer")};
  return <main className="shell" dir="rtl">
-  <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><nav>{navGroups.map(group=><section className="nav-group" key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(([id,label,icon,badge])=><button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i>{icon}</i>{label}{badge&&<em>{badge}</em>}</button>)}</section>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
+  <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><nav>{navGroups.map(group=><section className="nav-group" key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(([id,label,icon,badge])=>{const Icon=navIcons[icon];return <button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i><Icon size={17} strokeWidth={1.9}/></i>{label}{badge&&<em>{badge}</em>}</button>})}</section>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
   <section className="main"><header className="topbar"><div className="top-logo"><i>س</i><b>سلوكيرا</b></div><label><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن عميل، رقم طلب أو برنامج..."/></label><button className="bell">♢<i/></button><button className="primary" onClick={()=>setView("new")}>＋ تسجيل جديد</button></header><div className="content"><header className="heading"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><span>اليوم · 21 يوليو 2026</span></header>
    {view==="dashboard"&&<><WelcomeToday onOpenTasks={()=>setView("work")}/><LiveDashboard/></>}
    {view==="work"&&<LiveWork/>}
