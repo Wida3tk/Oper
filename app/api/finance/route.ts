@@ -1,4 +1,4 @@
-import { authorize, id, operationalDb } from "../_lib/operations";
+import { authorize, can, id, operationalDb } from "../_lib/operations";
 
 export const dynamic="force-dynamic";
 const cents=(value:unknown)=>Math.round(Number(value||0)*100);
@@ -6,6 +6,7 @@ const money=(value:number)=>value/100;
 
 export async function GET(req:Request){
  const auth=await authorize(req,["finance","viewer"]);if(!auth.ok)return auth.response;
+ if(!can(auth,"finance.view"))return Response.json({error:"لا تملكين صلاحية عرض المالية"},{status:403});
  const db=operationalDb();
  const [ordersResult,paymentsResult,installmentsResult,notesResult]=await Promise.all([
   db.prepare("SELECT o.id order_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.status order_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id ORDER BY o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
@@ -38,6 +39,7 @@ export async function POST(req:Request){
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
  const paidRow=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=?").bind(orderId).first<{paid:number}>(),paidCents=cents(paidRow?.paid);
  if(action==="schedule"){
+  if(!can(auth,"finance.total.edit")||!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية تعديل الإجمالي والأقساط"},{status:403});
   const totalCents=cents(body.total),count=Math.floor(Number(body.count||0)),start=String(body.start||"");
   if(totalCents<paidCents)return Response.json({error:"إجمالي العقد لا يمكن أن يكون أقل من الدفعات المسجلة"},{status:400});
   if(count<1||count>36||!/^\d{4}-\d{2}-\d{2}$/.test(start))return Response.json({error:"عدد الأقساط وتاريخ البداية مطلوبان"},{status:400});
@@ -49,6 +51,7 @@ export async function POST(req:Request){
   await db.batch(statements);return Response.json({ok:true});
  }
  if(action==="pay_installment"){
+  if(!can(auth,"finance.payments.record"))return Response.json({error:"لا تملكين صلاحية تسجيل الدفعات والمراجع"},{status:403});
   const installmentId=String(body.installmentId||""),method=String(body.method||"").trim(),reference=String(body.reference||"").trim();
   const installment=await db.prepare("SELECT id,amount_cents,status FROM installments WHERE id=? AND order_id=?").bind(installmentId,orderId).first<{id:string,amount_cents:number,status:string}>();
   if(!installment||installment.status==="مدفوع")return Response.json({error:"القسط غير متاح للسداد"},{status:409});
@@ -59,6 +62,7 @@ export async function POST(req:Request){
   return Response.json({ok:true});
  }
  if(action==="installment_status"){
+  if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");
   if(!["قادم","تذكير أول","تذكير ثانٍ","تذكير ثالث","متأخر","إنذار","تطبيق السياسة"].includes(status))return Response.json({error:"حالة القسط غير صالحة"},{status:400});
   await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});

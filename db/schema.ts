@@ -216,6 +216,13 @@ export const staffRoles = sqliteTable("staff_roles", {
   updatedAt: text("updated_at").notNull(),
 }, (table) => [uniqueIndex("staff_roles_email_role_uq").on(table.email, table.role), index("staff_roles_email_idx").on(table.email)]);
 
+export const staffAccounts = sqliteTable("staff_accounts", {
+  email: text("email").primaryKey(), passwordHash: text("password_hash").notNull(), passwordSalt: text("password_salt").notNull(), permissions: text("permissions").notNull().default("[]"), active: integer("active", { mode: "boolean" }).notNull().default(true), createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
+});
+export const staffSessions = sqliteTable("staff_sessions", {
+  id: text("id").primaryKey(), email: text("email").notNull().references(() => staffAccounts.email, { onDelete: "cascade", onUpdate: "cascade" }), tokenHash: text("token_hash").notNull(), expiresAt: text("expires_at").notNull(), createdAt: text("created_at").notNull(),
+}, (table) => [uniqueIndex("staff_sessions_token_uq").on(table.tokenHash), index("staff_sessions_email_idx").on(table.email)]);
+
 // Kept while the current UI is migrated to workflow_tasks.
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
