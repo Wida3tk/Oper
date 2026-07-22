@@ -89,6 +89,27 @@ export const payments = sqliteTable("payments", {
   createdAt: text("created_at").notNull(),
 }, (table) => [index("payments_order_idx").on(table.orderId), index("payments_status_idx").on(table.status)]);
 
+export const installments = sqliteTable("installments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  dueDate: text("due_date").notNull(),
+  status: text("status").notNull().default("قادم"),
+  paidPaymentId: text("paid_payment_id").references(() => payments.id, { onDelete: "set null" }),
+  paidAt: text("paid_at"),
+  reference: text("reference"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [uniqueIndex("installments_order_sequence_uq").on(table.orderId, table.sequence), index("installments_due_status_idx").on(table.dueDate, table.status)]);
+
+export const financeNotes = sqliteTable("finance_notes", {
+  orderId: text("order_id").primaryKey().references(() => orders.id, { onDelete: "cascade" }),
+  note: text("note").notNull().default(""),
+  updatedByEmail: text("updated_by_email").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 // Captures money evidence before a customer/order exists. Finance approval is
 // the admission event that promotes the prospect and creates durable records.
 export const paymentIntents = sqliteTable("payment_intents", {
