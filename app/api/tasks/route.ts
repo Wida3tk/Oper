@@ -7,11 +7,12 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response;
   const db = operationalDb();
   const mine = new URL(req.url).searchParams.get("mine") === "1";
+  const details="SELECT t.*,(CASE WHEN t.entity_type='enrollment' THEN (SELECT c.name FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT c.name FROM payments p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id WHERE p.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT c.name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id WHERE r.id=t.entity_id) END) customer_name,(CASE WHEN t.entity_type='enrollment' THEN (SELECT pr.name FROM enrollments e JOIN programs pr ON pr.id=e.program_id WHERE e.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT pr.name FROM payments p JOIN orders o ON o.id=p.order_id LEFT JOIN programs pr ON pr.id=o.program_id WHERE p.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT pr.name FROM seat_reservations r JOIN programs pr ON pr.id=r.program_id WHERE r.id=t.entity_id) END) program_name FROM workflow_tasks t";
   const query = mine
-    ? db.prepare("SELECT * FROM workflow_tasks WHERE assignee_email=? AND status!='مكتملة' ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at").bind(auth.email)
-    : db.prepare("SELECT * FROM workflow_tasks WHERE status!='مكتملة' ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at LIMIT 200");
-  const { results } = await query.all();
-  return Response.json({ tasks: results });
+    ? db.prepare(`${details} WHERE t.assignee_email=? AND t.status!='مكتملة' ORDER BY CASE t.priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,t.due_at`).bind(auth.email)
+    : db.prepare(`${details} WHERE t.status!='مكتملة' ORDER BY CASE t.priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,t.due_at LIMIT 200`);
+  const [{ results },completed]=await Promise.all([query.all(),db.prepare(`${details} WHERE t.status='مكتملة' AND date(t.completed_at)=date('now') ORDER BY t.completed_at DESC LIMIT 100`).all()]);
+  return Response.json({ tasks: results, completedToday: completed.results, counts:{open:results.length,completedToday:completed.results.length} });
 }
 
 export async function POST(req: Request) {
