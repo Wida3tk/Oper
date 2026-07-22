@@ -10,7 +10,13 @@ export function operationalDb() {
 }
 
 export function actorEmail(req: Request) {
-  return (req.headers.get("oai-authenticated-user-email") || "").trim().toLowerCase();
+  const host = new URL(req.url).hostname.toLowerCase();
+  const cloudflareIdentity = req.headers.get("cf-access-authenticated-user-email");
+  const openAiIdentity = req.headers.get("oai-authenticated-user-email");
+  // workers.dev is protected by Cloudflare Access. Never trust the OpenAI
+  // identity header there because a public caller could forge it.
+  const email = host.endsWith(".workers.dev") ? cloudflareIdentity : (cloudflareIdentity || openAiIdentity);
+  return (email || "").trim().toLowerCase();
 }
 
 export async function authorize(req: Request, allowed: StaffRole[]) {

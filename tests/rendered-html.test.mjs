@@ -6,9 +6,12 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("protects customer data with team authorization", async () => {
   const source = await read("../app/api/customers/route.ts");
+  const auth = await read("../app/api/_lib/operations.ts");
   assert.match(source, /authorize\(req, \["sales", "finance", "academy", "viewer"\]\)/);
   assert.match(source, /viewerOnly/);
   assert.match(source, /phone: null, email: null/);
+  assert.match(auth, /cf-access-authenticated-user-email/);
+  assert.match(auth, /host\.endsWith\("\.workers\.dev"\) \? cloudflareIdentity/);
 });
 
 test("records payments and updates the order balance", async () => {
