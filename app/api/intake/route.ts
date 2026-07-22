@@ -18,6 +18,9 @@ export async function POST(req: Request) {
   const { name, phone, email } = cleanContact(body);
   const programId = String(body.programId || "");
   if (!name || !phone || !email || !programId) return Response.json({ error: "الاسم والجوال والبريد والبرنامج مطلوبة" }, { status: 400 });
+  const track=String(body.track||"").trim(),delivery=String(body.delivery||"").trim(),language=String(body.language||"").trim(),cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim();
+  if(!delivery||!language)return Response.json({error:"نمط البرنامج واللغة مطلوبان"},{status:400});
+  if(delivery==="مباشر"&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء مطلوبان للبرنامج المباشر"},{status:400});
   const db = operationalDb();
   const program = await db.prepare("SELECT id,name,default_trial_days trial_days FROM programs WHERE id=? AND active=1").bind(programId).first<{ id: string; name: string; trial_days: number }>();
   if (!program) return Response.json({ error: "البرنامج غير متاح" }, { status: 404 });
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":"مسجل",intentId,now,now));
   statements.push(
-    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,created_at,updated_at) VALUES(?,?,?,?,?,'غير محدد','غير محدد','العربية',?,'دفع كامل',?,?,'مدفوع',?,'غير مسند',?,?)").bind(orderId,customerId,purchaseType,programId,program.name,String(body.source||"طلب أولي"),amount,amount,isReservation?"غير مطبق":"جديد",now,now),
+    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'دفع كامل',?,?,'مدفوع',?,'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),amount,amount,isReservation?"غير مطبق":"جديد",delivery==="مباشر"?cohort:null,delivery==="مباشر"?startDate:null,now,now),
     db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),String(body.proofAssetKey||""),now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),String(body.proofAssetKey||""),"مسجلة",customerId,orderId,auth.email,now,now),
     db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)

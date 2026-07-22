@@ -73,6 +73,7 @@ export const orders = sqliteTable("orders", {
   competency: integer("competency", { mode: "boolean" }).notNull().default(false),
   seatReservation: integer("seat_reservation", { mode: "boolean" }).notNull().default(false),
   cohortLabel: text("cohort_label"),
+  scheduledStartDate: text("scheduled_start_date"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [index("orders_customer_idx").on(table.customerId), index("orders_program_id_idx").on(table.programId)]);
