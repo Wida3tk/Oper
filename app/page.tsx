@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-type View="dashboard"|"work"|"customers"|"reservations"|"academy"|"finance"|"reports"|"new";
+type View="dashboard"|"work"|"customers"|"reservations"|"contact"|"registration"|"assignment"|"finance"|"reports"|"users"|"new";
 type NavItem=[View,string,string,number?];
 const navGroups:{label:string,items:NavItem[]}[]=[
  {label:"الرئيسية",items:[["dashboard","لوحة القيادة","⌂"],["work","عملي اليوم","✓",8]]},
  {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","◎"]]},
- {label:"العمليات",items:[["reservations","حجوزات المقاعد","▣"],["academy","عمليات الأكاديمية","◫",5],["finance","المالية والتحصيل","﷼",3]]},
- {label:"التحليلات",items:[["reports","التقارير","↗"]]}
+ {label:"خطوات العميل",items:[["contact","التواصل","☎"],["registration","التسجيل","✓"],["assignment","الإسناد","⇢"],["reservations","حجوزات المقاعد","▣"]]},
+ {label:"الإدارة",items:[["finance","المالية والتحصيل","﷼",3],["users","المستخدمون والصلاحيات","♙"],["reports","التقارير","↗"]]}
 ];
 const initialPeople=[
  {id:"SLK-2048",name:"سارة محمد",phone:"055 321 9840",program:"تحليل السلوك التطبيقي",track:"ABAT",source:"المتجر",owner:"ليان",state:"بانتظار التسجيل",tone:"amber",due:"متابعة اليوم، 12:30 م",paid:4250,total:6500},
@@ -25,26 +25,30 @@ const tasks=[
  ["12:30","إسناد مقررات برنامج OBM","عمر خالد · الدفعة 18","إسناد","blue"],
  ["14:00","مراجعة طلب جديد من المتجر","نجلاء صالح · SLK-2049","مبيعات","violet"]
 ];
-const titles:Record<View,[string,string]>={dashboard:["صباح الخير، أحمد","هذه صورة العمل الحية ليوم الثلاثاء 21 يوليو"],work:["عملي اليوم","الأولويات والمتابعات المسندة إليك"],customers:["العملاء والتسجيلات","ملف موحد لكل عميل وجميع تسجيلاته"],reservations:["حجوزات المقاعد","الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل"],academy:["عمليات الأكاديمية","من الاستلام حتى التحقق من دخول المتعلم"],finance:["المالية والتحصيل","مطابقة الدفعات وتنظيمها دون تعطيل رحلة العميل"],reports:["التقارير الإدارية","مؤشرات الأداء وجودة العمليات"],new:["تسجيل عميل جديد","سجّل الطلب مرة واحدة وسيُنشئ النظام إجراءات الأقسام تلقائياً"]};
+const titles:Record<View,[string,string]>={dashboard:["صباح الخير، أحمد","هذه صورة العمل الحية ليوم الثلاثاء 21 يوليو"],work:["عملي اليوم","الأولويات والمتابعات المسندة إليك"],customers:["العملاء والتسجيلات","ملف موحد لكل عميل وجميع تسجيلاته"],reservations:["حجوزات المقاعد","الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل"],contact:["التواصل مع العملاء","العملاء الجدد المطلوب التواصل معهم"],registration:["استكمال التسجيل","العملاء الذين تم التواصل معهم وينتظرون إكمال التسجيل"],assignment:["الإسناد","التسجيلات الجاهزة لإسناد البرنامج والمقررات"],finance:["المالية والتحصيل","مطابقة الدفعات وتنظيمها دون تعطيل رحلة العميل"],reports:["التقارير الإدارية","مؤشرات الأداء وجودة العمليات"],users:["المستخدمون والصلاحيات","إضافة أعضاء الفريق وتحديد صلاحية كل مستخدم"],new:["تسجيل عميل جديد","سجّل الطلب مرة واحدة وسيُنشئ النظام إجراءات الأقسام تلقائياً"]};
 
 export default function Home(){
  const[view,setView]=useState<View>("dashboard"),[query,setQuery]=useState(""),[people,setPeople]=useState(initialPeople),[selected,setSelected]=useState(initialPeople[0]),[panel,setPanel]=useState(false);
  const list=useMemo(()=>people.filter(p=>`${p.name} ${p.id} ${p.program}`.includes(query)),[query]);
  const open=(p:typeof initialPeople[number])=>{setSelected(p);setPanel(true)};
  const updateWorkflow=(state:string,tone:string,due:string)=>{Object.assign(selected,{state,tone,due});setSelected({...selected});setPeople([...people])};
+ const openWhatsApp=()=>{const digits=selected.phone.replace(/\D/g,"").replace(/^0/,"966");const message=`مرحباً ${selected.name}، معك فريق سلوكيرا بخصوص تسجيلك في برنامج ${selected.program}. يسعدنا خدمتك واستكمال الإجراء معك.`;window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`,"_blank","noopener,noreferrer")};
  return <main className="shell" dir="rtl">
   <aside className="sidebar"><div className="brand"><i>س</i><div><b>سلوكيرا</b><span>مركز العمليات</span></div></div><div className="workspace"><i/><div><b>بيئة العمل</b><span>متصل وآمن</span></div><em>⌄</em></div><nav>{navGroups.map(group=><section className="nav-group" key={group.label}><p className="nav-label">{group.label}</p>{group.items.map(([id,label,icon,badge])=><button key={id} className={view===id?"active":""} onClick={()=>setView(id)}><i>{icon}</i>{label}{badge&&<em>{badge}</em>}</button>)}</section>)}</nav><div className="health"><span>سلامة النظام</span><b>كل الأنظمة تعمل</b><strong>99.9%</strong><i><u/></i></div><div className="profile"><i>أع</i><div><b>أحمد العلي</b><span>مدير النظام</span></div><button>⋯</button></div></aside>
-  <section className="main"><header className="topbar"><b className="mobile-logo">سلوكيرا</b><label><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن عميل، رقم طلب أو برنامج..."/></label><button className="bell">♢<i/></button><button className="primary" onClick={()=>setView("new")}>＋ تسجيل جديد</button></header><div className="content"><header className="heading"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><span>اليوم · 21 يوليو 2026</span></header>
+  <section className="main"><header className="topbar"><div className="top-logo"><i>س</i><b>سلوكيرا</b></div><label><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن عميل، رقم طلب أو برنامج..."/></label><button className="bell">♢<i/></button><button className="primary" onClick={()=>setView("new")}>＋ تسجيل جديد</button></header><div className="content"><header className="heading"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><span>اليوم · 21 يوليو 2026</span></header>
    {view==="dashboard"&&<LiveDashboard/>}
    {view==="work"&&<LiveWork/>}
    {view==="customers"&&<LiveCustomers query={query} open={open}/>}
    {view==="reservations"&&<Reservations/>}
-   {view==="academy"&&<LiveAcademy/>}
+   {view==="contact"&&<LiveAcademy focus="contact"/>}
+   {view==="registration"&&<LiveAcademy focus="registration"/>}
+   {view==="assignment"&&<LiveAcademy focus="assignment"/>}
    {view==="finance"&&<LiveFinance/>}
    {view==="reports"&&<LiveReports/>}
+   {view==="users"&&<Users/>}
    {view==="new"&&<Registration done={()=>setView("customers")}/>} 
   </div></section>
-  {panel&&<><div className="overlay" onClick={()=>setPanel(false)}/><aside className="drawer"><button className="close" onClick={()=>setPanel(false)}>×</button><div className="person"><i>{selected.name.slice(0,2)}</i><div><h2>{selected.name}</h2><p>{selected.id} · {selected.phone}</p></div></div><div className="actions"><button>واتساب</button><button>اتصال</button><button>تعديل</button></div><Section title="التسجيل الحالي"><div className="info"><label>البرنامج<b>{selected.program}</b></label><label>المسار<b>{selected.track}</b></label><label>قناة الشراء<b>{selected.source}</b></label><label>المسؤول<b>{selected.owner}</b></label></div></Section><Section title="حالة الأكاديمية"><div className={`status ${selected.tone}`}><b>{selected.state}</b><span>{selected.due}</span></div><div className="workflow-actions"><button className={selected.state==="تم التواصل"?"current":""} onClick={()=>updateWorkflow("تم التواصل","violet","بانتظار إكمال التسجيل")}>✓ تم التواصل</button><button className={selected.state==="بانتظار الإسناد"?"current":""} onClick={()=>updateWorkflow("بانتظار الإسناد","blue","جاهز لإسناد المقررات")}>✓ اكتمل التسجيل</button><button className={selected.state==="مكتمل"?"current":""} onClick={()=>updateWorkflow("مكتمل","green","تم الإسناد والتحقق من الدخول")}>✓ تم الإسناد</button></div><p className="workflow-help">اختاري الإجراء الذي تم فعلياً، وستنتقل البطاقة إلى حالتها الجديدة.</p></Section><Section title="الملخص المالي"><div className="money"><p>قيمة الطلب<b>{selected.total.toLocaleString()} ر.س</b></p><p>المحصل<b>{selected.paid.toLocaleString()} ر.س</b></p></div><div className="progress"><i style={{width:`${selected.paid/selected.total*100}%`}}/></div></Section><Section title="آخر النشاطات"><div className="timeline"><p>تم تحديث حالة التسجيل<small>الآن · {selected.owner}</small></p><p>تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small></p></div></Section></aside></>}
+  {panel&&<><div className="overlay" onClick={()=>setPanel(false)}/><aside className="drawer"><button className="close" onClick={()=>setPanel(false)}>×</button><div className="person"><i>{selected.name.slice(0,2)}</i><div><h2>{selected.name}</h2><p>{selected.id} · {selected.phone}</p></div></div><div className="actions"><button className="whatsapp" onClick={openWhatsApp}>واتساب برسالة جاهزة</button><button onClick={()=>window.location.href=`tel:${selected.phone.replace(/\\s/g,"")}`}>اتصال</button></div><Section title="التسجيل الحالي"><div className="info"><label>البرنامج<b>{selected.program}</b></label><label>المسار<b>{selected.track}</b></label><label>قناة الشراء<b>{selected.source}</b></label><label>المسؤول<b>{selected.owner}</b></label></div></Section><Section title="حالة العميل"><div className={`status ${selected.tone}`}><b>{selected.state}</b><span>{selected.due}</span></div><div className="workflow-actions"><button className={selected.state==="تم التواصل"?"current":""} onClick={()=>updateWorkflow("تم التواصل","violet","بانتظار إكمال التسجيل")}>✓ تم التواصل</button><button className={selected.state==="بانتظار الإسناد"?"current":""} onClick={()=>updateWorkflow("بانتظار الإسناد","blue","جاهز لإسناد المقررات")}>✓ اكتمل التسجيل</button><button className={selected.state==="مكتمل"?"current":""} onClick={()=>updateWorkflow("مكتمل","green","تم الإسناد والتحقق من الدخول")}>✓ تم الإسناد</button></div><p className="workflow-help">اختاري الإجراء الذي تم فعلياً، وستنتقل البطاقة إلى حالتها الجديدة.</p></Section><Section title="الملخص المالي"><div className="money"><p>قيمة الطلب<b>{selected.total.toLocaleString()} ر.س</b></p><p>المحصل<b>{selected.paid.toLocaleString()} ر.س</b></p></div><div className="progress"><i style={{width:`${selected.paid/selected.total*100}%`}}/></div></Section><Section title="آخر النشاطات"><div className="timeline"><p>تم تحديث حالة التسجيل<small>الآن · {selected.owner}</small></p><p>تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small></p></div></Section></aside></>}
  </main>
 }
 
@@ -124,14 +128,23 @@ function LiveWork(){
 }
 
 const enrollmentSteps:Record<string,[string,string]>={"جديد":["contacted","تأكيد التواصل"],"تم التواصل":["registered","إكمال التسجيل"],"اكتمل التسجيل":["assigned","تأكيد الإسناد"],"تم إنشاء الحساب":["assigned","تأكيد الإسناد"],"تم الإسناد":["completed","إكمال البرنامج"],"نشط":["completed","إكمال البرنامج"]};
-function LiveAcademy(){
+function LiveAcademy({focus}:{focus:"contact"|"registration"|"assignment"}){
  const[rows,setRows]=useState<LiveEnrollment[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const load=async()=>{setLoading(true);setError("");try{setRows((await apiJson("/api/enrollments")).enrollments||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
  const advance=async(row:LiveEnrollment)=>{const step=enrollmentSteps[row.status];if(!step)return;try{await apiJson("/api/enrollments/transition",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.id,action:step[0]})});await load()}catch(e){setError((e as Error).message)}};
  const displayState=(status:string)=>status==="تم إنشاء الحساب"?"اكتمل التسجيل":status==="نشط"?"تم الإسناد":status;
- const states=["جديد","تم التواصل","اكتمل التسجيل","تم الإسناد","مكتمل"];
+ const states=focus==="contact"?["جديد"]:focus==="registration"?["تم التواصل"]:["اكتمل التسجيل","تم الإسناد","مكتمل"];
  if(loading||error||!rows.length)return <LiveState loading={loading} error={error} empty={!rows.length}/>;
  return <div className="kanban live-kanban simplified">{states.map(state=><section key={state}><header><b>{state}</b><span>{rows.filter(x=>displayState(x.status)===state).length}</span></header>{rows.filter(x=>displayState(x.status)===state).map(row=><article key={row.id}><b>{row.customer_name}</b><small>{row.id}</small><p>{row.program_name}</p><em>{row.phone}</em><footer><span>{row.order_id}</span>{enrollmentSteps[row.status]&&<button className="academy-action" onClick={()=>advance(row)}>{enrollmentSteps[row.status][1]}</button>}</footer></article>)}</section>)}</div>
+}
+
+type StaffRow={email:string;role:string;active:number;created_at:string};
+const roleNames:Record<string,string>={admin:"الإدارة",sales:"المبيعات",finance:"المالية",academy:"الإسناد",viewer:"مشاهدة فقط"};
+function Users(){
+ const[staff,setStaff]=useState<StaffRow[]>([]),[email,setEmail]=useState(""),[role,setRole]=useState("sales"),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saving,setSaving]=useState(false);
+ const load=async()=>{setLoading(true);setError("");try{setStaff((await apiJson("/api/staff")).staff||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
+ const save=async(targetEmail:string,targetRole:string,active=true)=>{setSaving(true);setError("");try{await apiJson("/api/staff",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:targetEmail,role:targetRole,active})});setEmail("");await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
+ return <div className="users-layout"><section className="card user-form"><header><h2>إضافة مستخدم</h2><p>أضيفي بريد الموظف ثم حددي القسم الذي يستطيع التعامل معه.</p></header><label><span>البريد الإلكتروني</span><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com"/></label><label><span>الصلاحية</span><select value={role} onChange={e=>setRole(e.target.value)}>{Object.entries(roleNames).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>{error&&<div className="ops-error compact">{error}</div>}<button className="primary" disabled={saving||!email} onClick={()=>save(email,role)}>{saving?"جارٍ الحفظ...":"إضافة المستخدم"}</button></section><Card title="المستخدمون الحاليون" action="صلاحيات النظام"><LiveState loading={loading} error="" empty={!staff.length}/>{!loading&&staff.length>0&&<div className="table-wrap"><table><thead><tr><th>البريد</th><th>الصلاحية</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{staff.map(row=><tr key={`${row.email}-${row.role}`}><td><b>{row.email}</b></td><td>{roleNames[row.role]||row.role}</td><td><span className={`pill ${row.active?"green":"red"}`}>{row.active?"مفعّل":"موقوف"}</span></td><td><button className="link" disabled={saving} onClick={()=>save(row.email,row.role,!row.active)}>{row.active?"إيقاف الصلاحية":"إعادة التفعيل"}</button></td></tr>)}</tbody></table></div>}</Card></div>
 }
 
 function Reservations(){
