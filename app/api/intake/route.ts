@@ -49,6 +49,11 @@ export async function POST(req: Request) {
 
   const amount = Number(body.amount || 0);
   const method = String(body.method || "تحويل بنكي");
+  const proofAssetKey = String(body.proofAssetKey || "");
+  if (method === "تحويل بنكي") {
+    if (!proofAssetKey.startsWith("data:image/")) return Response.json({error:"صورة التحويل البنكي مطلوبة"},{status:400});
+    if (proofAssetKey.length > 1_500_000) return Response.json({error:"حجم صورة التحويل يتجاوز الحد المسموح"},{status:413});
+  }
   const purchaseType = String(body.purchaseType || "برنامج");
   const isReservation=purchaseType==="حجز مقعد";
   const isScheduled=isReservation||isDirectProgram;
@@ -63,8 +68,8 @@ export async function POST(req: Request) {
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
     db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'دفع كامل',?,?,'مدفوع',?,'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),amount,amount,isScheduled?"غير مطبق":"تم التواصل",isScheduled?cohort:null,isScheduled?startDate:null,now,now),
-    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),String(body.proofAssetKey||""),now),
-    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),String(body.proofAssetKey||""),"مسجلة",customerId,orderId,auth.email,now,now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),proofAssetKey,now),
+    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),proofAssetKey,"مسجلة",customerId,orderId,auth.email,now,now),
     db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)
   );
   if(isScheduled)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,reservation_kind,status,cohort_label,start_date,assignment_date,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,?,'بانتظار الإسناد',?,?,?,?,?,?)").bind(reservationId,customerId,programId,orderId,amount,isReservation?"حجز مقعد":"برنامج مباشر",cohort||null,startDate,assignmentDate,now,now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,due_at,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات',?,'مفتوحة','عادية',?,?,?)").bind(id("TSK"),reservationId,isReservation?"متابعة حجز المقعد حتى تاريخ الإسناد":"متابعة البرنامج المباشر حتى تاريخ الإسناد",assignmentDate,auth.email,now));
