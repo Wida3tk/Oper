@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Armchair, BadgeDollarSign, BookOpenCheck, ChartNoAxesCombined, ClipboardCheck, Copy, LayoutDashboard, ListChecks, LogOut, Mail, Menu, PhoneCall, ShieldCheck, UserRoundCheck, UsersRound, X, type LucideIcon } from "lucide-react";
+import { Armchair, BadgeDollarSign, BookOpenCheck, ChartNoAxesCombined, ClipboardCheck, Copy, DatabaseBackup, Download, LayoutDashboard, ListChecks, LogOut, Mail, Menu, PhoneCall, ShieldCheck, UserRoundCheck, UsersRound, X, type LucideIcon } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
 
 type View="dashboard"|"work"|"customers"|"reservations"|"direct-programs"|"contact"|"registration"|"assignment"|"finance"|"reports"|"users"|"programs"|"new";
@@ -68,7 +68,7 @@ function OperationsApp(){
    {view==="assignment"&&<LiveAcademy focus="assignment"/>}
    {view==="finance"&&<LiveFinance/>}
    {view==="programs"&&<Programs/>}
-   {view==="reports"&&<LiveReports/>}
+   {view==="reports"&&<><BackupCenter/><LiveReports/></>}
    {view==="users"&&<Users/>}
    {view==="new"&&<Registration done={()=>setView("customers")}/>} 
   </div></section>
@@ -150,6 +150,13 @@ function LiveReports(){
  const[data,setData]=useState<OperationsReport|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");useEffect(()=>{apiJson("/api/reports/operations").then(setData).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[]);
  if(loading||error||!data)return <LiveState loading={loading} error={error} empty={!data}/>;const max=Math.max(...data.programs.map(x=>Number(x.enrollment_count)),1),openTasks=data.tasks.filter(x=>x.status!=="مكتملة");
  return <div className="reports"><Card title="التسجيلات حسب البرنامج" action="من قاعدة البيانات"><div className="bars">{data.programs.map(row=><div key={row.program_name}><span>{row.program_name}</span><i><u style={{width:`${Number(row.enrollment_count)/max*100}%`}}/></i><b>{row.enrollment_count}</b></div>)}</div></Card><Card title="كفاءة رحلة التسجيل" action="الوضع الحالي"><div className="metric"><b>{stateCount(data.enrollments,"مكتمل")}</b><span>رحلة مكتملة</span><em>{totalCount(data.enrollments)-stateCount(data.enrollments,"مكتمل")} رحلة قيد العمل</em></div><div className="mini"><p><b>{totalCount(data.trials)}</b>تجارب</p><p><b>{totalCount(data.reservations)}</b>حجوزات</p><p><b>{totalCount(openTasks)}</b>مهام مفتوحة</p></div></Card><Card title="عبء العمل حسب القسم" action="المهام غير المكتملة"><div className="bars">{Array.from(new Set(openTasks.map(x=>x.department||"غير محدد"))).map(dept=>{const count=openTasks.filter(x=>x.department===dept).reduce((s,x)=>s+Number(x.count),0);return <div key={dept}><span>{dept}</span><i><u style={{width:`${Math.min(count*12,100)}%`}}/></i><b>{count}</b></div>})}</div></Card><Card title="ملخص العمليات" action={new Date(data.generatedAt).toLocaleString("ar-SA")}><div className="live-summary"><p><span>العملاء</span><b>{data.customers.count}</b></p><p><span>الطلبات</span><b>{data.orders.count}</b></p><p><span>إجمالي المدفوع</span><b>{Number(data.orders.paid).toLocaleString("ar-SA")} ر.س</b></p></div></Card></div>
+}
+
+function BackupCenter(){
+ const[downloading,setDownloading]=useState(""),[error,setError]=useState("");
+ const categories=[["customers","العملاء","ملفات العملاء والطلبات الأولية"],["sales","المبيعات والمالية","الطلبات والدفعات والأقساط"],["programs","البرامج والتسجيلات","البرامج والتجارب والحجوزات والتسجيلات"],["operations","العمليات","المهام وسجل الإجراءات"],["users","المستخدمون","الحسابات والصلاحيات دون كلمات المرور"]];
+ const download=async(category:string)=>{setDownloading(category);setError("");try{const response=await fetch(`/api/reports/export?category=${category}`);if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||"تعذر إنشاء ملف النسخة الاحتياطية")}const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=`sulukera-${category}-${new Date().toISOString().slice(0,10)}.xlsx`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)}catch(e){setError((e as Error).message)}finally{setDownloading("")}};
+ return <section className="backup-center"><header><div className="backup-icon"><DatabaseBackup size={22}/></div><div><span>النسخ الاحتياطي</span><h2>تصدير بيانات العمليات إلى Excel</h2><p>نزّل نسخة كاملة للحفظ الآمن، أو اختر تصنيفاً محدداً للمراجعة والمشاركة.</p></div><button className="primary backup-all" disabled={Boolean(downloading)} onClick={()=>download("all")}><Download size={17}/>{downloading==="all"?"جارٍ تجهيز النسخة…":"تنزيل قاعدة البيانات كاملة"}</button></header>{error&&<div className="ops-error compact">{error}</div>}<div className="backup-categories">{categories.map(([id,title,description])=><article key={id}><div><b>{title}</b><span>{description}</span></div><button disabled={Boolean(downloading)} onClick={()=>download(id)}><Download size={15}/>{downloading===id?"جارٍ التجهيز…":"تنزيل Excel"}</button></article>)}</div><footer><ShieldCheck size={15}/><span>تتضمن النسخة بيانات العمليات وسجل الإجراءات، ولا تتضمن كلمات المرور أو جلسات الدخول.</span></footer></section>
 }
 
 function LiveCustomers({query,open}:{query:string;open:(p:typeof initialPeople[number])=>void}){
