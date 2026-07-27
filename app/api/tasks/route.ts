@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     ? db.prepare(`${details} WHERE t.assignee_email=? AND t.status!='مكتملة' AND ${visibility} ORDER BY CASE ${effectivePriority} WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,t.due_at`).bind(auth.email)
     : db.prepare(`${details} WHERE t.status!='مكتملة' AND ${visibility} ORDER BY CASE ${effectivePriority} WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,t.due_at LIMIT 200`);
   const [{ results },completed]=await Promise.all([query.all(),db.prepare(`${details} WHERE t.status='مكتملة' AND date(t.completed_at)=date('now') AND ${visibility} ORDER BY t.completed_at DESC LIMIT 100`).all()]);
-  const normalize=(rows:Record<string,unknown>[])=>rows.map(({effective_priority,...row})=>({...row,priority:effective_priority||row.priority}));
+  const normalize=(rows:Record<string,unknown>[])=>rows.map(({effective_priority,...row})=>({...row,department:row.department==="الأكاديمية"?"التشغيلية":row.department,priority:effective_priority||row.priority}));
   return Response.json({ tasks: normalize(results as Record<string,unknown>[]), completedToday: normalize(completed.results as Record<string,unknown>[]), counts:{open:results.length,completedToday:completed.results.length} });
 }
 

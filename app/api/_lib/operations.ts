@@ -72,7 +72,7 @@ export async function promoteDueReservations(db:ReturnType<typeof operationalDb>
       db.prepare("UPDATE seat_reservations SET status='تم التحويل',converted_enrollment_id=?,updated_at=? WHERE id=? AND converted_enrollment_id IS NULL").bind(enrollmentId,now,reservation.id),
       db.prepare("UPDATE orders SET order_type='برنامج',academy_status='تم التواصل',cohort_label=?,scheduled_start_date=?,updated_at=? WHERE id=?").bind(reservation.cohort_label||null,reservation.start_date||null,now,reservation.order_id),
       db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='reservation' AND entity_id=? AND status!='مكتملة'").bind(now,reservation.id),
-      db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'الأكاديمية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,actorEmail,now),
+      db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'التشغيلية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,actorEmail,now),
       db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'AUTO_ASSIGN_RESERVATION','enrollment',?,?,?)").bind(id("AUD"),actorEmail,enrollmentId,JSON.stringify({reservationId:reservation.id,assignmentDate:reservation.assignment_date,startDate:reservation.start_date}),now)
     ])}catch(error){if(!String(error).includes("UNIQUE"))throw error}
   }
