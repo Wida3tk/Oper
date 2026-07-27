@@ -1,8 +1,8 @@
-import { authorize, id, operationalDb, promoteDueReservations } from "../_lib/operations";
+import { authorize, ensureDirectProgramSchema, id, operationalDb, promoteDueReservations } from "../_lib/operations";
 
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;const db=operationalDb();await promoteDueReservations(db,auth.email);const {results}=await db.prepare("SELECT r.*,c.name customer_name,p.name program_name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id ORDER BY r.created_at DESC").all();return Response.json({reservations:results})}
+export async function GET(req:Request){const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;const db=operationalDb();await ensureDirectProgramSchema(db);await promoteDueReservations(db,auth.email);const kind=new URL(req.url).searchParams.get("kind");const query="SELECT r.*,c.name customer_name,c.phone,c.email,p.name program_name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id"+(kind?" WHERE r.reservation_kind=?":"")+" ORDER BY r.created_at DESC";const prepared=db.prepare(query);const {results}=kind?await prepared.bind(kind).all():await prepared.all();return Response.json({reservations:results})}
 
 export async function POST(req:Request){
  const auth=await authorize(req,["sales","finance","academy"]);if(!auth.ok)return auth.response;

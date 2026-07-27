@@ -9,6 +9,18 @@ export function operationalDb() {
   return env.DB;
 }
 
+let directProgramSchemaReady:Promise<void>|null=null;
+export function ensureDirectProgramSchema(db:ReturnType<typeof operationalDb>){
+  if(directProgramSchemaReady)return directProgramSchemaReady;
+  directProgramSchemaReady=(async()=>{
+    let addedProgramKind=false;
+    try{await db.prepare("ALTER TABLE programs ADD COLUMN program_kind TEXT NOT NULL DEFAULT 'شهادة'").run();addedProgramKind=true}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
+    try{await db.prepare("ALTER TABLE seat_reservations ADD COLUMN reservation_kind TEXT NOT NULL DEFAULT 'حجز مقعد'").run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
+    if(addedProgramKind)await db.prepare("UPDATE programs SET program_kind=CASE WHEN name LIKE '%تحليل السلوك التطبيقي%' THEN 'شهادة' ELSE 'برنامج مباشر' END").run();
+  })().catch(error=>{directProgramSchemaReady=null;throw error});
+  return directProgramSchemaReady;
+}
+
 export function actorEmail(req: Request) {
   const host = new URL(req.url).hostname.toLowerCase();
   const cloudflareIdentity = req.headers.get("cf-access-authenticated-user-email");
