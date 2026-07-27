@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const canSeeFinance = auth.roles.includes("admin") || auth.roles.includes("finance") || can(auth,"finance.view");
   const taskVisibility = canSeeFinance ? "1=1" : "department!='المالية'";
   const [tasks, customers, payments, enrollments] = await Promise.all([
-    db.prepare(`SELECT id,title,department,priority,due_at,status FROM workflow_tasks WHERE status!='مكتملة' AND (assignee_email=? OR assignee_email IS NULL) AND ${taskVisibility} ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at LIMIT 8`).bind(auth.email).all(),
+    db.prepare(`SELECT id,title,department,CASE WHEN due_at IS NOT NULL AND date(due_at)<=date('now','+3 hours') THEN 'عاجلة' WHEN due_at IS NOT NULL AND date(due_at)<=date('now','+3 hours','+1 day') THEN 'عالية' ELSE priority END priority,due_at,status FROM workflow_tasks WHERE status!='مكتملة' AND (assignee_email=? OR assignee_email IS NULL) AND ${taskVisibility} ORDER BY CASE WHEN due_at IS NOT NULL AND date(due_at)<=date('now','+3 hours') THEN 0 WHEN due_at IS NOT NULL AND date(due_at)<=date('now','+3 hours','+1 day') THEN 1 WHEN priority='عاجلة' THEN 0 WHEN priority='عالية' THEN 1 ELSE 2 END,due_at LIMIT 8`).bind(auth.email).all(),
     db.prepare("SELECT COUNT(*) count FROM customers WHERE substr(created_at,1,10)=?").bind(today).first<{count:number}>(),
     db.prepare("SELECT COUNT(*) count,COALESCE(SUM(amount),0) amount FROM payments WHERE substr(created_at,1,10)=?").bind(today).first<{count:number;amount:number}>(),
     db.prepare("SELECT COUNT(*) count FROM enrollments WHERE status!='مكتمل'").first<{count:number}>(),
