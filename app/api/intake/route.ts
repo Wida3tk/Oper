@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const db = operationalDb();
   const program = await db.prepare("SELECT id,name,program_kind kind,default_trial_days trial_days FROM programs WHERE id=? AND active=1").bind(programId).first<{ id: string; name: string; kind:string; trial_days: number }>();
   if (!program) return Response.json({ error: "البرنامج غير متاح" }, { status: 404 });
-  const isDirectProgram=program.kind==="برنامج مباشر";
+  const isDirectProgram=String(body.journey||"اشتراك")==="برنامج مباشر";
   if(isDirectProgram&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة للبرنامج المباشر"},{status:400});
   if(isDirectProgram&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   const now = new Date().toISOString();
