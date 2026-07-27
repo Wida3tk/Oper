@@ -7,7 +7,7 @@ type View="dashboard"|"work"|"customers"|"reservations"|"direct-programs"|"conta
 type NavIcon="dashboard"|"tasks"|"customers"|"contact"|"registration"|"assignment"|"reservations"|"finance"|"users"|"programs"|"reports";
 type NavItem=[View,string,NavIcon,number?];
 const navIcons:Record<NavIcon,LucideIcon>={dashboard:LayoutDashboard,tasks:ListChecks,customers:UsersRound,contact:PhoneCall,registration:ClipboardCheck,assignment:UserRoundCheck,reservations:Armchair,finance:BadgeDollarSign,users:ShieldCheck,programs:BookOpenCheck,reports:ChartNoAxesCombined};
-function BrandMark({withText=true}:{withText?:boolean}){return <div className={`brand-mark ${withText?"with-text":""}`}><img src="/sulukera-mark.svg" alt="شعار سلوكيرا"/>{withText&&<div><b>سلوكيرا</b><span>مركز العمليات</span></div>}</div>}
+function BrandMark({withText=true}:{withText?:boolean}){return <div className={`brand-mark ${withText?"with-text":""}`}><img src="/sulukera-icon.png" alt="شعار سلوكيرا"/>{withText&&<div><b>سلوكيرا</b><span>مركز العمليات</span></div>}</div>}
 const navGroups:{label:string,items:NavItem[]}[]=[
  {label:"الرئيسية",items:[["dashboard","لوحة البيانات","dashboard"],["work","عملاء اليوم","tasks"]]},
  {label:"إدارة العملاء",items:[["customers","العملاء والتسجيلات","customers"],["direct-programs","البرامج المباشرة","programs"],["reservations","حجوزات المقاعد","reservations"]]},
