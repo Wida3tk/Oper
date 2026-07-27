@@ -1,4 +1,4 @@
-import { authorize, can, operationalDb } from "../../_lib/operations";
+import { authorize, can, operationalDb, promoteDueReservations } from "../../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -6,6 +6,7 @@ export async function GET(req: Request) {
   const auth = await authorize(req, ["sales", "finance", "academy", "viewer"]);
   if (!auth.ok) return auth.response;
   const db = operationalDb();
+  await promoteDueReservations(db,auth.email);
   const today = new Date().toISOString().slice(0, 10);
   const canSeeFinance = auth.roles.includes("admin") || auth.roles.includes("finance") || can(auth,"finance.view");
   const taskVisibility = canSeeFinance ? "1=1" : "department!='المالية'";

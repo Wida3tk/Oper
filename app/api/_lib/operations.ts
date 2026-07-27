@@ -47,3 +47,22 @@ export function cleanContact(body: Record<string, unknown>) {
 export function id(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 10)}`;
 }
+
+export async function promoteDueReservations(db:ReturnType<typeof operationalDb>,actorEmail="system@sulukera"){
+  const dateParts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const part=(type:string)=>dateParts.find(item=>item.type===type)?.value||"";
+  const today=`${part("year")}-${part("month")}-${part("day")}`;
+  const {results}=await db.prepare("SELECT * FROM seat_reservations WHERE assignment_date IS NOT NULL AND assignment_date<=? AND converted_enrollment_id IS NULL AND status IN ('مؤكد','بانتظار البدء','بانتظار الإسناد') ORDER BY assignment_date LIMIT 100").bind(today).all<Record<string,unknown>>();
+  for(const reservation of results){
+    const enrollmentId=id("ENR"),now=new Date().toISOString();
+    try{await db.batch([
+      db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,source_reservation_id,status,started_at,created_at,updated_at) SELECT ?,customer_id,program_id,order_id,id,'تم التواصل',start_date,?,? FROM seat_reservations WHERE id=? AND converted_enrollment_id IS NULL").bind(enrollmentId,now,now,reservation.id),
+      db.prepare("UPDATE seat_reservations SET status='تم التحويل',converted_enrollment_id=?,updated_at=? WHERE id=? AND converted_enrollment_id IS NULL").bind(enrollmentId,now,reservation.id),
+      db.prepare("UPDATE orders SET order_type='برنامج',academy_status='تم التواصل',cohort_label=?,scheduled_start_date=?,updated_at=? WHERE id=?").bind(reservation.cohort_label||null,reservation.start_date||null,now,reservation.order_id),
+      db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='reservation' AND entity_id=? AND status!='مكتملة'").bind(now,reservation.id),
+      db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'الأكاديمية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,actorEmail,now),
+      db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'AUTO_ASSIGN_RESERVATION','enrollment',?,?,?)").bind(id("AUD"),actorEmail,enrollmentId,JSON.stringify({reservationId:reservation.id,assignmentDate:reservation.assignment_date,startDate:reservation.start_date}),now)
+    ])}catch(error){if(!String(error).includes("UNIQUE"))throw error}
+  }
+  return results.length;
+}

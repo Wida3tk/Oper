@@ -1,19 +1,21 @@
-import { authorize, id, operationalDb } from "../_lib/operations";
+import { authorize, id, operationalDb, promoteDueReservations } from "../_lib/operations";
 
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;const db=operationalDb();const {results}=await db.prepare("SELECT r.*,c.name customer_name,p.name program_name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id ORDER BY r.created_at DESC").all();return Response.json({reservations:results})}
+export async function GET(req:Request){const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;const db=operationalDb();await promoteDueReservations(db,auth.email);const {results}=await db.prepare("SELECT r.*,c.name customer_name,p.name program_name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id ORDER BY r.created_at DESC").all();return Response.json({reservations:results})}
 
 export async function POST(req:Request){
  const auth=await authorize(req,["sales","finance","academy"]);if(!auth.ok)return auth.response;
  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();
  if(action==="schedule_start"){
-  const reservationId=String(body.reservationId||""),cohortLabel=String(body.cohortLabel||"").trim(),startDate=String(body.startDate||"");
-  if(!reservationId||!cohortLabel||!/^\d{4}-\d{2}-\d{2}$/.test(startDate))return Response.json({error:"اسم الدفعة وتاريخ البدء مطلوبان"},{status:400});
+  const reservationId=String(body.reservationId||""),cohortLabel=String(body.cohortLabel||"").trim(),startDate=String(body.startDate||""),assignmentDate=String(body.assignmentDate||"");
+  if(!reservationId||!cohortLabel||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة"},{status:400});
+  if(assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   const reservation=await db.prepare("SELECT order_id,status FROM seat_reservations WHERE id=?").bind(reservationId).first<{order_id:string,status:string}>();
-  if(!reservation||!["مؤكد","بانتظار البدء"].includes(reservation.status))return Response.json({error:"الحجز غير متاح للجدولة"},{status:409});
-  await db.batch([db.prepare("UPDATE seat_reservations SET cohort_label=?,start_date=?,status='بانتظار البدء',updated_at=? WHERE id=?").bind(cohortLabel,startDate,now,reservationId),db.prepare("UPDATE orders SET cohort_label=?,updated_at=? WHERE id=?").bind(cohortLabel,now,reservation.order_id),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'SCHEDULE_RESERVATION_START','seat_reservation',?,?,?)").bind(id("AUD"),auth.email,reservationId,JSON.stringify({cohortLabel,startDate}),now)]);
-  return Response.json({ok:true,status:"بانتظار البدء"});
+  if(!reservation||!["مؤكد","بانتظار البدء","بانتظار الإسناد"].includes(reservation.status))return Response.json({error:"الحجز غير متاح للجدولة"},{status:409});
+  await db.batch([db.prepare("UPDATE seat_reservations SET cohort_label=?,start_date=?,assignment_date=?,status='بانتظار الإسناد',updated_at=? WHERE id=?").bind(cohortLabel,startDate,assignmentDate,now,reservationId),db.prepare("UPDATE orders SET cohort_label=?,scheduled_start_date=?,updated_at=? WHERE id=?").bind(cohortLabel,startDate,now,reservation.order_id),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'SCHEDULE_RESERVATION_START','seat_reservation',?,?,?)").bind(id("AUD"),auth.email,reservationId,JSON.stringify({cohortLabel,startDate,assignmentDate}),now)]);
+  await promoteDueReservations(db,auth.email);
+  return Response.json({ok:true,status:"بانتظار الإسناد"});
  }
  if(action==="request_transfer"){
   if(!auth.roles.includes("admin")&&!auth.roles.includes("sales"))return Response.json({error:"هذا الإجراء للمبيعات"},{status:403});
