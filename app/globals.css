@@ -65,6 +65,57 @@ body{font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif}
  border-radius:11px;
  background:#fff;
 }
+
+/* Clearer operational cards and readable internal details */
+.journey-board.registration .column-cards,
+.journey-board.contact .column-cards{
+ grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+ gap:16px;
+}
+.journey-board.registration article,
+.journey-board.contact article{
+ padding:20px!important;
+ border-radius:15px!important;
+}
+.journey-board.registration .journey-person b,
+.journey-board.contact .journey-person b{font-size:15px;line-height:1.5}
+.journey-board.registration .journey-person small,
+.journey-board.contact .journey-person small{font-size:10px;margin-top:4px}
+.journey-board.registration .open-card,
+.journey-board.contact .open-card{font-size:11px;padding:7px 10px}
+.journey-board.registration .onboarding-contact,
+.journey-board.contact .onboarding-contact{grid-template-columns:1fr;gap:10px}
+.journey-board.registration .onboarding-contact>div:not(.contact-quick-actions),
+.journey-board.contact .onboarding-contact>div:not(.contact-quick-actions){padding:13px 14px}
+.journey-board.registration .onboarding-contact span,
+.journey-board.contact .onboarding-contact span{font-size:10px}
+.journey-board.registration .onboarding-contact b,
+.journey-board.contact .onboarding-contact b{
+ font-size:13px;
+ line-height:1.55;
+ overflow-wrap:anywhere;
+}
+.journey-board.registration .onboarding-contact>div>button,
+.journey-board.contact .onboarding-contact>div>button{height:35px;font-size:10px}
+.journey-board.registration .contact-quick-actions,
+.journey-board.contact .contact-quick-actions{grid-column:auto}
+.journey-board.registration .contact-quick-actions button,
+.journey-board.contact .contact-quick-actions button{height:42px!important;font-size:11px!important}
+.journey-board.registration .journey-details span,
+.journey-board.contact .journey-details span{font-size:10px}
+.journey-board.registration .journey-details b,
+.journey-board.contact .journey-details b{font-size:12px;line-height:1.5}
+.journey-board.registration .academy-action,
+.journey-board.contact .academy-action{height:45px;font-size:12px;border-radius:10px}
+
+.today-work .work-summary span{font-size:11px}
+.today-work .work-section>header h2{font-size:15px}
+.today-work .work-section>header p{font-size:10px}
+.today-work .board h3{font-size:13px;line-height:1.6}
+.today-work .task-customer b{font-size:12px}
+.today-work .task-customer span{font-size:10px}
+.today-work .today-customer-card footer{justify-content:space-between;font-size:10px}
+.today-work .today-customer-card footer b{color:#52617a;font-size:9px}
 .program-kind-choice{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.program-kind-choice button{border:1px solid #dfe4ed;border-radius:12px;background:#fff;padding:14px;text-align:right;font:inherit;cursor:pointer}.program-kind-choice button.selected{border-color:#8fa7ff;background:#f2f5ff;box-shadow:0 0 0 3px #315efb10}.program-kind-choice b,.program-kind-choice span{display:block}.program-kind-choice b{font-size:11px}.program-kind-choice span{font-size:8px;color:#7d879a;margin-top:4px}.program-kind-indicator{height:41px;border-radius:9px;padding:0 12px;display:flex;align-items:center;font-size:10px;font-weight:750}.program-kind-indicator.direct{background:#eef3ff;color:#315efb;border:1px solid #cad5ff}.program-kind-indicator.certificate{background:#f3faf7;color:#18825a;border:1px solid #cae9da}
 .journey-board.registration article{border:1px solid #e1e7f1!important;border-top:3px solid #315efb!important;padding:18px!important;box-shadow:0 10px 28px #142a520d!important}.journey-board.registration .journey-person>i{width:42px;height:42px;border-radius:13px;font-size:11px}.journey-board.registration .journey-person b{font-size:13px}.journey-board.registration .journey-person small{font-size:9px}.journey-board.registration .open-card{font-size:9px;border:1px solid #d9e1ff;background:#f5f7ff;border-radius:8px;padding:5px 8px}.journey-board.registration .onboarding-contact{grid-template-columns:1fr 1fr;gap:9px}.journey-board.registration .onboarding-contact>div:not(.contact-quick-actions){padding:12px;border-radius:11px;background:#fbfcff}.journey-board.registration .onboarding-contact span{font-size:9px}.journey-board.registration .onboarding-contact b{font-size:11px}.journey-board.registration .contact-quick-actions{grid-column:1/-1;grid-template-columns:1fr 1fr}.journey-board.registration .contact-quick-actions button{height:39px!important;font-size:9px!important}.journey-board.registration .contact-quick-actions button:nth-child(2){display:none!important}.journey-board.registration .contact-quick-actions button:last-child{grid-column:auto}.journey-board.registration .journey-details p{padding:10px}.journey-board.registration .journey-details span{font-size:8px}.journey-board.registration .journey-details b{font-size:10px}.journey-board.registration .academy-action{height:42px;font-size:10px}
 @media(max-width:600px){.program-kind-choice,.journey-board.registration .onboarding-contact{grid-template-columns:1fr}.journey-board.registration .contact-quick-actions{grid-column:auto}}
