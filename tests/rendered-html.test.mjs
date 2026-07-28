@@ -25,5 +25,5 @@ test("loads the customer directory from the live API", async () => {
   const source = await read("../app/page.tsx");
   assert.match(source, /function LiveCustomers/);
   assert.match(source, /apiJson\("\/api\/customers"\)/);
-  assert.match(source, /view==="customers"&&<LiveCustomers/);
+  assert.match(source, /view\s*===\s*"customers"\s*&&\s*<LiveCustomers/);
 });

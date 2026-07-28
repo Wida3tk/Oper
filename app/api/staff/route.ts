@@ -9,9 +9,27 @@ const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x
 export async function GET(req:Request){const auth=await authorize(req,[]);if(!auth.ok)return auth.response;const {results}=await operationalDb().prepare("SELECT r.email,r.role,r.active,r.created_at,a.display_name,a.permissions,CASE WHEN a.email IS NULL THEN 0 ELSE 1 END has_password FROM staff_roles r LEFT JOIN staff_accounts a ON a.email=r.email ORDER BY r.email,r.role").all();return Response.json({staff:results,permissionOptions:validPermissions})}
 export async function POST(req:Request){
  const auth=await authorize(req,[]);if(!auth.ok)return auth.response;
- const body=await req.json() as Record<string,unknown>,name=String(body.name||"").trim(),email=String(body.email||"").trim().toLowerCase(),password=String(body.password||""),active=body.active!==false,roles=(Array.isArray(body.roles)?body.roles:[body.role]).map(String).filter(x=>validRoles.includes(x)),permissions=(Array.isArray(body.permissions)?body.permissions:[]).map(String).filter(x=>validPermissions.includes(x));
- if(!name||!email||!roles.length)return Response.json({error:"اسم الموظف والبريد وصلاحية واحدة على الأقل مطلوبة"},{status:400});const db=operationalDb(),now=new Date().toISOString(),existing=await db.prepare("SELECT email FROM staff_accounts WHERE email=?").bind(email).first();if(!existing&&password.length<8)return Response.json({error:"كلمة المرور مطلوبة ويجب ألا تقل عن 8 أحرف"},{status:400});
- const statements=[db.prepare("DELETE FROM staff_roles WHERE email=?").bind(email),...roles.map(role=>db.prepare("INSERT INTO staff_roles(id,email,role,active,granted_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(id("ROL"),email,role,active?1:0,auth.email,now,now))];
+ const body=await req.json() as Record<string,unknown>,name=String(body.name||"").trim(),email=String(body.email||"").trim().toLowerCase(),originalEmail=String(body.originalEmail||email).trim().toLowerCase(),password=String(body.password||""),active=body.active!==false,roles=(Array.isArray(body.roles)?body.roles:[body.role]).map(String).filter(x=>validRoles.includes(x)),permissions=(Array.isArray(body.permissions)?body.permissions:[]).map(String).filter(x=>validPermissions.includes(x));
+ if(!name||!email||!roles.length)return Response.json({error:"اسم الموظف والبريد وصلاحية واحدة على الأقل مطلوبة"},{status:400});const db=operationalDb(),now=new Date().toISOString(),existing=await db.prepare("SELECT email FROM staff_accounts WHERE email=?").bind(originalEmail).first();if(!existing&&password.length<8)return Response.json({error:"كلمة المرور مطلوبة ويجب ألا تقل عن 8 أحرف"},{status:400});
+ if(originalEmail!==email){if(originalEmail==="ro7e.entaa@gmail.com")return Response.json({error:"لا يمكن تغيير بريد حساب الإدارة الأساسي"},{status:400});const duplicate=await db.prepare("SELECT email FROM staff_accounts WHERE email=?").bind(email).first();if(duplicate)return Response.json({error:"البريد الجديد مستخدم في حساب آخر"},{status:409})}
+ const statements=[];if(existing&&originalEmail!==email)statements.push(db.prepare("UPDATE staff_accounts SET email=?,updated_at=? WHERE email=?").bind(email,now,originalEmail));statements.push(db.prepare("DELETE FROM staff_roles WHERE email=?").bind(originalEmail),...roles.map(role=>db.prepare("INSERT INTO staff_roles(id,email,role,active,granted_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(id("ROL"),email,role,active?1:0,auth.email,now,now)));
  if(existing)statements.push(db.prepare("UPDATE staff_accounts SET display_name=?,permissions=?,active=?,updated_at=? WHERE email=?").bind(name,JSON.stringify(permissions),active?1:0,now,email));else{const salt=random(),hash=await hashPassword(password,salt);statements.push(db.prepare("INSERT INTO staff_accounts(email,password_hash,password_salt,permissions,active,created_at,updated_at,display_name) VALUES(?,?,?,?,?,?,?,?)").bind(email,hash,salt,JSON.stringify(permissions),active?1:0,now,now,name))}if(existing&&password){if(password.length<8)return Response.json({error:"كلمة المرور يجب ألا تقل عن 8 أحرف"},{status:400});const salt=random(),hash=await hashPassword(password,salt);statements.push(db.prepare("UPDATE staff_accounts SET password_hash=?,password_salt=?,updated_at=? WHERE email=?").bind(hash,salt,now,email))}
  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_STAFF_ACCESS','staff_account',?,?,?)").bind(id("AUD"),auth.email,email,JSON.stringify({name,roles,permissions,active}),now));await db.batch(statements);return Response.json({ok:true,name,email,roles,permissions,active});
+}
+
+export async function DELETE(req:Request){
+ const auth=await authorize(req,[]);if(!auth.ok)return auth.response;
+ const body=await req.json() as Record<string,unknown>,email=String(body.email||"").trim().toLowerCase();
+ if(!email)return Response.json({error:"البريد الإلكتروني مطلوب"},{status:400});
+ if(email===auth.email)return Response.json({error:"لا يمكن حذف الحساب المستخدم حالياً"},{status:400});
+ if(email==="ro7e.entaa@gmail.com")return Response.json({error:"لا يمكن حذف حساب الإدارة الأساسي"},{status:400});
+ const db=operationalDb(),account=await db.prepare("SELECT display_name FROM staff_accounts WHERE email=?").bind(email).first<{display_name:string}>();
+ if(!account)return Response.json({error:"الحساب غير موجود"},{status:404});
+ const now=new Date().toISOString();
+ await db.batch([
+  db.prepare("DELETE FROM staff_roles WHERE email=?").bind(email),
+  db.prepare("DELETE FROM staff_accounts WHERE email=?").bind(email),
+  db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'DELETE_STAFF_ACCOUNT','staff_account',?,?,?)").bind(id("AUD"),auth.email,email,JSON.stringify({name:account.display_name}),now)
+ ]);
+ return Response.json({ok:true});
 }
