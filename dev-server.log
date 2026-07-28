@@ -1,0 +1,16 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+$ vinext dev "--host" "127.0.0.1" "--port" "4317"
+
+  vinext dev  (Vite 8.0.13)
+
+[2m11:38:31 AM[22m [36m[1m[vite][22m[39m [34m[2m(rsc)[22m[39m [optimizer] bundling dependencies...
+[2m11:38:31 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [optimizer] bundling dependencies...
+service core:user:sulukera-operations: This Worker requires compatibility date "2026-07-22", but the newest date supported by this server binary is "2026-05-22".
+MiniflareCoreError [ERR_RUNTIME_FAILURE]: The Workers runtime failed to start. There is likely additional logging output above.
+    at #assembleAndUpdateConfig (C:\Users\DELL\Documents\Codex\2026-07-28\sulukera-operations-https-github-com-wida3tk\work\Oper\node_modules\.pnpm\miniflare@4.20260515.0\node_modules\miniflare\dist\src\index.js:89177:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Mutex.runWith (C:\Users\DELL\Documents\Codex\2026-07-28\sulukera-operations-https-github-com-wida3tk\work\Oper\node_modules\.pnpm\miniflare@4.20260515.0\node_modules\miniflare\dist\src\index.js:58160:48) {
+  code: 'ERR_RUNTIME_FAILURE',
+  cause: undefined
+}
+[ELIFECYCLE] Command failed with exit code 1.
