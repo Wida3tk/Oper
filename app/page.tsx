@@ -738,6 +738,21 @@ function OperationsApp() {
                   رقم الطلب<b>{selectedDetails.orderId || "—"}</b>
                 </label>
               </div>
+              {has("customers.manage") && (
+                <CustomerDataEditor
+                  customer={selectedDetails}
+                  onSaved={(customer) => {
+                    setSelected({
+                      ...selected,
+                      name: customer.name,
+                      phone: customer.phone,
+                      source: customer.source,
+                      email: customer.email,
+                    } as typeof selected);
+                    window.dispatchEvent(new CustomEvent("sulukera:data-changed"));
+                  }}
+                />
+              )}
             </Section>
             <Section title="حالة العميل">
               <div className={`status ${selected.tone}`}>
@@ -781,14 +796,7 @@ function OperationsApp() {
               </div>
             </Section>
             <Section title="آخر النشاطات">
-              <div className="timeline">
-                <p>
-                  تم تحديث حالة التسجيل<small>الآن · {selected.owner}</small>
-                </p>
-                <p>
-                  تم إنشاء التسجيل في النظام<small>أمس، 16:20 · المبيعات</small>
-                </p>
-              </div>
+              <CustomerEditHistory customerId={selected.id} />
             </Section>
           </aside>
         </>
@@ -801,6 +809,25 @@ function OperationsApp() {
       )}
     </main>
   );
+}
+
+type EditableCustomer = typeof initialPeople[number] & { email?: string; orderId?: string };
+function CustomerDataEditor({ customer, onSaved }: { customer: EditableCustomer; onSaved: (customer: { name: string; phone: string; email: string; source: string }) => void }) {
+  const [editing, setEditing] = useState(false), [name, setName] = useState(customer.name), [phone, setPhone] = useState(customer.phone), [email, setEmail] = useState(customer.email || ""), [source, setSource] = useState(customer.source), [saving, setSaving] = useState(false), [error, setError] = useState("");
+  useEffect(() => { setName(customer.name); setPhone(customer.phone); setEmail(customer.email || ""); setSource(customer.source) }, [customer.id, customer.name, customer.phone, customer.email, customer.source]);
+  const save = async () => { setSaving(true); setError(""); try { await apiJson("/api/customers", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ customerId: customer.id, name, phone, email, source }) }); onSaved({ name, phone, email, source }); setEditing(false); window.dispatchEvent(new CustomEvent("sulukera:customer-history-changed", { detail: customer.id })) } catch (e) { setError((e as Error).message) } finally { setSaving(false) } };
+  if (!editing) return <button className="customer-edit-trigger" onClick={() => setEditing(true)}>تعديل بيانات العميل</button>;
+  return <div className="customer-edit-form"><label>اسم العميل<input value={name} onChange={e => setName(e.target.value)} /></label><label>رقم الجوال<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label><label>البريد الإلكتروني<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><label>مصدر الشراء<input value={source} onChange={e => setSource(e.target.value)} /></label>{error && <div className="ops-error compact">{error}</div>}<div><button className="primary" disabled={saving || !name || !phone || !email} onClick={save}>{saving ? "جارٍ الحفظ…" : "حفظ التعديلات"}</button><button className="secondary" disabled={saving} onClick={() => setEditing(false)}>إلغاء</button></div></div>
+}
+
+type CustomerHistoryRow = { id: string; actor_email: string; actor_name?: string; details: string; created_at: string };
+function CustomerEditHistory({ customerId }: { customerId: string }) {
+  const [rows, setRows] = useState<CustomerHistoryRow[]>([]);
+  const load = () => apiJson(`/api/customers/history?customerId=${encodeURIComponent(customerId)}`).then(data => setRows(data.history || [])).catch(() => setRows([]));
+  useEffect(() => { void load(); const refresh = (event: Event) => { if ((event as CustomEvent).detail === customerId) void load() }; window.addEventListener("sulukera:customer-history-changed", refresh); return () => window.removeEventListener("sulukera:customer-history-changed", refresh) }, [customerId]);
+  const labels: Record<string, string> = { name: "الاسم", phone: "رقم الجوال", email: "البريد الإلكتروني", source: "مصدر الشراء" };
+  if (!rows.length) return <div className="customer-history-empty">لا توجد تعديلات مسجلة على بيانات العميل.</div>;
+  return <div className="customer-edit-history">{rows.map(row => { let changes: Record<string, { from: string; to: string }> = {}; try { changes = JSON.parse(row.details || "{}").changes || {} } catch {} return <article key={row.id}><header><b>تعديل بيانات العميل</b><span>{new Date(row.created_at).toLocaleString("ar-SA-u-nu-latn")}</span></header>{Object.entries(changes).map(([field, change]) => <p key={field}><b>{labels[field] || field}</b><del>{change.from || "فارغ"}</del><i>←</i><ins>{change.to || "فارغ"}</ins></p>)}<footer>تم التعديل بواسطة: <b>{row.actor_name || row.actor_email}</b></footer></article>})}</div>
 }
 
 function AdminDeleteCustomer({
