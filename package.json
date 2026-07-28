@@ -39,7 +39,7 @@
     "vercel": "^56.3.2",
     "vinext": "0.0.50",
     "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "wrangler": "4.114.0"
   },
   "type": "module",
   "pnpm": {

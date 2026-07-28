@@ -1,4 +1,4 @@
-import { authorize, operationalDb } from "../_lib/operations";
+import { authorize, id, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -25,4 +25,37 @@ export async function GET(req: Request) {
   const viewerOnly = auth.roles.includes("viewer") && !auth.roles.some((role) => ["admin", "sales", "finance", "academy"].includes(role));
   const customers = results.map((row) => viewerOnly ? { ...row, phone: null, email: null } : row);
   return Response.json({ customers });
+}
+
+export async function DELETE(req: Request) {
+  const auth = await authorize(req, ["sales", "finance", "academy", "viewer"]);
+  if (!auth.ok) return auth.response;
+  if (!auth.roles.includes("admin")) {
+    return Response.json({ error: "حذف العملاء متاح لحساب الإدارة فقط" }, { status: 403 });
+  }
+
+  const body = await req.json() as Record<string, unknown>;
+  const customerId = String(body.customerId || "").trim();
+  if (!customerId) return Response.json({ error: "معرّف العميل مطلوب" }, { status: 400 });
+
+  const db = operationalDb();
+  const customer = await db.prepare("SELECT id,name,deleted_at FROM customers WHERE id=?").bind(customerId).first<{id:string;name:string;deleted_at:string|null}>();
+  if (!customer || customer.deleted_at) return Response.json({ error: "العميل غير موجود أو محذوف مسبقًا" }, { status: 404 });
+
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare("UPDATE customers SET deleted_at=?,updated_at=? WHERE id=? AND deleted_at IS NULL").bind(now, now, customerId),
+    db.prepare(`UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE status!='مكتملة' AND (
+      (entity_type='enrollment' AND entity_id IN (SELECT id FROM enrollments WHERE customer_id=?))
+      OR (entity_type='reservation' AND entity_id IN (SELECT id FROM seat_reservations WHERE customer_id=?))
+      OR (entity_type='payment' AND entity_id IN (SELECT p.id FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.customer_id=?))
+      OR (entity_type='reservation_transfer' AND entity_id IN (
+        SELECT rt.id FROM reservation_transfers rt JOIN seat_reservations r ON r.id=rt.from_reservation_id WHERE r.customer_id=?
+      ))
+    )`).bind(now, customerId, customerId, customerId, customerId),
+    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'DELETE_CUSTOMER','customer',?,?,?)")
+      .bind(id("AUD"), auth.email, customerId, JSON.stringify({ name: customer.name, mode: "soft-delete" }), now),
+  ]);
+
+  return Response.json({ ok: true });
 }
