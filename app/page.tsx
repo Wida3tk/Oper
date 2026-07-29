@@ -1953,6 +1953,8 @@ type LiveEnrollment = {
   program_name: string;
   order_id: string;
   owner_email?: string;
+  purchase_source?: string;
+  updated_at?: string;
 };
 type LiveReservation = {
   id: string;
@@ -2988,6 +2990,149 @@ const enrollmentSteps: Record<string, [string, string]> = {
   "تم الإسناد": ["completed", "إكمال البرنامج"],
   نشط: ["completed", "إكمال البرنامج"],
 };
+function OperationsCustomerCard({
+  row,
+  stage,
+  nextLabel,
+  moving,
+  copied,
+  onOpen,
+  onCopy,
+  onWhatsapp,
+  onEmail,
+  onAdvance,
+}: {
+  row: LiveEnrollment;
+  stage: string;
+  nextLabel?: string;
+  moving: boolean;
+  copied: string;
+  onOpen: () => void;
+  onCopy: (value: string, key: string) => void;
+  onWhatsapp: () => void;
+  onEmail: () => void;
+  onAdvance?: () => void;
+}) {
+  const keyPhone = `${row.id}-phone`,
+    keyEmail = `${row.id}-email`;
+  return (
+    <article
+      className={`ops-customer-card ${moving ? "card-moving" : "card-enter"}`}
+      onClick={onOpen}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") onOpen();
+      }}
+    >
+      <header>
+        <i>{row.customer_name.slice(0, 2)}</i>
+        <div>
+          <b>{row.customer_name}</b>
+          <span>{row.program_name}</span>
+        </div>
+        <em>{stage}</em>
+      </header>
+      <div className="ops-card-contact">
+        <p>
+          <span>رقم الجوال</span>
+          <b dir="ltr">{row.phone || "غير مسجل"}</b>
+          <button
+            aria-label="نسخ رقم الجوال"
+            disabled={!row.phone}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCopy(row.phone, keyPhone);
+            }}
+          >
+            <Copy size={13} />
+            {copied === keyPhone ? "تم" : "نسخ"}
+          </button>
+        </p>
+        <p>
+          <span>البريد الإلكتروني</span>
+          <b dir="ltr">{row.email || "غير مسجل"}</b>
+          <button
+            aria-label="نسخ البريد الإلكتروني"
+            disabled={!row.email}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCopy(row.email, keyEmail);
+            }}
+          >
+            <Copy size={13} />
+            {copied === keyEmail ? "تم" : "نسخ"}
+          </button>
+        </p>
+      </div>
+      <div className="ops-card-actions">
+        <button
+          className="whatsapp"
+          disabled={!row.phone}
+          onClick={(event) => {
+            event.stopPropagation();
+            onWhatsapp();
+          }}
+        >
+          <FaWhatsapp size={15} />
+          واتساب
+        </button>
+        <button
+          disabled={!row.email}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEmail();
+          }}
+        >
+          <Mail size={14} />
+          إيميل
+        </button>
+      </div>
+      <div className="ops-card-meta">
+        <p>
+          <span>رقم الطلب</span>
+          <b>{row.order_id}</b>
+        </p>
+        <p>
+          <span>المصدر</span>
+          <b>{row.purchase_source || "غير محدد"}</b>
+        </p>
+      </div>
+      <div className="ops-card-next">
+        <span>الإجراء التالي</span>
+        <b>{nextLabel || "لا يوجد إجراء مطلوب"}</b>
+      </div>
+      <footer>
+        <span>
+          آخر تحديث{" "}
+          {row.updated_at
+            ? new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn")
+            : "غير محدد"}
+        </span>
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
+          فتح الملف
+        </button>
+      </footer>
+      {nextLabel && onAdvance && (
+        <button
+          className="ops-card-primary"
+          disabled={moving}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAdvance();
+          }}
+        >
+          {moving ? "جارٍ التحديث..." : nextLabel}
+          <span>←</span>
+        </button>
+      )}
+    </article>
+  );
+}
 function LiveAcademy({
   focus,
 }: {
@@ -3222,113 +3367,25 @@ function LiveAcademy({
             {rows
               .filter((x) => displayState(x.status) === state)
               .map((row) => (
-                <article
-                  className={moving === row.id ? "card-moving" : "card-enter"}
+                <OperationsCustomerCard
                   key={row.id}
-                  onClick={() => setSelectedRow(row)}
-                >
-                  <div className="journey-person">
-                    <i>{row.customer_name.slice(0, 2)}</i>
-                    <div>
-                      <b>{row.customer_name}</b>
-                      <small>{row.id}</small>
-                    </div>
-                    <span className="open-card">فتح الملف ←</span>
-                  </div>
-                  {focus === "registration" && (
-                    <div className="onboarding-contact">
-                      <div>
-                        <span>
-                          <PhoneCall size={14} />
-                          رقم الجوال
-                        </span>
-                        <b dir="ltr">{row.phone}</b>
-                        <button
-                          title="نسخ رقم الجوال"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void copy(row.phone, `${row.id}-phone`);
-                          }}
-                        >
-                          <Copy size={14} />
-                          {copied === `${row.id}-phone` ? "تم النسخ" : "نسخ"}
-                        </button>
-                      </div>
-                      <div>
-                        <span>
-                          <Mail size={14} />
-                          البريد الإلكتروني
-                        </span>
-                        <b dir="ltr">{row.email}</b>
-                        <button
-                          title="نسخ البريد الإلكتروني"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void copy(row.email, `${row.id}-email`);
-                          }}
-                        >
-                          <Copy size={14} />
-                          {copied === `${row.id}-email` ? "تم النسخ" : "نسخ"}
-                        </button>
-                      </div>
-                      <div className="contact-quick-actions">
-                        <button
-                          className="whatsapp-mini"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            whatsapp(row);
-                          }}
-                        >
-                          <FaWhatsapp size={15} />
-                          واتساب
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.location.href = `tel:${row.phone.replace(/\s/g, "")}`;
-                          }}
-                        >
-                          <PhoneCall size={14} />
-                          اتصال
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.location.href = `mailto:${row.email}`;
-                          }}
-                        >
-                          <Mail size={14} />
-                          إرسال بريد
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="journey-details">
-                    <p>
-                      <span>البرنامج</span>
-                      <b>{row.program_name}</b>
-                    </p>
-                    <p>
-                      <span>رقم الطلب</span>
-                      <b>{row.order_id}</b>
-                    </p>
-                  </div>
-                  {enrollmentSteps[row.status] && (
-                    <button
-                      className="academy-action"
-                      disabled={moving === row.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void advance(row);
-                      }}
-                    >
-                      {moving === row.id
-                        ? "جارٍ النقل..."
-                        : enrollmentSteps[row.status][1]}{" "}
-                      <span>←</span>
-                    </button>
-                  )}
-                </article>
+                  row={row}
+                  stage={stageLabel(state)}
+                  nextLabel={enrollmentSteps[row.status]?.[1]}
+                  moving={moving === row.id}
+                  copied={copied}
+                  onOpen={() => setSelectedRow(row)}
+                  onCopy={(value, key) => void copy(value, key)}
+                  onWhatsapp={() => whatsapp(row)}
+                  onEmail={() => {
+                    window.location.href = `mailto:${row.email}`;
+                  }}
+                  onAdvance={
+                    enrollmentSteps[row.status]
+                      ? () => void advance(row)
+                      : undefined
+                  }
+                />
               ))}
           </div>
           {!count(state) && (
