@@ -447,7 +447,7 @@ function OperationsApp() {
     [panel, setPanel] = useState(false),
     [taskCount, setTaskCount] = useState(0),
     [navCounts, setNavCounts] = useState<Partial<Record<View, number>>>({}),
-    [openGroups, setOpenGroups] = useState<string[]>(["customers"]),
+    [openGroups, setOpenGroups] = useState<string[]>([]),
     [mobileOpen, setMobileOpen] = useState(false),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
@@ -683,7 +683,9 @@ function OperationsApp() {
                     <ChevronDown className="nav-chevron" size={15} />
                   </button>
                 ) : (
-                  <p className="nav-label">{group.label}</p>
+                  group.id !== "start" && (
+                    <p className="nav-label">{group.label}</p>
+                  )
                 )}
                 <div className="nav-group-items">
                   {group.items.map(([id, label, icon, badge]) => {
