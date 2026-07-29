@@ -43,7 +43,8 @@ export async function GET(req:Request){
     user:{email:auth.email,name:account?.display_name||auth.email.split("@")[0],roles:auth.roles},
     canSeeFinance,canEditFinanceTarget:can(auth,"finance.total.edit"),
     operations:{tasks:tasks.results.length,customersToday:num((customers as Record<string,unknown>)?.count),activeEnrollments:num((enrollments as Record<string,unknown>)?.count),activeReservations:num((reservations as Record<string,unknown>)?.count)},
-    tasks:tasks.results,journey:journey.results,activity:activity.results,finance,generatedAt:new Date().toISOString()
+    tasks:tasks.results.map(row=>({...row,department:row.department==="الأكاديمية"?"التشغيلية":row.department})),
+    journey:journey.results,activity:activity.results,finance,generatedAt:new Date().toISOString()
   });
 }
 
