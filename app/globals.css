@@ -251,3 +251,25 @@ html,body{max-width:100%;overflow-x:hidden}
 .sidebar .nav-group.static .nav-group-items>button{height:45px!important;font-size:13px!important;font-weight:700!important}
 .sidebar .nav-group-items button>em,.sidebar .nav-group-trigger>em{min-width:21px!important;height:21px!important;font-size:10px!important}
 .sidebar .nav-group-trigger>i svg,.sidebar .nav-group-items button>i svg{width:19px;height:19px}
+
+/* Full sidebar collapse: keep a quiet icon rail when navigation is not needed. */
+.sidebar,.main{transition:width .24s ease,margin-right .24s ease}
+.sidebar .brand{position:relative;padding-left:36px}
+.sidebar-collapse{position:absolute;left:4px;top:2px;width:31px;height:31px;border:1px solid #ffffff16;border-radius:9px;background:#ffffff08;color:#aab6ca;display:grid;place-items:center;cursor:pointer}
+.sidebar-collapse:hover{background:#ffffff12;color:#fff}
+.sidebar.collapsed{width:76px;padding-inline:10px}
+.main.sidebar-collapsed{margin-right:76px}
+.sidebar.collapsed .brand{height:72px;padding:0;display:grid;justify-items:center;align-content:start;gap:7px}
+.sidebar.collapsed .brand-mark.with-text>div,.sidebar.collapsed .workspace,.sidebar.collapsed .nav-label,.sidebar.collapsed .nav-group-trigger>span,.sidebar.collapsed .nav-group-trigger>em,.sidebar.collapsed .nav-group-trigger>.nav-chevron,.sidebar.collapsed .nav-group-items button>span,.sidebar.collapsed .nav-group-items button>em,.sidebar.collapsed .health,.sidebar.collapsed .profile>div,.sidebar.collapsed .profile>.logout-button{display:none!important}
+.sidebar.collapsed .brand-mark img{width:34px;height:34px;object-fit:contain}
+.sidebar.collapsed .sidebar-collapse{position:static;width:28px;height:28px}
+.sidebar.collapsed nav{overflow:visible;padding:0;gap:7px}
+.sidebar.collapsed .nav-group{padding:0!important;border:0!important}
+.sidebar.collapsed .nav-group-trigger,.sidebar.collapsed .nav-group.static .nav-group-items>button{width:54px!important;height:48px!important;margin:0!important;padding:0!important;display:grid!important;place-items:center;border-radius:11px}
+.sidebar.collapsed .nav-group-trigger>i,.sidebar.collapsed .nav-group.static .nav-group-items>button>i{width:auto;margin:0}
+.sidebar.collapsed .nav-group-items{display:none!important}
+.sidebar.collapsed .nav-group.static .nav-group-items{display:grid!important;grid-template-rows:1fr!important;gap:7px}
+.sidebar.collapsed .nav-group.static .nav-group-items>button:before{display:none}
+.sidebar.collapsed .profile{margin-top:auto;padding:12px 0 0;justify-content:center}
+.sidebar.collapsed .profile>i{width:38px;height:38px}
+@media(max-width:760px){.sidebar.collapsed{width:246px;padding:22px 14px}.main.sidebar-collapsed{margin-right:0}.sidebar.collapsed .brand{height:auto;padding:0 8px 22px;display:flex}.sidebar.collapsed .brand-mark.with-text>div,.sidebar.collapsed .workspace,.sidebar.collapsed .nav-group-trigger>span,.sidebar.collapsed .nav-group-trigger>em,.sidebar.collapsed .nav-group-trigger>.nav-chevron,.sidebar.collapsed .nav-group-items button>span,.sidebar.collapsed .nav-group-items button>em,.sidebar.collapsed .health,.sidebar.collapsed .profile>div,.sidebar.collapsed .profile>.logout-button{display:initial!important}.sidebar.collapsed .sidebar-collapse{display:none}.sidebar.collapsed nav{overflow:auto}.sidebar.collapsed .nav-group-trigger,.sidebar.collapsed .nav-group.static .nav-group-items>button{width:100%!important;display:flex!important;padding:0 12px!important}.sidebar.collapsed .nav-group-items{display:grid!important}.sidebar.collapsed .profile{justify-content:flex-start}}

@@ -26,6 +26,8 @@ import {
   LogOut,
   Mail,
   Menu,
+  PanelRightClose,
+  PanelRightOpen,
   PhoneCall,
   ReceiptText,
   Settings2,
@@ -448,6 +450,7 @@ function OperationsApp() {
     [taskCount, setTaskCount] = useState(0),
     [navCounts, setNavCounts] = useState<Partial<Record<View, number>>>({}),
     [openGroups, setOpenGroups] = useState<string[]>([]),
+    [sidebarCollapsed, setSidebarCollapsed] = useState(false),
     [mobileOpen, setMobileOpen] = useState(false),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
@@ -632,7 +635,9 @@ function OperationsApp() {
           onClick={() => setMobileOpen(false)}
         />
       )}
-      <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
+      <aside
+        className={`sidebar ${mobileOpen ? "mobile-open" : ""} ${sidebarCollapsed ? "collapsed" : ""}`}
+      >
         <button
           className="mobile-nav-close"
           aria-label="إغلاق القائمة"
@@ -642,6 +647,18 @@ function OperationsApp() {
         </button>
         <div className="brand">
           <BrandMark />
+          <button
+            className="sidebar-collapse"
+            aria-label={sidebarCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
+            title={sidebarCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+          >
+            {sidebarCollapsed ? (
+              <PanelRightOpen size={18} />
+            ) : (
+              <PanelRightClose size={18} />
+            )}
+          </button>
         </div>
         <div className="workspace">
           <i />
@@ -669,13 +686,22 @@ function OperationsApp() {
                   <button
                     className={`nav-group-trigger ${group.items.some(([id]) => id === view) ? "current" : ""}`}
                     aria-expanded={expanded}
-                    onClick={() =>
+                    onClick={() => {
+                      if (sidebarCollapsed) {
+                        setSidebarCollapsed(false);
+                        setOpenGroups((current) =>
+                          current.includes(group.id)
+                            ? current
+                            : [...current, group.id],
+                        );
+                        return;
+                      }
                       setOpenGroups((current) =>
                         current.includes(group.id)
                           ? current.filter((id) => id !== group.id)
                           : [...current, group.id],
-                      )
-                    }
+                      );
+                    }}
                   >
                     <i>{GroupIcon && <GroupIcon size={18} strokeWidth={1.8} />}</i>
                     <span>{group.label}</span>
@@ -743,7 +769,7 @@ function OperationsApp() {
           </button>
         </div>
       </aside>
-      <section className="main">
+      <section className={`main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <header className="topbar">
           <button
             className="mobile-menu-button"
