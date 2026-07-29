@@ -2077,7 +2077,7 @@ const stateCount = (rows: ReportRow[], state: string) =>
   Number((rows || []).find((row) => row.status === state)?.count || 0);
 type HomeData={
  user:{email:string;name:string;roles:string[]};canSeeFinance:boolean;canEditFinanceTarget:boolean;generatedAt:string;
- operations:{tasks:number;customersToday:number;activeEnrollments:number;activeReservations:number};
+ operations:{pendingCustomers:number;customersToday:number;totalCustomers:number;activeReservations:number};
  tasks:LiveTask[];journey:{status:string;count:number}[];
  activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;created_at:string}[];
  finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;daily:{day:string;sales:number;collections:number}[]}|null;
@@ -2097,11 +2097,11 @@ function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
  const saveTarget=async()=>{try{await apiJson("/api/dashboard/home",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({month,target:Number(target||0)})});setEditingTarget(false);await load()}catch(e){setError((e as Error).message)}};
  return <div className="home-dashboard">
   <section className="home-command"><div><span>مركز حركة النظام</span><h2>أهلاً، {data.user.name}</h2><p>ملخص حي للعمليات والمبيعات والتحصيل حتى {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn",{hour:"2-digit",minute:"2-digit"})}</p></div><label><CalendarDays size={17}/><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label></section>
-  <section className="metric-zone"><header><div><Activity size={19}/><span><b>مؤشرات العمليات</b><small>حجم العمل الحالي</small></span></div></header><div className="home-metrics">
-   <HomeMetric icon={ListChecks} label="المهام المفتوحة" value={data.operations.tasks} note="مسندة للحساب الحالي" tone="blue" onClick={onOpenTasks}/>
-   <HomeMetric icon={UsersRound} label="عملاء جدد اليوم" value={data.operations.customersToday} note="تمت إضافتهم اليوم" tone="violet"/>
-   <HomeMetric icon={ClipboardCheck} label="تسجيلات قيد الإجراء" value={data.operations.activeEnrollments} note="لم تكتمل رحلتها" tone="amber"/>
-   <HomeMetric icon={Armchair} label="حجوزات المقاعد" value={data.operations.activeReservations} note="حجوزات وبرامج مجدولة" tone="green"/>
+  <section className="metric-zone"><header><div><Activity size={19}/><span><b>مؤشرات العملاء</b><small>ملخص حركة العملاء</small></span></div></header><div className="home-metrics">
+   <HomeMetric icon={ListChecks} label="عميل معلّق" value={data.operations.pendingCustomers} note="بحاجة إلى متابعة" tone="blue" onClick={onOpenTasks}/>
+   <HomeMetric icon={UsersRound} label="عميل جديد" value={data.operations.customersToday} note="تمت إضافته اليوم" tone="violet"/>
+   <HomeMetric icon={ClipboardCheck} label="إجمالي العملاء" value={data.operations.totalCustomers} note="ملفات العملاء في النظام" tone="amber"/>
+   <HomeMetric icon={Armchair} label="حجز مقعد" value={data.operations.activeReservations} note="حجوزات نشطة ومجدولة" tone="green"/>
   </div></section>
   {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<em>{f.reviewCount} طلب أقساط بانتظار المراجعة</em>}</header><div className="home-metrics finance">
    <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>

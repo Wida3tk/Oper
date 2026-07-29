@@ -11,11 +11,13 @@ export async function GET(req:Request){
   const today=new Date().toISOString().slice(0,10),canSeeFinance=auth.roles.includes("admin")||auth.roles.includes("finance")||can(auth,"finance.view"),isAdmin=auth.roles.includes("admin");
   const taskScope=isAdmin?"":"AND assignee_email=?";
   const taskQuery=db.prepare(`SELECT id,title,department,priority,due_at FROM workflow_tasks WHERE status!='مكتملة' ${taskScope} ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at LIMIT 6`);
-  const [account,tasks,customers,enrollments,reservations,journey,activity]=await Promise.all([
+  const pendingQuery=db.prepare(`SELECT COUNT(DISTINCT entity_id) count FROM workflow_tasks WHERE status!='مكتملة' ${taskScope}`);
+  const [account,tasks,pendingCustomers,customers,totalCustomers,reservations,journey,activity]=await Promise.all([
     db.prepare("SELECT display_name FROM staff_accounts WHERE email=?").bind(auth.email).first<{display_name:string}>(),
     (isAdmin?taskQuery:taskQuery.bind(auth.email)).all(),
+    (isAdmin?pendingQuery:pendingQuery.bind(auth.email)).first(),
     db.prepare("SELECT COUNT(*) count FROM customers WHERE substr(created_at,1,10)=? AND deleted_at IS NULL").bind(today).first(),
-    db.prepare("SELECT COUNT(*) count FROM enrollments WHERE status!='مكتمل'").first(),
+    db.prepare("SELECT COUNT(*) count FROM customers WHERE deleted_at IS NULL").first(),
     db.prepare("SELECT COUNT(*) count FROM seat_reservations WHERE status NOT IN ('تم التحويل','تم النقل')").first(),
     db.prepare("SELECT status,COUNT(*) count FROM enrollments GROUP BY status ORDER BY MIN(created_at)").all(),
     db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.actor_email,a.created_at,s.display_name actor_name FROM audit_log a LEFT JOIN staff_accounts s ON s.email=a.actor_email ORDER BY a.created_at DESC LIMIT 10").all(),
@@ -42,7 +44,7 @@ export async function GET(req:Request){
   return Response.json({
     user:{email:auth.email,name:account?.display_name||auth.email.split("@")[0],roles:auth.roles},
     canSeeFinance,canEditFinanceTarget:can(auth,"finance.total.edit"),
-    operations:{tasks:tasks.results.length,customersToday:num((customers as Record<string,unknown>)?.count),activeEnrollments:num((enrollments as Record<string,unknown>)?.count),activeReservations:num((reservations as Record<string,unknown>)?.count)},
+    operations:{pendingCustomers:num((pendingCustomers as Record<string,unknown>)?.count),customersToday:num((customers as Record<string,unknown>)?.count),totalCustomers:num((totalCustomers as Record<string,unknown>)?.count),activeReservations:num((reservations as Record<string,unknown>)?.count)},
     tasks:tasks.results.map(row=>({...row,department:row.department==="الأكاديمية"?"التشغيلية":row.department})),
     journey:journey.results,activity:activity.results,finance,generatedAt:new Date().toISOString()
   });
