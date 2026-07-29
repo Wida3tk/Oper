@@ -3010,8 +3010,23 @@ function OperationsCustomerCard({
   onAdvance?: () => void;
 }) {
   return (
-    <article className={`ops-customer-row ${moving ? "card-moving" : "card-enter"}`}>
-      <button className="ops-row-identity" onClick={onOpen}>
+    <article
+      className={`ops-customer-row ${moving ? "card-moving" : "card-enter"}`}
+      style={{ gridColumn: "1 / -1" }}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") onOpen();
+      }}
+    >
+      <button
+        className="ops-row-identity"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+      >
         <i>{row.customer_name.slice(0, 2)}</i>
         <div>
           <b>{row.customer_name}</b>
@@ -3050,19 +3065,32 @@ function OperationsCustomerCard({
           className="whatsapp"
           aria-label={`واتساب ${row.customer_name}`}
           disabled={!row.phone}
-          onClick={onWhatsapp}
+          onClick={(event) => {
+            event.stopPropagation();
+            onWhatsapp();
+          }}
         >
           <FaWhatsapp size={15} />
         </button>
         <button
           aria-label={`إيميل ${row.customer_name}`}
           disabled={!row.email}
-          onClick={onEmail}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEmail();
+          }}
         >
           <Mail size={14} />
         </button>
         {nextLabel && onAdvance && (
-          <button className="advance" disabled={moving} onClick={onAdvance}>
+          <button
+            className="advance"
+            disabled={moving}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdvance();
+            }}
+          >
             {moving ? "..." : "تنفيذ"}
           </button>
         )}
