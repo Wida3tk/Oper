@@ -2995,9 +2995,7 @@ function OperationsCustomerCard({
   stage,
   nextLabel,
   moving,
-  copied,
   onOpen,
-  onCopy,
   onWhatsapp,
   onEmail,
   onAdvance,
@@ -3006,130 +3004,69 @@ function OperationsCustomerCard({
   stage: string;
   nextLabel?: string;
   moving: boolean;
-  copied: string;
   onOpen: () => void;
-  onCopy: (value: string, key: string) => void;
   onWhatsapp: () => void;
   onEmail: () => void;
   onAdvance?: () => void;
 }) {
-  const keyPhone = `${row.id}-phone`,
-    keyEmail = `${row.id}-email`;
   return (
-    <article
-      className={`ops-customer-card ${moving ? "card-moving" : "card-enter"}`}
-      onClick={onOpen}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onOpen();
-      }}
-    >
-      <header>
+    <article className={`ops-customer-row ${moving ? "card-moving" : "card-enter"}`}>
+      <button className="ops-row-identity" onClick={onOpen}>
         <i>{row.customer_name.slice(0, 2)}</i>
         <div>
           <b>{row.customer_name}</b>
-          <span>{row.program_name}</span>
+          <span>{row.order_id}</span>
         </div>
+      </button>
+      <div className="ops-row-cell">
+        <span>البرنامج</span>
+        <b>{row.program_name}</b>
+      </div>
+      <div className="ops-row-cell contact">
+        <span>بيانات التواصل</span>
+        <b dir="ltr">{row.phone || "غير مسجل"}</b>
+        <small dir="ltr">{row.email || "غير مسجل"}</small>
+      </div>
+      <div className="ops-row-cell source">
+        <span>المصدر</span>
+        <b>{row.purchase_source || "غير محدد"}</b>
+      </div>
+      <div className="ops-row-cell status">
+        <span>المرحلة</span>
         <em>{stage}</em>
-      </header>
-      <div className="ops-card-contact">
-        <p>
-          <span>رقم الجوال</span>
-          <b dir="ltr">{row.phone || "غير مسجل"}</b>
-          <button
-            aria-label="نسخ رقم الجوال"
-            disabled={!row.phone}
-            onClick={(event) => {
-              event.stopPropagation();
-              onCopy(row.phone, keyPhone);
-            }}
-          >
-            <Copy size={13} />
-            {copied === keyPhone ? "تم" : "نسخ"}
-          </button>
-        </p>
-        <p>
-          <span>البريد الإلكتروني</span>
-          <b dir="ltr">{row.email || "غير مسجل"}</b>
-          <button
-            aria-label="نسخ البريد الإلكتروني"
-            disabled={!row.email}
-            onClick={(event) => {
-              event.stopPropagation();
-              onCopy(row.email, keyEmail);
-            }}
-          >
-            <Copy size={13} />
-            {copied === keyEmail ? "تم" : "نسخ"}
-          </button>
-        </p>
       </div>
-      <div className="ops-card-actions">
-        <button
-          className="whatsapp"
-          disabled={!row.phone}
-          onClick={(event) => {
-            event.stopPropagation();
-            onWhatsapp();
-          }}
-        >
-          <FaWhatsapp size={15} />
-          واتساب
-        </button>
-        <button
-          disabled={!row.email}
-          onClick={(event) => {
-            event.stopPropagation();
-            onEmail();
-          }}
-        >
-          <Mail size={14} />
-          إيميل
-        </button>
-      </div>
-      <div className="ops-card-meta">
-        <p>
-          <span>رقم الطلب</span>
-          <b>{row.order_id}</b>
-        </p>
-        <p>
-          <span>المصدر</span>
-          <b>{row.purchase_source || "غير محدد"}</b>
-        </p>
-      </div>
-      <div className="ops-card-next">
+      <div className="ops-row-cell next">
         <span>الإجراء التالي</span>
         <b>{nextLabel || "لا يوجد إجراء مطلوب"}</b>
-      </div>
-      <footer>
-        <span>
+        <small>
           آخر تحديث{" "}
           {row.updated_at
             ? new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn")
             : "غير محدد"}
-        </span>
+        </small>
+      </div>
+      <div className="ops-row-actions">
         <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen();
-          }}
+          className="whatsapp"
+          aria-label={`واتساب ${row.customer_name}`}
+          disabled={!row.phone}
+          onClick={onWhatsapp}
         >
-          فتح الملف
+          <FaWhatsapp size={15} />
         </button>
-      </footer>
-      {nextLabel && onAdvance && (
         <button
-          className="ops-card-primary"
-          disabled={moving}
-          onClick={(event) => {
-            event.stopPropagation();
-            onAdvance();
-          }}
+          aria-label={`إيميل ${row.customer_name}`}
+          disabled={!row.email}
+          onClick={onEmail}
         >
-          {moving ? "جارٍ التحديث..." : nextLabel}
-          <span>←</span>
+          <Mail size={14} />
         </button>
-      )}
+        {nextLabel && onAdvance && (
+          <button className="advance" disabled={moving} onClick={onAdvance}>
+            {moving ? "..." : "تنفيذ"}
+          </button>
+        )}
+      </div>
     </article>
   );
 }
@@ -3363,6 +3300,17 @@ function LiveAcademy({
                 ? "فتح البطاقة يعرض ملف العميل"
                 : "فتح البطاقة يعرض بيانات العميل وخطواته"}
           </p>
+          {!!count(state) && (
+            <div className="ops-list-head" aria-hidden="true">
+              <span>العميل</span>
+              <span>البرنامج</span>
+              <span>بيانات التواصل</span>
+              <span>المصدر</span>
+              <span>المرحلة</span>
+              <span>الإجراء التالي</span>
+              <span>الإجراءات</span>
+            </div>
+          )}
           <div className="column-cards">
             {rows
               .filter((x) => displayState(x.status) === state)
@@ -3373,9 +3321,7 @@ function LiveAcademy({
                   stage={stageLabel(state)}
                   nextLabel={enrollmentSteps[row.status]?.[1]}
                   moving={moving === row.id}
-                  copied={copied}
                   onOpen={() => setSelectedRow(row)}
-                  onCopy={(value, key) => void copy(value, key)}
                   onWhatsapp={() => whatsapp(row)}
                   onEmail={() => {
                     window.location.href = `mailto:${row.email}`;
