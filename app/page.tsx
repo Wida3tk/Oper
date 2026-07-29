@@ -1313,6 +1313,7 @@ function Registration({ done }: { done: () => void }) {
     payment: "دفع كامل",
     method: "تحويل بنكي",
     amount: "",
+    contractTotal: "",
   });
   const [proof, setProof] = useState({ name: "", data: "" });
   useEffect(() => {
@@ -1721,6 +1722,17 @@ function Registration({ done }: { done: () => void }) {
                     <option>تمارا</option>
                   </select>
                 </Field>
+                {form.payment === "أقساط" && (
+                  <Field label="إجمالي قيمة العقد *">
+                    <input
+                      inputMode="decimal"
+                      dir="ltr"
+                      value={form.contractTotal}
+                      onChange={(e) => set("contractTotal", e.target.value)}
+                      placeholder="مثال: 5000.00"
+                    />
+                  </Field>
+                )}
                 {form.method === "تحويل بنكي" && (
                   <label className={`bank-proof ${proof.data ? "ready" : ""}`}>
                     <input

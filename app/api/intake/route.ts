@@ -48,6 +48,8 @@ export async function POST(req: Request) {
   }
 
   const amount = Number(body.amount || 0);
+  const paymentPlan = String(body.payment || "دفع كامل");
+  const contractTotal = paymentPlan === "أقساط" ? Number(body.contractTotal || 0) : amount;
   const method = String(body.method || "تحويل بنكي");
   const proofAssetKey = String(body.proofAssetKey || "");
   if (method === "تحويل بنكي") {
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
   if(isReservation&&(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"تاريخ بدء البرنامج وتاريخ الإسناد مطلوبان لحجز المقعد"},{status:400});
   if(isReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   if (!(amount > 0)) return Response.json({ error: "المبلغ مطلوب" }, { status: 400 });
+  if (paymentPlan === "أقساط" && (!(contractTotal > amount))) return Response.json({ error: "إجمالي قيمة العقد يجب أن يكون أكبر من الدفعة الأولى عند اختيار الأقساط" }, { status: 400 });
   const intentId = id("PAYI");
   const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
   const customerId=existing?.id||id("CUS"),orderId=id("ORD"),paymentId=id("PAY"),reservationId=isScheduled?id("RSV"):null,enrollmentId=isScheduled?null:id("ENR");
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
-    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'دفع كامل',?,?,'مدفوع',?,'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),amount,amount,isScheduled?"غير مطبق":"تم التواصل",isScheduled?cohort:null,isScheduled?startDate:null,now,now),
+    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),paymentPlan,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",isScheduled?cohort:null,isScheduled?startDate:null,now,now),
     db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),proofAssetKey,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),proofAssetKey,"مسجلة",customerId,orderId,auth.email,now,now),
     db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)
