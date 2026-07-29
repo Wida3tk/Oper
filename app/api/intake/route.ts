@@ -59,9 +59,16 @@ export async function POST(req: Request) {
   const amount = paymentPlan === "أقساط"
     ? Math.round(Number(body.amount || 0)*100)/100
     : contractTotal;
-  const method = String(body.method || "تحويل بنكي");
+  const source = String(body.source || "عصارة");
+  if(!["عصارة","سلة","دفع مباشر"].includes(source))return Response.json({error:"مصدر الدفع غير صالح"},{status:400});
+  const method = source === "دفع مباشر"
+    ? String(body.method || "تحويل بنكي")
+    : source;
+  if(source==="دفع مباشر"&&!["تحويل بنكي","تمارا","Paytabs"].includes(method))return Response.json({error:"وسيلة الدفع المباشر غير صالحة"},{status:400});
+  const reference=String(body.reference||"").trim();
+  if(source==="دفع مباشر"&&method==="Paytabs"&&!/^https?:\/\/\S+$/i.test(reference))return Response.json({error:"رابط مرجع السداد من Paytabs مطلوب"},{status:400});
   const proofAssetKey = String(body.proofAssetKey || "");
-  if (method === "تحويل بنكي") {
+  if (source==="دفع مباشر"&&method === "تحويل بنكي") {
     if (!proofAssetKey.startsWith("data:image/")) return Response.json({error:"صورة التحويل البنكي مطلوبة"},{status:400});
     if (proofAssetKey.length > 1_500_000) return Response.json({error:"حجم صورة التحويل يتجاوز الحد المسموح"},{status:413});
   }
@@ -73,6 +80,12 @@ export async function POST(req: Request) {
   if (!(baseTotal > 0) || !(contractTotal > 0)) return Response.json({ error: "المبلغ الأساسي مطلوب" }, { status: 400 });
   if (!(amount > 0)) return Response.json({ error: "المبلغ المدفوع مطلوب" }, { status: 400 });
   if (paymentPlan === "أقساط" && (!(contractTotal > amount))) return Response.json({ error: "إجمالي قيمة العقد يجب أن يكون أكبر من الدفعة الأولى عند اختيار الأقساط" }, { status: 400 });
+  const needsFinanceReview =
+    paymentPlan === "أقساط" ||
+    (source === "دفع مباشر" && ["تحويل بنكي", "Paytabs"].includes(method));
+  const financeReviewStatus = needsFinanceReview ? "pending" : "approved";
+  const classificationStatus = needsFinanceReview ? "pending" : "confirmed";
+  const paymentIntentStatus = needsFinanceReview ? "بانتظار مراجعة المالية" : "مكتملة";
   const intentId = id("PAYI");
   const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
   const customerId=existing?.id||id("CUS"),orderId=id("ORD"),paymentId=id("PAY"),reservationId=isScheduled?id("RSV"):null,enrollmentId=isScheduled?null:id("ENR");
@@ -80,14 +93,14 @@ export async function POST(req: Request) {
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
-    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),paymentPlan,baseTotal,discountPercent,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",isScheduled?cohort:null,isScheduled?startDate:null,now,now),
-    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,'sale','confirmed',?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),proofAssetKey,now),
-    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),proofAssetKey,"مسجلة",customerId,orderId,auth.email,now,now),
-    db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)
+    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,source,paymentPlan,baseTotal,discountPercent,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",financeReviewStatus,isScheduled?cohort:null,isScheduled?startDate:null,now,now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,'sale',?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,reference,proofAssetKey,classificationStatus,now),
+    db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );
+  if(needsFinanceReview)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),paymentId,paymentPlan==="أقساط"?"اعتماد وتنظيم طلب أقساط":method==="Paytabs"?"مراجعة رابط مرجع Paytabs":"مراجعة واعتماد التحويل البنكي",auth.email,now));
   if(isScheduled)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,reservation_kind,status,cohort_label,start_date,assignment_date,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,?,'بانتظار الإسناد',?,?,?,?,?,?)").bind(reservationId,customerId,programId,orderId,amount,isReservation?"حجز مقعد":"برنامج مباشر",cohort||null,startDate,assignmentDate,now,now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,due_at,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات',?,'مفتوحة','عادية',?,?,?)").bind(id("TSK"),reservationId,isReservation?"متابعة حجز المقعد حتى تاريخ الإسناد":"متابعة البرنامج المباشر حتى تاريخ الإسناد",assignmentDate,auth.email,now));
   else statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(enrollmentId,customerId,programId,orderId,"تم التواصل",now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'التشغيلية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,auth.email,now));
-  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_PAYMENT_AND_ADMIT','payment',?,?,?)").bind(id("AUD"),auth.email,paymentId,JSON.stringify({programId,purchaseType,baseTotal,discountPercent,contractTotal,amount,method,customerId,orderId}),now));
+  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_PAYMENT_AND_ADMIT','payment',?,?,?)").bind(id("AUD"),auth.email,paymentId,JSON.stringify({programId,purchaseType,source,baseTotal,discountPercent,contractTotal,amount,method,needsFinanceReview,customerId,orderId}),now));
   await db.batch(statements);
   return Response.json({ok:true,prospectId,paymentIntentId:intentId,customerId,orderId,reservationId,enrollmentId,status:"تم إنشاء العميل"},{status:201});
 }

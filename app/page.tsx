@@ -1570,7 +1570,8 @@ function Registration({ done }: { done: () => void }) {
     assignmentDate: "",
     source: "عصارة",
     payment: "دفع كامل",
-    method: "تحويل بنكي",
+    method: "عصارة",
+    reference: "",
     amount: "",
     contractTotal: "",
     discount: "0",
@@ -1607,6 +1608,7 @@ function Registration({ done }: { done: () => void }) {
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const directProgram = form.journey === "برنامج مباشر";
   const asara = form.source === "عصارة";
+  const directPayment = form.source === "دفع مباشر";
   const scheduledJourney = directProgram;
   const reservationDatesInvalid =
     scheduledJourney &&
@@ -1640,7 +1642,15 @@ function Registration({ done }: { done: () => void }) {
     reader.readAsDataURL(file);
   };
   const missingProof =
-    form.journey !== "تجربة" && form.method === "تحويل بنكي" && !proof.data;
+    form.journey !== "تجربة" &&
+    directPayment &&
+    form.method === "تحويل بنكي" &&
+    !proof.data;
+  const missingPaytabsReference =
+    form.journey !== "تجربة" &&
+    directPayment &&
+    form.method === "Paytabs" &&
+    !/^https?:\/\/\S+$/i.test(form.reference.trim());
   const next = () => {
     setSaveError("");
     if (step === 1 && (!form.name || !form.phone || !form.email || phoneInvalid)) {
@@ -1687,6 +1697,10 @@ function Registration({ done }: { done: () => void }) {
         setSaveError("يلزم إرفاق صورة التحويل البنكي قبل المتابعة");
         return;
       }
+      if (missingPaytabsReference) {
+        setSaveError("يلزم إضافة رابط مرجع السداد من Paytabs");
+        return;
+      }
     }
     setStep(step + 1);
   };
@@ -1726,6 +1740,11 @@ function Registration({ done }: { done: () => void }) {
     }
     if (missingProof) {
       setSaveError("يلزم إرفاق صورة التحويل البنكي قبل تسجيل العميل");
+      setStep(3);
+      return;
+    }
+    if (missingPaytabsReference) {
+      setSaveError("يلزم إضافة رابط مرجع السداد من Paytabs");
       setStep(3);
       return;
     }
@@ -1981,37 +2000,50 @@ function Registration({ done }: { done: () => void }) {
               }
             />
             <div className="source-grid">
-              {["عصارة", "سلة", "دفع مباشر", "تمارا", "أخرى"].map((x) => (
+              {["عصارة", "سلة", "دفع مباشر"].map((x) => (
                 <button
                   key={x}
                   className={form.source === x ? "selected" : ""}
-                  onClick={() => set("source", x)}
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      source: x,
+                      method:
+                        x === "دفع مباشر" ? "تحويل بنكي" : x,
+                      reference: "",
+                    }))
+                  }
                 >
                   <i>{x === "عصارة" ? "ع" : x === "سلة" ? "س" : "◈"}</i>
                   <b>{x}</b>
                   <small>
                     {x === "عصارة"
                       ? "تفعيل تلقائي"
-                      : x === "تمارا"
-                        ? "تقسيط خارجي"
-                        : "مصدر الطلب"}
+                      : x === "سلة"
+                        ? "مكتمل مالياً"
+                        : "اختيار وسيلة الدفع"}
                   </small>
                 </button>
               ))}
             </div>
             {form.journey !== "تجربة" && (
               <div className="field-grid">
-                <Field label="وسيلة الدفع">
-                  <select
-                    value={form.method}
-                    onChange={(e) => set("method", e.target.value)}
-                  >
-                    <option>تحويل بنكي</option>
-                    <option>دفع إلكتروني</option>
-                    <option>تمارا</option>
-                    <option>نقدي</option>
-                  </select>
-                </Field>
+                {directPayment && (
+                  <Field label="وسيلة الدفع المباشر">
+                    <select
+                      value={form.method}
+                      onChange={(e) => {
+                        set("method", e.target.value);
+                        set("reference", "");
+                        setProof({ name: "", data: "" });
+                      }}
+                    >
+                      <option>تحويل بنكي</option>
+                      <option>تمارا</option>
+                      <option>Paytabs</option>
+                    </select>
+                  </Field>
+                )}
                 <Field label="المبلغ الأساسي *">
                   <input
                     inputMode="decimal"
@@ -2054,6 +2086,20 @@ function Registration({ done }: { done: () => void }) {
                     />
                   </Field>
                 )}
+                {directPayment && form.method === "Paytabs" && (
+                  <Field label="رابط مرجع السداد *">
+                    <input
+                      type="url"
+                      dir="ltr"
+                      value={form.reference}
+                      onChange={(e) => set("reference", e.target.value)}
+                      placeholder="https://..."
+                    />
+                    <small className="field-help">
+                      رابط عملية السداد من لوحة Paytabs
+                    </small>
+                  </Field>
+                )}
                 <div className="discount-summary">
                   <p>
                     <span>المبلغ الأساسي</span>
@@ -2071,7 +2117,7 @@ function Registration({ done }: { done: () => void }) {
                     <small>سيُسجل هذا المبلغ كاملاً كدفعة المبيعات.</small>
                   )}
                 </div>
-                {form.method === "تحويل بنكي" && (
+                {directPayment && form.method === "تحويل بنكي" && (
                   <label className={`bank-proof ${proof.data ? "ready" : ""}`}>
                     <input
                       type="file"
@@ -2104,6 +2150,35 @@ function Registration({ done }: { done: () => void }) {
                 )}
               </div>
             )}
+            {form.journey !== "تجربة" &&
+              !directPayment &&
+              form.payment !== "أقساط" && (
+              <div className="finance-route-status complete">
+                <i>✓</i>
+                <div>
+                  <b>مكتمل مالياً عبر {form.source}</b>
+                  <span>لن يُنشأ طلب مراجعة للمالية.</span>
+                </div>
+              </div>
+            )}
+            {form.journey !== "تجربة" &&
+              (form.payment === "أقساط" ||
+                (directPayment &&
+                  ["تحويل بنكي", "Paytabs"].includes(form.method))) && (
+                <div className="finance-route-status review">
+                  <i>!</i>
+                  <div>
+                    <b>سيرسل إلى مراجعة المالية</b>
+                    <span>
+                      {form.payment === "أقساط"
+                        ? "جميع طلبات الأقساط تحتاج اعتماد المالية."
+                        : form.method === "Paytabs"
+                          ? "ستراجع المالية رابط مرجع السداد."
+                          : "ستراجع المالية صورة التحويل البنكي."}
+                    </span>
+                  </div>
+                </div>
+              )}
             <div
               className={`automation-note ${form.journey === "تجربة" ? "auto" : "manual"}`}
             >
@@ -2117,7 +2192,13 @@ function Registration({ done }: { done: () => void }) {
                 <p>
                   {form.journey === "تجربة"
                     ? "سيحسب النظام مدة التجربة من إعداد البرنامج وينشئ متابعة للمبيعات."
-                    : "ستنشأ مهمة تنظيم ومطابقة للمالية دون تعطيل رحلة العميل."}
+                    : !directPayment && form.payment !== "أقساط"
+                      ? `سيُغلق الإجراء المالي مباشرة لأن السداد مسجل عبر ${form.source}.`
+                      : form.payment === "أقساط"
+                        ? "سيُنشأ طلب اعتماد للمالية لتنظيم الأقساط."
+                        : form.method === "تمارا"
+                          ? "سيُسجل السداد عبر تمارا كعملية مكتملة."
+                          : "سيُنشأ طلب مراجعة للمالية مع مستند السداد."}
                 </p>
               </div>
             </div>
@@ -5109,16 +5190,19 @@ function LiveFinance() {
                 <div>
                   <b>هذا الطلب يحتاج مراجعة مالية</b>
                   <span>
-                    سيُعتمد المبلغ الأول كمبيعات، وتُصنّف دفعات الأقساط
-                    اللاحقة كتحصيل.
+                    {selected.payment_plan === "أقساط"
+                      ? "اعتماد الدفعة الأولى كمبيعات، ثم تنظيم الأقساط اللاحقة كتحصيل."
+                      : selected.purchase_source === "دفع مباشر"
+                        ? "مراجعة مستند أو مرجع السداد ثم اعتماد العملية المالية."
+                        : "مراجعة واعتماد العملية المالية."}
                   </span>
                 </div>
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => void post({ action: "review_legacy_installments" })}
+                  onClick={() => void post({ action: "approve_finance_review" })}
                 >
-                  {saving ? "جارٍ الاعتماد..." : "مراجعة واعتماد التصنيف"}
+                  {saving ? "جارٍ الاعتماد..." : "اعتماد المراجعة المالية"}
                 </button>
               </div>
             )}

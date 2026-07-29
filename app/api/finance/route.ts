@@ -39,7 +39,7 @@ export async function POST(req:Request){
  const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number}>();
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
  const paidRow=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=?").bind(orderId).first<{paid:number}>(),paidCents=cents(paidRow?.paid);
- if(action==="review_legacy_installments"){
+ if(["review_legacy_installments","approve_finance_review"].includes(action)){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"ليس لديك صلاحية مراجعة الأقساط"},{status:403});
   const review=await db.prepare("SELECT finance_review_status FROM orders WHERE id=?").bind(orderId).first<{finance_review_status:string}>();
   if(review?.finance_review_status!=="pending")return Response.json({error:"الطلب لا ينتظر مراجعة المالية"},{status:409});
@@ -47,6 +47,8 @@ export async function POST(req:Request){
   await db.batch([
    db.prepare("UPDATE payments SET flow_type=CASE WHEN id=? THEN 'sale' WHEN id IN (SELECT paid_payment_id FROM installments WHERE order_id=? AND paid_payment_id IS NOT NULL) THEN 'collection' ELSE 'collection' END,classification_status='confirmed' WHERE order_id=?").bind(first?.id||"",orderId,orderId),
    db.prepare("UPDATE orders SET finance_review_status='approved',updated_at=? WHERE id=?").bind(now,orderId),
+   db.prepare("UPDATE payment_intents SET status='معتمدة',reviewed_by_finance_email=?,reviewed_at=?,updated_at=? WHERE resulting_order_id=?").bind(auth.email,now,now,orderId),
+   db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='payment' AND entity_id IN (SELECT id FROM payments WHERE order_id=?) AND status!='مكتملة'").bind(now,orderId),
    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'APPROVE_LEGACY_INSTALLMENTS','order',?,'{}',?)").bind(id("AUD"),auth.email,orderId,now)
   ]);
   return Response.json({ok:true});
