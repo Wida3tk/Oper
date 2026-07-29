@@ -12,13 +12,23 @@ import {
   DatabaseBackup,
   Download,
   CalendarDays,
+  ChevronDown,
+  CircleUserRound,
+  Database,
+  FileChartColumn,
+  FolderKanban,
+  HandCoins,
+  House,
   LayoutDashboard,
+  Landmark,
+  Layers3,
   ListChecks,
   LogOut,
   Mail,
   Menu,
   PhoneCall,
   ReceiptText,
+  Settings2,
   ShieldCheck,
   Target,
   UserRoundCheck,
@@ -42,6 +52,7 @@ type View =
   | "reports"
   | "users"
   | "programs"
+  | "control"
   | "new";
 type NavIcon =
   | "dashboard"
@@ -57,17 +68,17 @@ type NavIcon =
   | "reports";
 type NavItem = [View, string, NavIcon, number?];
 const navIcons: Record<NavIcon, LucideIcon> = {
-  dashboard: LayoutDashboard,
+  dashboard: House,
   tasks: ListChecks,
-  customers: UsersRound,
-  contact: PhoneCall,
+  customers: Database,
+  contact: CircleUserRound,
   registration: ClipboardCheck,
-  assignment: UserRoundCheck,
-  reservations: Armchair,
-  finance: BadgeDollarSign,
-  users: ShieldCheck,
-  programs: BookOpenCheck,
-  reports: ChartNoAxesCombined,
+  assignment: Layers3,
+  reservations: CalendarDays,
+  finance: HandCoins,
+  users: Settings2,
+  programs: FolderKanban,
+  reports: FileChartColumn,
 };
 function BrandMark({ withText = true }: { withText?: boolean }) {
   return (
@@ -82,24 +93,26 @@ function BrandMark({ withText = true }: { withText?: boolean }) {
     </div>
   );
 }
-const navGroups: { label: string; items: NavItem[] }[] = [
+const navGroups: {
+  id: string;
+  label: string;
+  icon?: LucideIcon;
+  collapsible?: boolean;
+  items: NavItem[];
+}[] = [
   {
-    label: "الرئيسية",
+    id: "start",
+    label: "البداية",
     items: [
       ["dashboard", "الرئيسية", "dashboard"],
       ["work", "عملاء اليوم", "tasks"],
     ],
   },
   {
-    label: "إدارة العملاء",
-    items: [
-      ["customers", "العملاء والتسجيلات", "customers"],
-      ["direct-programs", "البرامج المباشرة", "programs"],
-      ["reservations", "حجوزات المقاعد", "reservations"],
-    ],
-  },
-  {
-    label: "مراحل العميل",
+    id: "customers",
+    label: "العملاء",
+    icon: UsersRound,
+    collapsible: true,
     items: [
       ["contact", "تسليم العميل", "contact"],
       ["registration", "تهيئة العميل", "registration"],
@@ -107,13 +120,32 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "الإدارة",
+    id: "program-management",
+    label: "إدارة البرامج",
+    icon: FolderKanban,
+    collapsible: true,
     items: [
-      ["finance", "المالية والتحصيل", "finance", 3],
-      ["programs", "إدارة البرامج", "programs"],
-      ["users", "المستخدمون والصلاحيات", "users"],
+      ["customers", "قاعدة بيانات العملاء", "customers"],
+      ["direct-programs", "عملاء البرامج المباشرة", "programs"],
+      ["reservations", "حجوزات المقاعد", "reservations"],
+    ],
+  },
+  {
+    id: "settings",
+    label: "الإعدادات",
+    icon: Settings2,
+    collapsible: true,
+    items: [
+      ["control", "لوحة التحكم", "users"],
       ["reports", "التقارير", "reports"],
     ],
+  },
+  {
+    id: "finance",
+    label: "المالية",
+    icon: Landmark,
+    collapsible: true,
+    items: [["finance", "التحصيل", "finance"]],
   },
 ];
 const initialPeople = [
@@ -251,13 +283,13 @@ const tasks = [
 const titles: Record<View, [string, string]> = {
   dashboard: ["الرئيسية", "ملخص شامل لحركة العمليات والمبيعات والتحصيل"],
   work: ["عملاء اليوم", "المتابعات والإجراءات المسندة إليك"],
-  customers: ["العملاء والتسجيلات", "ملف موحد لكل عميل وجميع تسجيلاته"],
+  customers: ["قاعدة بيانات العملاء", "العملاء الذين اكتملت رحلتهم التشغيلية"],
   reservations: [
     "حجوزات المقاعد",
     "الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل",
   ],
   "direct-programs": [
-    "البرامج المباشرة",
+    "عملاء البرامج المباشرة",
     "الدفعات المجدولة التي تنتقل إلى التهيئة في تاريخ الإسناد",
   ],
   contact: ["تسليم العميل", "تسجيل بيانات العميل ومتابعة عملاء التجربة"],
@@ -267,14 +299,18 @@ const titles: Record<View, [string, string]> = {
   ],
   assignment: ["تفعيل المقررات", "العملاء الجاهزون لتفعيل البرنامج والمقررات"],
   finance: [
-    "المالية والتحصيل",
-    "مطابقة الدفعات وتنظيمها دون تعطيل رحلة العميل",
+    "التحصيل",
+    "متابعة الأقساط والمدفوعات والمراجعات المالية",
   ],
   programs: ["إدارة البرامج", "أضف البرامج وتحكم بظهورها في تسجيل العميل"],
   reports: ["التقارير الإدارية", "مؤشرات الأداء وجودة العمليات"],
   users: [
     "المستخدمون والصلاحيات",
     "إضافة أعضاء الفريق وتحديد صلاحية كل مستخدم",
+  ],
+  control: [
+    "لوحة التحكم",
+    "إدارة المستخدمين والصلاحيات وبرامج النظام من مكان واحد",
   ],
   new: [
     "تسجيل عميل جديد",
@@ -410,6 +446,8 @@ function OperationsApp() {
     [selected, setSelected] = useState(initialPeople[0]),
     [panel, setPanel] = useState(false),
     [taskCount, setTaskCount] = useState(0),
+    [navCounts, setNavCounts] = useState<Partial<Record<View, number>>>({}),
+    [openGroups, setOpenGroups] = useState<string[]>(["customers"]),
     [mobileOpen, setMobileOpen] = useState(false),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
@@ -432,10 +470,58 @@ function OperationsApp() {
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    const refresh = () =>
-      apiJson("/api/tasks")
-        .then((data) => setTaskCount((data.tasks || []).length))
-        .catch(() => {});
+    const refresh = async () => {
+      const [tasksResult, enrollmentsResult, reservationsResult, directResult, financeResult] =
+        await Promise.allSettled([
+          apiJson("/api/tasks"),
+          apiJson("/api/enrollments"),
+          apiJson(`/api/reservations?kind=${encodeURIComponent("حجز مقعد")}`),
+          apiJson(`/api/reservations?kind=${encodeURIComponent("برنامج مباشر")}`),
+          apiJson("/api/finance"),
+        ]);
+      if (tasksResult.status === "fulfilled") {
+        setTaskCount((tasksResult.value.tasks || []).length);
+      }
+      const enrollments =
+        enrollmentsResult.status === "fulfilled"
+          ? enrollmentsResult.value.enrollments || []
+          : [];
+      const reservations =
+        reservationsResult.status === "fulfilled"
+          ? reservationsResult.value.reservations || []
+          : [];
+      const direct =
+        directResult.status === "fulfilled"
+          ? directResult.value.reservations || []
+          : [];
+      const finance =
+        financeResult.status === "fulfilled"
+          ? financeResult.value.orders || []
+          : [];
+      setNavCounts({
+        contact: enrollments.filter((row: LiveEnrollment) => row.status === "جديد").length,
+        registration: enrollments.filter(
+          (row: LiveEnrollment) => row.status === "تم التواصل",
+        ).length,
+        assignment: enrollments.filter((row: LiveEnrollment) =>
+          ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
+        ).length,
+        reservations: reservations.filter(
+          (row: LiveReservation) => row.status !== "تم التحويل",
+        ).length,
+        "direct-programs": direct.filter(
+          (row: LiveReservation) => row.status !== "تم التحويل",
+        ).length,
+        finance: finance.filter(
+          (row: FinanceOrder) =>
+            row.finance_review_status === "pending" ||
+            row.installments?.some(
+              (installment: FinanceInstallment) =>
+                installment.display_status === "متأخر",
+            ),
+        ).length,
+      });
+    };
     refresh();
     apiJson("/api/auth")
       .then((data) =>
@@ -503,7 +589,8 @@ function OperationsApp() {
     (id === "finance" && has("finance.view")) ||
     (id === "reports" && has("reports.view")) ||
     (id === "users" && has("users.manage")) ||
-    (id === "programs" && currentUser.roles.includes("admin"));
+    (id === "programs" && currentUser.roles.includes("admin")) ||
+    (id === "control" && currentUser.roles.includes("admin"));
   const visibleNavGroups = navGroups
     .map((group) => ({
       ...group,
@@ -514,6 +601,18 @@ function OperationsApp() {
     setView(id);
     setMobileOpen(false);
   };
+  useEffect(() => {
+    const activeGroup = visibleNavGroups.find((group) =>
+      group.items.some(([id]) => id === view),
+    );
+    if (activeGroup?.collapsible) {
+      setOpenGroups((current) =>
+        current.includes(activeGroup.id)
+          ? current
+          : [...current, activeGroup.id],
+      );
+    }
+  }, [view]);
   const logout = async () => {
     await fetch("/api/auth", { method: "DELETE" });
     window.location.reload();
@@ -553,28 +652,64 @@ function OperationsApp() {
           <em>⌄</em>
         </div>
         <nav>
-          {visibleNavGroups.map((group) => (
-            <section className="nav-group" key={group.label}>
-              <p className="nav-label">{group.label}</p>
-              {group.items.map(([id, label, icon, badge]) => {
-                const Icon = navIcons[icon],
-                  visibleBadge = id === "work" ? taskCount : badge;
-                return (
+          {visibleNavGroups.map((group) => {
+            const expanded =
+              !group.collapsible || openGroups.includes(group.id);
+            const GroupIcon = group.icon;
+            const groupCount = group.items.reduce(
+              (sum, [id]) => sum + Number(navCounts[id] || 0),
+              0,
+            );
+            return (
+              <section
+                className={`nav-group ${group.collapsible ? "collapsible" : "static"} ${expanded ? "expanded" : ""}`}
+                key={group.id}
+              >
+                {group.collapsible ? (
                   <button
-                    key={id}
-                    className={view === id ? "active" : ""}
-                    onClick={() => go(id)}
+                    className={`nav-group-trigger ${group.items.some(([id]) => id === view) ? "current" : ""}`}
+                    aria-expanded={expanded}
+                    onClick={() =>
+                      setOpenGroups((current) =>
+                        current.includes(group.id)
+                          ? current.filter((id) => id !== group.id)
+                          : [...current, group.id],
+                      )
+                    }
                   >
-                    <i>
-                      <Icon size={17} strokeWidth={1.9} />
-                    </i>
-                    {label}
-                    {Boolean(visibleBadge) && <em>{visibleBadge}</em>}
+                    <i>{GroupIcon && <GroupIcon size={18} strokeWidth={1.8} />}</i>
+                    <span>{group.label}</span>
+                    {groupCount > 0 && <em>{groupCount}</em>}
+                    <ChevronDown className="nav-chevron" size={15} />
                   </button>
-                );
-              })}
-            </section>
-          ))}
+                ) : (
+                  <p className="nav-label">{group.label}</p>
+                )}
+                <div className="nav-group-items">
+                  {group.items.map(([id, label, icon, badge]) => {
+                    const Icon = navIcons[icon],
+                      visibleBadge =
+                        id === "work"
+                          ? taskCount
+                          : navCounts[id] ?? badge;
+                    return (
+                      <button
+                        key={id}
+                        className={view === id ? "active" : ""}
+                        onClick={() => go(id)}
+                      >
+                        <i>
+                          <Icon size={17} strokeWidth={1.8} />
+                        </i>
+                        <span>{label}</span>
+                        {Boolean(visibleBadge) && <em>{visibleBadge}</em>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
         </nav>
         <div className="health">
           <span>سلامة النظام</span>
@@ -678,6 +813,7 @@ function OperationsApp() {
             </>
           )}
           {view === "users" && <Users />}
+          {view === "control" && <ControlPanel />}
           {view === "new" && <Registration done={() => setView("customers")} />}
         </div>
       </section>
@@ -2686,14 +2822,17 @@ function LiveCustomers({
     window.addEventListener("sulukera:data-changed", refresh);
     return () => window.removeEventListener("sulukera:data-changed", refresh);
   }, []);
+  const directoryRows = rows.filter((row) => row.state === "مكتمل");
   const programs = [
       "الكل",
       ...Array.from(
-        new Set(rows.map((x) => x.program).filter((x) => x !== "—")),
+        new Set(directoryRows.map((x) => x.program).filter((x) => x !== "—")),
       ),
     ],
-    statuses = Array.from(new Set(rows.map((x) => x.state).filter(Boolean)));
-  const filtered = rows.filter(
+    statuses = Array.from(
+      new Set(directoryRows.map((x) => x.state).filter(Boolean)),
+    );
+  const filtered = directoryRows.filter(
     (row) =>
       `${row.name} ${row.id} ${row.phone} ${row.program}`.includes(query) &&
       (programFilter === "الكل" || row.program === programFilter) &&
@@ -2706,7 +2845,7 @@ function LiveCustomers({
       <div className="customer-summary">
         <div>
           <span>إجمالي العملاء</span>
-          <b>{rows.length}</b>
+          <b>{directoryRows.length}</b>
         </div>
         <div className="highlight">
           <span>النتائج المعروضة</span>
@@ -2717,7 +2856,7 @@ function LiveCustomers({
           <b>
             {
               new Set(
-                rows
+                directoryRows
                   .map((row) => row.program)
                   .filter((x) => x !== "لا يوجد طلب حالي"),
               ).size
@@ -2725,8 +2864,8 @@ function LiveCustomers({
           </b>
         </div>
         <div>
-          <span>يحتاجون إجراء</span>
-          <b>{rows.filter((row) => row.state !== "مكتمل").length}</b>
+          <span>ملفات مكتملة</span>
+          <b>{directoryRows.length}</b>
         </div>
       </div>
       <div className="card full customer-directory">
@@ -2741,7 +2880,7 @@ function LiveCustomers({
           statuses={statuses}
           program={programFilter}
           status={statusFilter}
-          total={rows.length}
+          total={directoryRows.length}
           visible={filtered.length}
           onProgram={setProgramFilter}
           onStatus={setStatusFilter}
@@ -3513,6 +3652,30 @@ type StaffRow = {
   permissions?: string;
   has_password?: number;
 };
+function ControlPanel() {
+  const [section, setSection] = useState<"users" | "programs">("users");
+  return (
+    <div className="control-panel">
+      <nav className="control-panel-tabs" aria-label="أقسام لوحة التحكم">
+        <button
+          className={section === "users" ? "active" : ""}
+          onClick={() => setSection("users")}
+        >
+          <ShieldCheck size={18} />
+          المستخدمون والصلاحيات
+        </button>
+        <button
+          className={section === "programs" ? "active" : ""}
+          onClick={() => setSection("programs")}
+        >
+          <FolderKanban size={18} />
+          إدارة البرامج
+        </button>
+      </nav>
+      {section === "users" ? <Users /> : <Programs />}
+    </div>
+  );
+}
 function Programs() {
   const [rows, setRows] = useState<Program[]>([]),
     [name, setName] = useState(""),
