@@ -566,7 +566,10 @@ function OperationsApp() {
     setPeople([...people]);
   };
   const openWhatsApp = () => {
-    const digits = selected.phone.replace(/\D/g, "").replace(/^0/, "966");
+    const digits = selected.phone
+      .replace(/\D/g, "")
+      .replace(/^00/, "")
+      .replace(/^0/, "966");
     const message = `مرحباً ${selected.name}، معك فريق سلوكيرا بخصوص تسجيلك في برنامج ${selected.program}. يسعدنا خدمتك واستكمال الإجراء معك.`;
     window.open(
       `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
@@ -967,6 +970,9 @@ function OperationsApp() {
             <Section title="آخر النشاطات">
               <CustomerEditHistory customerId={selected.id} />
             </Section>
+            <Section title="تحديثات العميل">
+              <CustomerNotes customerId={selected.id} />
+            </Section>
           </aside>
         </>
       )}
@@ -997,6 +1003,86 @@ function CustomerEditHistory({ customerId }: { customerId: string }) {
   const labels: Record<string, string> = { name: "الاسم", phone: "رقم الجوال", email: "البريد الإلكتروني", source: "مصدر الشراء" };
   if (!rows.length) return <div className="customer-history-empty">لا توجد تعديلات مسجلة على بيانات العميل.</div>;
   return <div className="customer-edit-history">{rows.map(row => { let changes: Record<string, { from: string; to: string }> = {}; try { changes = JSON.parse(row.details || "{}").changes || {} } catch {} return <article key={row.id}><header><b>تعديل بيانات العميل</b><span>{new Date(row.created_at).toLocaleString("ar-SA-u-nu-latn")}</span></header>{Object.entries(changes).map(([field, change]) => <p key={field}><b>{labels[field] || field}</b><del>{change.from || "فارغ"}</del><i>←</i><ins>{change.to || "فارغ"}</ins></p>)}<footer>تم التعديل بواسطة: <b>{row.actor_name || row.actor_email}</b></footer></article>})}</div>
+}
+
+type CustomerNoteRow = {
+  id: string;
+  note: string;
+  created_by_email: string;
+  created_at: string;
+};
+function CustomerNotes({ customerId }: { customerId: string }) {
+  const [notes, setNotes] = useState<CustomerNoteRow[]>([]);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const load = () =>
+    apiJson(`/api/customers/notes?customerId=${encodeURIComponent(customerId)}`)
+      .then((data) => setNotes(data.notes || []))
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    setText("");
+    setError("");
+    void load();
+  }, [customerId]);
+  const save = async () => {
+    if (!text.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const data = await apiJson("/api/customers/notes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ customerId, note: text }),
+      });
+      setNotes((current) => [data.note, ...current]);
+      setText("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="customer-note-log">
+      <div className="customer-note-entry">
+        <textarea
+          rows={2}
+          maxLength={1000}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="اكتب تحديثاً جديداً عن العميل..."
+        />
+        <button
+          className="primary"
+          disabled={saving || !text.trim()}
+          onClick={() => void save()}
+        >
+          {saving ? "جارٍ الحفظ…" : "حفظ التحديث"}
+        </button>
+      </div>
+      {error && <div className="ops-error compact">{error}</div>}
+      <div className="customer-note-lines">
+        {notes.map((row) => (
+          <article key={row.id}>
+            <i />
+            <div>
+              <p>{row.note}</p>
+              <span>
+                {row.created_by_email} ·{" "}
+                {new Date(row.created_at).toLocaleString("ar-SA-u-nu-latn")}
+              </span>
+            </div>
+          </article>
+        ))}
+        {!notes.length && (
+          <div className="customer-history-empty">
+            لا توجد تحديثات مسجلة على العميل.
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function AdminDeleteCustomer({
@@ -1459,6 +1545,10 @@ function Reports() {
   );
 }
 
+const internationalPhonePattern = /^00[1-9]\d{8,14}$/;
+const normalizePhoneInput = (value: string) =>
+  value.replace(/[^\d+]/g, "").replace(/^\+/, "00");
+
 function Registration({ done }: { done: () => void }) {
   const [step, setStep] = useState(1),
     [saved, setSaved] = useState(false),
@@ -1467,7 +1557,7 @@ function Registration({ done }: { done: () => void }) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [form, setForm] = useState({
     name: "",
-    phone: "",
+    phone: "00966",
     email: "",
     journey: "اشتراك",
     programId: "PRG-ABA",
@@ -1483,6 +1573,7 @@ function Registration({ done }: { done: () => void }) {
     method: "تحويل بنكي",
     amount: "",
     contractTotal: "",
+    discount: "0",
   });
   const [proof, setProof] = useState({ name: "", data: "" });
   useEffect(() => {
@@ -1523,6 +1614,14 @@ function Registration({ done }: { done: () => void }) {
       !form.startDate ||
       !form.assignmentDate ||
       form.assignmentDate > form.startDate);
+  const baseTotal = Number(form.contractTotal || 0);
+  const discountPercent = Number(form.discount || 0);
+  const discountedTotal = Math.round(
+    baseTotal * (1 - discountPercent / 100) * 100,
+  ) / 100;
+  const payableAmount =
+    form.payment === "أقساط" ? Number(form.amount || 0) : discountedTotal;
+  const phoneInvalid = !internationalPhonePattern.test(form.phone);
   const readProof = (file?: File) => {
     setSaveError("");
     if (!file) return;
@@ -1544,8 +1643,12 @@ function Registration({ done }: { done: () => void }) {
     form.journey !== "تجربة" && form.method === "تحويل بنكي" && !proof.data;
   const next = () => {
     setSaveError("");
-    if (step === 1 && (!form.name || !form.phone || !form.email)) {
-      setSaveError("الاسم والجوال والبريد الإلكتروني حقول إلزامية");
+    if (step === 1 && (!form.name || !form.phone || !form.email || phoneInvalid)) {
+      setSaveError(
+        phoneInvalid
+          ? "رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"
+          : "الاسم والجوال والبريد الإلكتروني حقول إلزامية",
+      );
       return;
     }
     if (
@@ -1566,15 +1669,30 @@ function Registration({ done }: { done: () => void }) {
       );
       return;
     }
-    if (step === 3 && missingProof) {
-      setSaveError("يلزم إرفاق صورة التحويل البنكي قبل المتابعة");
-      return;
+    if (step === 3 && form.journey !== "تجربة") {
+      if (!(baseTotal > 0) || !(discountedTotal > 0)) {
+        setSaveError("يلزم إدخال المبلغ الأساسي قبل المتابعة");
+        return;
+      }
+      if (
+        form.payment === "أقساط" &&
+        (!(payableAmount > 0) || payableAmount >= discountedTotal)
+      ) {
+        setSaveError(
+          "الدفعة الأولى يجب أن تكون أكبر من صفر وأقل من المبلغ بعد الخصم",
+        );
+        return;
+      }
+      if (missingProof) {
+        setSaveError("يلزم إرفاق صورة التحويل البنكي قبل المتابعة");
+        return;
+      }
     }
     setStep(step + 1);
   };
   const submit = async () => {
     setSaveError("");
-    if (!form.name || !form.phone || !form.email) {
+    if (!form.name || !form.phone || !form.email || phoneInvalid) {
       setSaveError("يلزم استكمال الاسم والجوال والبريد قبل الحفظ");
       setStep(1);
       return;
@@ -1595,6 +1713,17 @@ function Registration({ done }: { done: () => void }) {
       setStep(2);
       return;
     }
+    if (
+      form.journey !== "تجربة" &&
+      (!(baseTotal > 0) ||
+        !(discountedTotal > 0) ||
+        (form.payment === "أقساط" &&
+          (!(payableAmount > 0) || payableAmount >= discountedTotal)))
+    ) {
+      setSaveError("تحقق من المبلغ الأساسي والخصم والدفعة الأولى");
+      setStep(3);
+      return;
+    }
     if (missingProof) {
       setSaveError("يلزم إرفاق صورة التحويل البنكي قبل تسجيل العميل");
       setStep(3);
@@ -1604,6 +1733,10 @@ function Registration({ done }: { done: () => void }) {
     try {
       const payload = {
         ...form,
+        amount: payableAmount,
+        contractTotal: discountedTotal,
+        baseTotal,
+        discountPercent,
         proofAssetKey: proof.data,
         proofFileName: proof.name,
         mode: form.journey === "تجربة" ? "trial" : "payment",
@@ -1699,10 +1832,17 @@ function Registration({ done }: { done: () => void }) {
               </Field>
               <Field label="رقم الجوال *">
                 <input
+                  type="tel"
+                  dir="ltr"
                   value={form.phone}
-                  onChange={(e) => set("phone", e.target.value)}
-                  placeholder="05xxxxxxxx"
+                  onChange={(e) =>
+                    set("phone", normalizePhoneInput(e.target.value))
+                  }
+                  placeholder="009665xxxxxxxx"
                 />
+                <small className="field-help">
+                  أدخل مفتاح الدولة أولاً؛ الافتراضي للسعودية 00966
+                </small>
               </Field>
               <Field label="البريد الإلكتروني *">
                 <input
@@ -1872,14 +2012,26 @@ function Registration({ done }: { done: () => void }) {
                     <option>نقدي</option>
                   </select>
                 </Field>
-                <Field label="المبلغ المدفوع">
+                <Field label="المبلغ الأساسي *">
                   <input
                     inputMode="decimal"
                     dir="ltr"
-                    value={form.amount}
-                    onChange={(e) => set("amount", e.target.value)}
+                    value={form.contractTotal}
+                    onChange={(e) => set("contractTotal", e.target.value)}
                     placeholder="0.00 ر.س"
                   />
+                </Field>
+                <Field label="قيمة الخصم">
+                  <select
+                    value={form.discount}
+                    onChange={(e) => set("discount", e.target.value)}
+                  >
+                    {[0, 5, 10, 15, 20].map((value) => (
+                      <option value={String(value)} key={value}>
+                        {value}%
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="خطة السداد">
                   <select
@@ -1892,16 +2044,33 @@ function Registration({ done }: { done: () => void }) {
                   </select>
                 </Field>
                 {form.payment === "أقساط" && (
-                  <Field label="إجمالي قيمة العقد *">
+                  <Field label="الدفعة الأولى *">
                     <input
                       inputMode="decimal"
                       dir="ltr"
-                      value={form.contractTotal}
-                      onChange={(e) => set("contractTotal", e.target.value)}
-                      placeholder="مثال: 5000.00"
+                      value={form.amount}
+                      onChange={(e) => set("amount", e.target.value)}
+                      placeholder="0.00 ر.س"
                     />
                   </Field>
                 )}
+                <div className="discount-summary">
+                  <p>
+                    <span>المبلغ الأساسي</span>
+                    <b>{baseTotal.toLocaleString("en-US")} ر.س</b>
+                  </p>
+                  <p>
+                    <span>الخصم</span>
+                    <b>{discountPercent}%</b>
+                  </p>
+                  <p className="net">
+                    <span>المبلغ بعد الخصم</span>
+                    <b>{discountedTotal.toLocaleString("en-US")} ر.س</b>
+                  </p>
+                  {form.payment === "دفع كامل" && (
+                    <small>سيُسجل هذا المبلغ كاملاً كدفعة المبيعات.</small>
+                  )}
+                </div>
                 {form.method === "تحويل بنكي" && (
                   <label className={`bank-proof ${proof.data ? "ready" : ""}`}>
                     <input
@@ -1943,7 +2112,7 @@ function Registration({ done }: { done: () => void }) {
                 <b>
                   {form.journey === "تجربة"
                     ? "ستبدأ التجربة مباشرة"
-                    : "لا يوجد انتظار لاعتماد المالية"}
+                    : "سيتم تسجيل العملية فوراً"}
                 </b>
                 <p>
                   {form.journey === "تجربة"
@@ -1986,7 +2155,16 @@ function Registration({ done }: { done: () => void }) {
                     <Review label="وسيلة الدفع" value={form.method} />
                     <Review
                       label="السداد"
-                      value={`${form.payment}${form.amount ? ` · ${form.amount} ر.س` : ""}`}
+                      value={`${form.payment} · ${payableAmount.toLocaleString("en-US")} ر.س`}
+                    />
+                    <Review
+                      label="المبلغ الأساسي"
+                      value={`${baseTotal.toLocaleString("en-US")} ر.س`}
+                    />
+                    <Review label="الخصم" value={`${discountPercent}%`} />
+                    <Review
+                      label="الإجمالي بعد الخصم"
+                      value={`${discountedTotal.toLocaleString("en-US")} ر.س`}
                     />
                   </>
                 )}
@@ -3377,7 +3555,10 @@ function LiveAcademy({
     setTimeout(() => setCopied(""), 1400);
   };
   const whatsapp = (row: LiveEnrollment) => {
-    const digits = row.phone.replace(/\D/g, "").replace(/^0/, "966");
+    const digits = row.phone
+      .replace(/\D/g, "")
+      .replace(/^00/, "")
+      .replace(/^0/, "966");
     window.open(
       `https://wa.me/${digits}?text=${encodeURIComponent(`مرحباً ${row.customer_name}، معك فريق سلوكيرا بخصوص تهيئة تسجيلك في برنامج ${row.program_name}.`)}`,
       "_blank",
@@ -3539,6 +3720,9 @@ function LiveAcademy({
                 : enrollmentSteps[selectedRow.status][1]}
             </button>
           )}
+        </Section>
+        <Section title="تحديثات العميل">
+          <CustomerNotes customerId={selectedRow.customer_id} />
         </Section>
       </aside>
     </>
@@ -4724,7 +4908,6 @@ function LiveFinance() {
     [paying, setPaying] = useState<FinanceInstallment | null>(null),
     [method, setMethod] = useState("تحويل بنكي"),
     [reference, setReference] = useState(""),
-    [note, setNote] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
@@ -4742,7 +4925,6 @@ function LiveFinance() {
         setSelected(updated);
         if (updated) {
           setTotal(String(updated.total));
-          setNote(updated.finance_note || "");
         }
       }
     } catch (e) {
@@ -4757,7 +4939,6 @@ function LiveFinance() {
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
-    setNote(row.finance_note || "");
     setPaying(null);
     setReference("");
   };
@@ -5130,22 +5311,8 @@ function LiveFinance() {
                 ))}
               </div>
             </Section>
-            <Section title="ملاحظات المالية">
-              <div className="finance-note">
-                <textarea
-                  rows={3}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="ملاحظات متابعة الأقساط والمدفوعات..."
-                />
-                <button
-                  className="secondary"
-                  disabled={saving}
-                  onClick={() => post({ action: "note", note })}
-                >
-                  حفظ الملاحظة
-                </button>
-              </div>
+            <Section title="تحديثات العميل">
+              <CustomerNotes customerId={selected.customer_id} />
             </Section>
           </aside>
         </>

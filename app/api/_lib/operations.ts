@@ -18,6 +18,8 @@ export function ensureFinanceClassificationSchema(db:ReturnType<typeof operation
       "ALTER TABLE payments ADD COLUMN flow_type TEXT NOT NULL DEFAULT 'sale'",
       "ALTER TABLE payments ADD COLUMN classification_status TEXT NOT NULL DEFAULT 'confirmed'",
       "ALTER TABLE orders ADD COLUMN finance_review_status TEXT NOT NULL DEFAULT 'not_required'",
+      "ALTER TABLE orders ADD COLUMN base_total REAL NOT NULL DEFAULT 0",
+      "ALTER TABLE orders ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0",
     ]){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
     await db.prepare("CREATE TABLE IF NOT EXISTS monthly_sales_targets(month_key TEXT PRIMARY KEY,target_amount REAL NOT NULL DEFAULT 0,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
     await db.prepare("CREATE TABLE IF NOT EXISTS system_migrations(key TEXT PRIMARY KEY,applied_at TEXT NOT NULL)").run();
@@ -73,9 +75,10 @@ export async function authorize(req: Request, allowed: StaffRole[]) {
 export function can(auth:{roles:StaffRole[];permissions:string[]},permission:string){return auth.roles.includes("admin")||auth.permissions.includes("*")||auth.permissions.includes(permission)}
 
 export function cleanContact(body: Record<string, unknown>) {
+  const rawPhone = String(body.phone || "").replace(/[^\d+]/g, "");
   return {
     name: String(body.name || "").trim(),
-    phone: String(body.phone || "").replace(/\s/g, ""),
+    phone: rawPhone.replace(/^\+/, "00"),
     email: String(body.email || "").trim().toLowerCase(),
   };
 }
