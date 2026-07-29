@@ -1,23 +1,29 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   Armchair,
   BadgeDollarSign,
   BookOpenCheck,
   ChartNoAxesCombined,
+  CircleDollarSign,
   ClipboardCheck,
   Copy,
   DatabaseBackup,
   Download,
+  CalendarDays,
   LayoutDashboard,
   ListChecks,
   LogOut,
   Mail,
   Menu,
   PhoneCall,
+  ReceiptText,
   ShieldCheck,
+  Target,
   UserRoundCheck,
   UsersRound,
+  WalletCards,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -80,7 +86,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "الرئيسية",
     items: [
-      ["dashboard", "لوحة البيانات", "dashboard"],
+      ["dashboard", "الرئيسية", "dashboard"],
       ["work", "عملاء اليوم", "tasks"],
     ],
   },
@@ -243,7 +249,7 @@ const tasks = [
   ],
 ];
 const titles: Record<View, [string, string]> = {
-  dashboard: ["لوحة البيانات", "ملخص العمل وإحصائيات العمليات اليوم"],
+  dashboard: ["الرئيسية", "ملخص شامل لحركة العمليات والمبيعات والتحصيل"],
   work: ["عملاء اليوم", "المتابعات والإجراءات المسندة إليك"],
   customers: ["العملاء والتسجيلات", "ملف موحد لكل عميل وجميع تسجيلاته"],
   reservations: [
@@ -643,8 +649,7 @@ function OperationsApp() {
           </header>
           {view === "dashboard" && (
             <>
-              <WelcomeToday onOpenTasks={() => setView("work")} />
-              <LiveDashboard />
+              <HomeDashboard onOpenTasks={() => setView("work")} />
             </>
           )}
           {view === "work" && <LiveWork />}
@@ -1990,6 +1995,7 @@ type FinanceOrder = {
   purchase_source: string;
   payment_plan: string;
   order_status: string;
+  finance_review_status?: string;
   customer_id: string;
   customer_name: string;
   phone: string;
@@ -2069,6 +2075,47 @@ const totalCount = (rows: ReportRow[]) =>
   (rows || []).reduce((sum, row) => sum + Number(row.count || 0), 0);
 const stateCount = (rows: ReportRow[], state: string) =>
   Number((rows || []).find((row) => row.status === state)?.count || 0);
+type HomeData={
+ user:{email:string;name:string;roles:string[]};canSeeFinance:boolean;canEditFinanceTarget:boolean;generatedAt:string;
+ operations:{tasks:number;customersToday:number;activeEnrollments:number;activeReservations:number};
+ tasks:LiveTask[];journey:{status:string;count:number}[];
+ activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;created_at:string}[];
+ finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;daily:{day:string;sales:number;collections:number}[]}|null;
+};
+const activityLabels:Record<string,string>={
+ RECORD_PAYMENT_AND_ADMIT:"تسجيل عميل ودفعة مبيعات",PAY_INSTALLMENT:"تسجيل تحصيل قسط",UPDATE_CUSTOMER_DATA:"تعديل بيانات عميل",
+ ENROLLMENT_TRANSITION:"انتقال العميل إلى مرحلة جديدة",SCHEDULE_RESERVATION_START:"جدولة حجز أو برنامج مباشر",
+ APPROVE_LEGACY_INSTALLMENTS:"اعتماد مراجعة أقساط قديمة",UPDATE_STAFF_ACCESS:"تعديل مستخدم وصلاحياته",DELETE_CUSTOMER:"حذف ملف عميل"
+};
+function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
+ const now=new Date(),[month,setMonth]=useState(now.toISOString().slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState("");
+ const load=async()=>{setLoading(true);setError("");try{const result=await apiJson(`/api/dashboard/home?month=${month}`);setData(result);setTarget(String(result.finance?.target||""))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
+ useEffect(()=>{void load()},[month]);
+ if(loading||error||!data)return <LiveState loading={loading} error={error} empty={!data}/>;
+ const f=data.finance,days=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate(),raw=Array.from({length:days},(_,index)=>{const key=`${month}-${String(index+1).padStart(2,"0")}`;return f?.daily.find(row=>row.day===key)||{day:key,sales:0,collections:0}});
+ let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),max=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections]),f?.target||0),money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),targetRatio=f?.target?Math.min(100,Math.round(f.sales/f.target*100)):0;
+ const saveTarget=async()=>{try{await apiJson("/api/dashboard/home",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({month,target:Number(target||0)})});setEditingTarget(false);await load()}catch(e){setError((e as Error).message)}};
+ return <div className="home-dashboard">
+  <section className="home-command"><div><span>مركز حركة النظام</span><h2>أهلاً، {data.user.name}</h2><p>ملخص حي للعمليات والمبيعات والتحصيل حتى {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn",{hour:"2-digit",minute:"2-digit"})}</p></div><label><CalendarDays size={17}/><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label></section>
+  <section className="metric-zone"><header><div><Activity size={19}/><span><b>مؤشرات العمليات</b><small>حجم العمل الحالي</small></span></div></header><div className="home-metrics">
+   <HomeMetric icon={ListChecks} label="المهام المفتوحة" value={data.operations.tasks} note="مسندة للحساب الحالي" tone="blue" onClick={onOpenTasks}/>
+   <HomeMetric icon={UsersRound} label="عملاء جدد اليوم" value={data.operations.customersToday} note="تمت إضافتهم اليوم" tone="violet"/>
+   <HomeMetric icon={ClipboardCheck} label="تسجيلات قيد الإجراء" value={data.operations.activeEnrollments} note="لم تكتمل رحلتها" tone="amber"/>
+   <HomeMetric icon={Armchair} label="حجوزات المقاعد" value={data.operations.activeReservations} note="حجوزات وبرامج مجدولة" tone="green"/>
+  </div></section>
+  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<em>{f.reviewCount} طلب أقساط بانتظار المراجعة</em>}</header><div className="home-metrics finance">
+   <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>
+   <HomeMetric icon={BadgeDollarSign} label="مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note="دفعات سجلها فريق المبيعات" tone="violet"/>
+   <HomeMetric icon={WalletCards} label="تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note="أقساط سجلتها المالية" tone="green"/>
+   <HomeMetric icon={CircleDollarSign} label="إجمالي المقبوض" value={money(f.cash)} suffix="ر.س" note={`المتبقي ${money(f.remaining)} ر.س`} tone="amber"/>
+  </div></section>}
+  {f&&<section className="sales-performance"><header><div><span>الأداء المالي</span><h3>المبيعات والتحصيل خلال الشهر</h3><p>الأزرق للمبيعات المسجلة عند إنشاء العميل، والأخضر لتحصيل الأقساط.</p></div><div className="chart-controls"><button className={mode==="daily"?"active":""} onClick={()=>setMode("daily")}>يومي</button><button className={mode==="cumulative"?"active":""} onClick={()=>setMode("cumulative")}>تراكمي</button></div></header><div className="performance-body"><div className="sales-chart" role="img" aria-label={`رسم المبيعات والتحصيل لشهر ${month}`}><div className="chart-legend"><span><i className="sales"/>المبيعات</span><span><i className="collection"/>التحصيل</span></div><div className="chart-bars">{chart.map((row,index)=><div className="day-bars" key={row.day} title={`${row.day} — المبيعات ${money(row.sales)} ر.س، التحصيل ${money(row.collections)} ر.س`}><div><i className="sales" style={{height:`${row.sales/max*100}%`}}/><i className="collection" style={{height:`${row.collections/max*100}%`}}/></div>{(index===0||(index+1)%5===0||index===chart.length-1)&&<span>{index+1}</span>}</div>)}</div></div><aside className="month-target"><Target size={22}/><span>هدف مبيعات الشهر</span><b>{money(f.target)} <small>ر.س</small></b><div><i style={{width:`${targetRatio}%`}}/></div><p>تحقق {targetRatio}% من الهدف</p>{data.canEditFinanceTarget&&(editingTarget?<section><input inputMode="decimal" value={target} onChange={e=>setTarget(e.target.value)}/><button onClick={saveTarget}>حفظ</button><button onClick={()=>setEditingTarget(false)}>إلغاء</button></section>:<button onClick={()=>setEditingTarget(true)}>تعديل الهدف</button>)}</aside></div></section>}
+  <div className="home-lower-grid"><section className="home-panel"><header><div><Activity size={18}/><span><b>حركة النظام</b><small>آخر الإجراءات المسجلة</small></span></div></header><div className="activity-feed">{data.activity.length?data.activity.map(item=><article key={item.id}><i/><div><b>{activityLabels[item.action]||item.action}</b><span>{item.actor_name||item.actor_email} · {item.entity_id}</span></div><time>{new Date(item.created_at).toLocaleString("ar-SA-u-nu-latn",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</time></article>):<div className="ops-empty compact">لا توجد حركة مسجلة بعد.</div>}</div></section>
+  <section className="home-panel"><header><div><ListChecks size={18}/><span><b>مهام تحتاج إجراء</b><small>حسب صلاحية الحساب</small></span></div><button onClick={onOpenTasks}>عرض الكل</button></header><div className="home-task-list">{data.tasks.length?data.tasks.map(task=><article key={task.id}><i className={task.priority==="عاجلة"?"urgent":""}/><div><b>{task.title}</b><span>{task.department} · {task.due_at?new Date(task.due_at).toLocaleDateString("ar-SA-u-nu-latn"):"دون موعد"}</span></div><em>{task.priority}</em></article>):<div className="ops-empty compact">لا توجد مهام مسندة حالياً.</div>}</div></section></div>
+  <section className="journey-overview"><header><div><UserRoundCheck size={18}/><span><b>تقدم رحلة العميل</b><small>توزيع التسجيلات حسب المرحلة الحالية</small></span></div></header><div>{data.journey.map((row,index)=><article key={row.status}><i>{row.count}</i><span>{row.status}</span>{index<data.journey.length-1&&<b>←</b>}</article>)}</div></section>
+ </div>
+}
+function HomeMetric({icon:Icon,label,value,suffix,note,tone,onClick}:{icon:LucideIcon;label:string;value:string|number;suffix?:string;note:string;tone:string;onClick?:()=>void}){return <article className={`home-metric ${tone} ${onClick?"clickable":""}`} onClick={onClick}><div><Icon size={19}/></div><span>{label}</span><b>{value}{suffix&&<small>{suffix}</small>}</b><p>{note}</p></article>}
 type TodayData = {
   user: { email: string; name: string; roles: string[] };
   today: string;
@@ -4447,9 +4494,9 @@ function LiveFinance() {
                   </span>
                 </div>
                 <em
-                  className={`pill ${row.remaining === 0 ? "green" : "blue"}`}
+                  className={`pill ${row.finance_review_status === "pending" ? "amber" : row.remaining === 0 ? "green" : "blue"}`}
                 >
-                  {row.remaining === 0 ? "مكتمل" : row.payment_plan}
+                  {row.finance_review_status === "pending" ? "مراجعة المالية" : row.remaining === 0 ? "مكتمل" : row.payment_plan}
                 </em>
               </div>
               <div className="finance-order-money">
@@ -4509,6 +4556,24 @@ function LiveFinance() {
                 <b>{sar(selected.remaining)}</b>
               </p>
             </div>
+            {selected.finance_review_status === "pending" && (
+              <div className="legacy-finance-review">
+                <div>
+                  <b>هذا الطلب يحتاج مراجعة مالية</b>
+                  <span>
+                    سيُعتمد المبلغ الأول كمبيعات، وتُصنّف دفعات الأقساط
+                    اللاحقة كتحصيل.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void post({ action: "review_legacy_installments" })}
+                >
+                  {saving ? "جارٍ الاعتماد..." : "مراجعة واعتماد التصنيف"}
+                </button>
+              </div>
+            )}
             <Section title="بيانات العميل والطلب">
               <div className="info customer-data">
                 <label>

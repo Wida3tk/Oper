@@ -10,6 +10,30 @@ export function operationalDb() {
 }
 
 let directProgramSchemaReady:Promise<void>|null=null;
+let financeClassificationSchemaReady:Promise<void>|null=null;
+export function ensureFinanceClassificationSchema(db:ReturnType<typeof operationalDb>){
+  if(financeClassificationSchemaReady)return financeClassificationSchemaReady;
+  financeClassificationSchemaReady=(async()=>{
+    for(const sql of [
+      "ALTER TABLE payments ADD COLUMN flow_type TEXT NOT NULL DEFAULT 'sale'",
+      "ALTER TABLE payments ADD COLUMN classification_status TEXT NOT NULL DEFAULT 'confirmed'",
+      "ALTER TABLE orders ADD COLUMN finance_review_status TEXT NOT NULL DEFAULT 'not_required'",
+    ]){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
+    await db.prepare("CREATE TABLE IF NOT EXISTS monthly_sales_targets(month_key TEXT PRIMARY KEY,target_amount REAL NOT NULL DEFAULT 0,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+    await db.prepare("CREATE TABLE IF NOT EXISTS system_migrations(key TEXT PRIMARY KEY,applied_at TEXT NOT NULL)").run();
+    const migrated=await db.prepare("SELECT key FROM system_migrations WHERE key='financial-flow-v1'").first();
+    if(!migrated)await db.batch([
+        db.prepare(`UPDATE payments SET flow_type='legacy',classification_status='confirmed' WHERE order_id IN (
+          SELECT o.id FROM orders o WHERE COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0)>=o.total
+        )`),
+        db.prepare(`UPDATE orders SET finance_review_status='pending' WHERE payment_plan='أقساط' AND COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=orders.id),0)<total`),
+        db.prepare(`UPDATE payments SET classification_status='pending' WHERE order_id IN (SELECT id FROM orders WHERE finance_review_status='pending')`),
+        db.prepare(`UPDATE payments SET flow_type='collection' WHERE id IN (SELECT paid_payment_id FROM installments WHERE paid_payment_id IS NOT NULL) AND classification_status!='pending'`),
+        db.prepare("INSERT INTO system_migrations(key,applied_at) VALUES('financial-flow-v1',?)").bind(new Date().toISOString()),
+      ]);
+  })().catch(error=>{financeClassificationSchemaReady=null;throw error});
+  return financeClassificationSchemaReady;
+}
 export function ensureDirectProgramSchema(db:ReturnType<typeof operationalDb>){
   if(directProgramSchemaReady)return directProgramSchemaReady;
   directProgramSchemaReady=(async()=>{

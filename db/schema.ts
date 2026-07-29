@@ -69,6 +69,7 @@ export const orders = sqliteTable("orders", {
   total: real("total").notNull().default(0),
   paid: real("paid").notNull().default(0),
   status: text("status").notNull().default("جديد"),
+  financeReviewStatus: text("finance_review_status").notNull().default("not_required"),
   academyStatus: text("academy_status").notNull(),
   owner: text("owner").notNull().default("غير مسند"),
   competency: integer("competency", { mode: "boolean" }).notNull().default(false),
@@ -89,6 +90,8 @@ export const payments = sqliteTable("payments", {
   method: text("method"),
   reference: text("reference"),
   proofAssetKey: text("proof_asset_key"),
+  flowType: text("flow_type").notNull().default("sale"),
+  classificationStatus: text("classification_status").notNull().default("confirmed"),
   createdAt: text("created_at").notNull(),
 }, (table) => [index("payments_order_idx").on(table.orderId), index("payments_status_idx").on(table.status)]);
 

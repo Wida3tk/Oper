@@ -1,4 +1,4 @@
-import { authorize, id, operationalDb } from "../_lib/operations";
+import { authorize, ensureFinanceClassificationSchema, id, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   }
 
   const db = operationalDb();
+  await ensureFinanceClassificationSchema(db);
   const order = await db.prepare("SELECT id,paid,total FROM orders WHERE id=?").bind(orderId).first<{id:string;paid:number;total:number}>();
   if (!order) return Response.json({ error: "الطلب غير موجود" }, { status: 404 });
 
@@ -22,8 +23,8 @@ export async function POST(req: Request) {
   const newPaid = Number(order.paid || 0) + amount;
   const orderStatus = newPaid >= Number(order.total || 0) ? "مدفوع" : "مدفوع جزئياً";
   await db.batch([
-    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
-      .bind(paymentId, orderId, amount, now, "مسجلة", method, String(body.reference || ""), String(body.proofAssetKey || ""), now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(paymentId, orderId, amount, now, "مسجلة", method, String(body.reference || ""), String(body.proofAssetKey || ""), auth.roles.includes("finance")?"collection":"sale", "confirmed", now),
     db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(newPaid, orderStatus, now, orderId),
     db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم دفعة مسجلة','مفتوحة','عادية',?,?)")
       .bind(id("TSK"), paymentId, auth.email, now),

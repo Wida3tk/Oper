@@ -1,4 +1,4 @@
-import { authorize, cleanContact, ensureDirectProgramSchema, id, operationalDb } from "../_lib/operations";
+import { authorize, cleanContact, ensureDirectProgramSchema, ensureFinanceClassificationSchema, id, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -6,6 +6,7 @@ export async function GET(req: Request) {
   const auth = await authorize(req, ["sales", "finance"]);
   if (!auth.ok) return auth.response;
   const db = operationalDb();
+  await ensureFinanceClassificationSchema(db);
   await ensureDirectProgramSchema(db);
   const { results } = await db.prepare("SELECT p.*,pr.name program_name,pi.id payment_intent_id,pi.amount,pi.method,pi.status payment_status FROM prospects p LEFT JOIN programs pr ON pr.id=p.intended_program_id LEFT JOIN payment_intents pi ON pi.prospect_id=p.id ORDER BY p.created_at DESC LIMIT 100").all();
   return Response.json({ prospects: results });
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,isReservation?"صاحب حجز":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
     db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,String(body.source||"طلب أولي"),paymentPlan,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",isScheduled?cohort:null,isScheduled?startDate:null,now,now),
-    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),proofAssetKey,now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,'sale','confirmed',?)").bind(paymentId,orderId,amount,now,"مسجلة",method,String(body.reference||""),proofAssetKey,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,String(body.reference||""),proofAssetKey,"مسجلة",customerId,orderId,auth.email,now,now),
     db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية','مطابقة وتنظيم الدفعة','مفتوحة','عادية',?,?)").bind(id("TSK"),paymentId,auth.email,now)
   );
