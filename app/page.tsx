@@ -2054,6 +2054,74 @@ function LiveState({
   return null;
 }
 
+function CustomerSmartFilters({
+  programs,
+  statuses,
+  program,
+  status,
+  total,
+  visible,
+  onProgram,
+  onStatus,
+}: {
+  programs: string[];
+  statuses: string[];
+  program: string;
+  status: string;
+  total: number;
+  visible: number;
+  onProgram: (value: string) => void;
+  onStatus: (value: string) => void;
+}) {
+  const active = program !== "الكل" || status !== "الكل";
+  return (
+    <section className="smart-customer-filters" aria-label="تصنيف العملاء">
+      <header>
+        <div>
+          <span>تصنيف العملاء</span>
+          <b>عرض القائمة حسب البرنامج أو حالة العميل</b>
+        </div>
+        <em>
+          <strong>{visible}</strong> من {total} عميل
+        </em>
+      </header>
+      <div>
+        <label>
+          <span>البرنامج</span>
+          <select value={program} onChange={(e) => onProgram(e.target.value)}>
+            <option value="الكل">كل البرامج</option>
+            {programs.map((value) => (
+              <option key={value} value={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>حالة العميل</span>
+          <select value={status} onChange={(e) => onStatus(e.target.value)}>
+            <option value="الكل">كل الحالات</option>
+            {statuses.map((value) => (
+              <option key={value} value={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        {active && (
+          <button type="button" onClick={() => { onProgram("الكل"); onStatus("الكل"); }}>
+            <X size={14} />
+            مسح التصنيف
+          </button>
+        )}
+      </div>
+      {active && (
+        <p>
+          النتائج المعروضة:
+          {program !== "الكل" && <mark>{program}</mark>}
+          {status !== "الكل" && <mark>{status}</mark>}
+        </p>
+      )}
+    </section>
+  );
+}
+
 type ReportRow = {
   status?: string;
   department?: string;
@@ -2561,7 +2629,7 @@ function LiveCustomers({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
-    [cohortFilter, setCohortFilter] = useState("الكل");
+    [statusFilter, setStatusFilter] = useState("الكل");
   const load = () => {
     apiJson("/api/customers")
       .then((data) =>
@@ -2624,17 +2692,12 @@ function LiveCustomers({
         new Set(rows.map((x) => x.program).filter((x) => x !== "—")),
       ),
     ],
-    cohorts = [
-      "الكل",
-      ...Array.from(
-        new Set(rows.map((x) => x.cohort).filter((x) => x !== "—")),
-      ),
-    ];
+    statuses = Array.from(new Set(rows.map((x) => x.state).filter(Boolean)));
   const filtered = rows.filter(
     (row) =>
       `${row.name} ${row.id} ${row.phone} ${row.program}`.includes(query) &&
       (programFilter === "الكل" || row.program === programFilter) &&
-      (cohortFilter === "الكل" || row.cohort === cohortFilter),
+      (statusFilter === "الكل" || row.state === statusFilter),
   );
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
@@ -2670,48 +2733,19 @@ function LiveCustomers({
         <div className="directory-head">
           <div>
             <h2>دليل العملاء الحي</h2>
-            <p>حدّد البرنامج أو الدفعة لعرض القائمة وعدد العملاء المطابقين.</p>
+            <p>حدّد البرنامج أو حالة العميل لعرض القائمة وعدد العملاء المطابقين.</p>
           </div>
         </div>
-        <div className="customer-live-filters">
-          <label>
-            <span>البرنامج</span>
-            <select
-              value={programFilter}
-              onChange={(e) => setProgramFilter(e.target.value)}
-            >
-              {programs.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>الدفعة</span>
-            <select
-              value={cohortFilter}
-              onChange={(e) => setCohortFilter(e.target.value)}
-            >
-              <option>الكل</option>
-              {cohorts.slice(1).map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <div>
-            <b>{filtered.length}</b>
-            <span>عميل في القائمة</span>
-          </div>
-          {(programFilter !== "الكل" || cohortFilter !== "الكل") && (
-            <button
-              onClick={() => {
-                setProgramFilter("الكل");
-                setCohortFilter("الكل");
-              }}
-            >
-              مسح التحديد
-            </button>
-          )}
-        </div>
+        <CustomerSmartFilters
+          programs={programs.slice(1)}
+          statuses={statuses}
+          program={programFilter}
+          status={statusFilter}
+          total={rows.length}
+          visible={filtered.length}
+          onProgram={setProgramFilter}
+          onStatus={setStatusFilter}
+        />
         {filtered.length ? (
           <CustomerTable list={filtered} open={open} />
         ) : (
@@ -2877,7 +2911,9 @@ function TrialHandoff() {
   const [rows, setRows] = useState<LiveTrial[]>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [moving, setMoving] = useState("");
+    [moving, setMoving] = useState(""),
+    [programFilter, setProgramFilter] = useState("الكل"),
+    [statusFilter, setStatusFilter] = useState("الكل");
   const load = async () => {
     setLoading(true);
     setError("");
@@ -2913,6 +2949,17 @@ function TrialHandoff() {
     }
   };
   if (!loading && !error && !rows.length) return null;
+  const trialPrograms = Array.from(
+    new Set(rows.map((row) => row.program_name).filter(Boolean)),
+  );
+  const trialStatus = (row: LiveTrial) =>
+    new Date(row.ends_at).getTime() < Date.now() ? "انتهت التجربة" : "تجربة نشطة";
+  const trialStatuses = Array.from(new Set(rows.map(trialStatus)));
+  const filteredTrials = rows.filter(
+    (row) =>
+      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (statusFilter === "الكل" || trialStatus(row) === statusFilter),
+  );
   return (
     <section className="trial-handoff">
       <header>
@@ -2926,12 +2973,22 @@ function TrialHandoff() {
         </div>
         <b>{rows.length}</b>
       </header>
+      <CustomerSmartFilters
+        programs={trialPrograms}
+        statuses={trialStatuses}
+        program={programFilter}
+        status={statusFilter}
+        total={rows.length}
+        visible={filteredTrials.length}
+        onProgram={setProgramFilter}
+        onStatus={setStatusFilter}
+      />
       {error && <div className="ops-error compact">{error}</div>}
       {loading ? (
         <div className="ops-empty compact">جارٍ تحميل عملاء التجربة…</div>
       ) : (
         <div className="trial-cards">
-          {rows.map((row) => (
+          {filteredTrials.map((row) => (
             <article key={row.id}>
               <div className="trial-person">
                 <i>{row.customer_name.slice(0, 2)}</i>
@@ -3108,6 +3165,8 @@ function LiveAcademy({
     [error, setError] = useState(""),
     [moving, setMoving] = useState(""),
     [copied, setCopied] = useState(""),
+    [programFilter, setProgramFilter] = useState("الكل"),
+    [statusFilter, setStatusFilter] = useState("الكل"),
     [selectedRow, setSelectedRow] = useState<LiveEnrollment | null>(null);
   const load = async () => {
     setLoading(true);
@@ -3170,10 +3229,21 @@ function LiveAcademy({
       : focus === "registration"
         ? ["تم التواصل"]
         : ["اكتمل التسجيل", "تم الإسناد", "مكتمل"];
+  const availablePrograms = Array.from(
+    new Set(rows.map((row) => row.program_name).filter(Boolean)),
+  );
+  const availableStatuses = Array.from(
+    new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
+  );
+  const filteredRows = rows.filter(
+    (row) =>
+      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (statusFilter === "الكل" || displayState(row.status) === statusFilter),
+  );
   if (loading || error || !rows.length)
     return <LiveState loading={loading} error={error} empty={!rows.length} />;
   const count = (state: string) =>
-    rows.filter((x) => displayState(x.status) === state).length;
+    filteredRows.filter((x) => displayState(x.status) === state).length;
   const stageLabel = (state: string) =>
     focus === "contact"
       ? "بانتظار تسليم العميل"
@@ -3340,7 +3410,7 @@ function LiveAcademy({
             </div>
           )}
           <div className="column-cards">
-            {rows
+            {filteredRows
               .filter((x) => displayState(x.status) === state)
               .map((row) => (
                 <OperationsCustomerCard
@@ -3376,12 +3446,32 @@ function LiveAcademy({
   if (focus !== "assignment")
     return (
       <>
+        <CustomerSmartFilters
+          programs={availablePrograms}
+          statuses={availableStatuses}
+          program={programFilter}
+          status={statusFilter}
+          total={rows.length}
+          visible={filteredRows.length}
+          onProgram={setProgramFilter}
+          onStatus={setStatusFilter}
+        />
         {board}
         {detailPanel}
       </>
     );
   return (
     <>
+      <CustomerSmartFilters
+        programs={availablePrograms}
+        statuses={availableStatuses}
+        program={programFilter}
+        status={statusFilter}
+        total={rows.length}
+        visible={filteredRows.length}
+        onProgram={setProgramFilter}
+        onStatus={setStatusFilter}
+      />
       <div className="assignment-workspace">
         <div className="assignment-banner">
           <div>
@@ -4018,6 +4108,8 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [editing, setEditing] = useState(""),
+    [programFilter, setProgramFilter] = useState("الكل"),
+    [statusFilter, setStatusFilter] = useState("الكل"),
     [cohort, setCohort] = useState(""),
     [startDate, setStartDate] = useState(""),
     [assignmentDate, setAssignmentDate] = useState("");
@@ -4092,8 +4184,29 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
     });
     setEditing("");
   };
+  const reservationPrograms = Array.from(
+    new Set(rows.map((row) => row.program_name).filter(Boolean)),
+  );
+  const reservationStatuses = Array.from(
+    new Set(rows.map((row) => row.status).filter(Boolean)),
+  );
+  const filteredReservations = rows.filter(
+    (row) =>
+      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (statusFilter === "الكل" || row.status === statusFilter),
+  );
   return (
     <div className="reservation-workspace">
+      <CustomerSmartFilters
+        programs={reservationPrograms}
+        statuses={reservationStatuses}
+        program={programFilter}
+        status={statusFilter}
+        total={rows.length}
+        visible={filteredReservations.length}
+        onProgram={setProgramFilter}
+        onStatus={setStatusFilter}
+      />
       <div className="reservation-flow">
         <div>
           <i>1</i>
@@ -4131,7 +4244,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
         action={`${rows.filter((x) => x.status !== "تم التحويل").length} بطاقة نشطة`}
       >
         <div className="reservation-list">
-          {rows.map((row) => (
+          {filteredReservations.map((row) => (
             <article
               className={row.status === "تم التحويل" ? "converted" : ""}
               key={row.id}
@@ -4421,6 +4534,8 @@ function LiveFinance() {
     [method, setMethod] = useState("تحويل بنكي"),
     [reference, setReference] = useState(""),
     [note, setNote] = useState(""),
+    [programFilter, setProgramFilter] = useState("الكل"),
+    [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
   const load = async (keepId?: string) => {
     setLoading(true);
@@ -4476,6 +4591,23 @@ function LiveFinance() {
   };
   const sar = (n: number) =>
     `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
+  const financeStatus = (row: FinanceOrder) =>
+    row.finance_review_status === "pending"
+      ? "مراجعة المالية"
+      : row.remaining === 0
+        ? "مكتمل"
+        : row.installments.some((item) => item.display_status === "متأخر")
+          ? "قسط متأخر"
+          : "أقساط نشطة";
+  const financePrograms = Array.from(
+    new Set(rows.map((row) => row.program_name).filter(Boolean)),
+  );
+  const financeStatuses = Array.from(new Set(rows.map(financeStatus)));
+  const filteredFinance = rows.filter(
+    (row) =>
+      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (statusFilter === "الكل" || financeStatus(row) === statusFilter),
+  );
   return (
     <>
       <div className="kpis finance-kpis">
@@ -4510,8 +4642,19 @@ function LiveFinance() {
       </div>
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
-        <div className="finance-order-list">
-          {rows.map((row) => (
+        <>
+          <CustomerSmartFilters
+            programs={financePrograms}
+            statuses={financeStatuses}
+            program={programFilter}
+            status={statusFilter}
+            total={rows.length}
+            visible={filteredFinance.length}
+            onProgram={setProgramFilter}
+            onStatus={setStatusFilter}
+          />
+          <div className="finance-order-list">
+          {filteredFinance.map((row) => (
             <article
               className={`finance-order-card ${row.remaining === 0 ? "settled" : row.installments.some((x) => x.display_status === "متأخر") ? "late" : ""}`}
               onClick={() => open(row)}
@@ -4555,7 +4698,8 @@ function LiveFinance() {
               </footer>
             </article>
           ))}
-        </div>
+          </div>
+        </>
       )}
       {selected && (
         <>
