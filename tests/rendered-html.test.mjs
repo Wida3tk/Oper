@@ -79,3 +79,13 @@ test("limits language selection to organizational behavior management", async ()
   assert.match(page, /isObm && <Field label="اللغة \*">/);
   assert.match(page, /نوع الاشتراك \*/);
 });
+
+test("calculates payment behavior from installments and recorded reminders", async () => {
+  const finance = await read("../app/api/finance/route.ts");
+  const operations = await read("../app/api/_lib/operations.ts");
+  assert.match(finance, /function paymentBehavior/);
+  assert.match(finance, /RECORD_INSTALLMENT_REMINDER/);
+  assert.match(finance, /بعد التذكير الثاني/);
+  assert.match(finance, /متعثر/);
+  assert.match(operations, /reminder_count/);
+});

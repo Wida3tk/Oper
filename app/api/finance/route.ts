@@ -3,6 +3,17 @@ import { authorize, can, ensureFinanceClassificationSchema, id, operationalDb } 
 export const dynamic="force-dynamic";
 const cents=(value:unknown)=>Math.round(Number(value||0)*100);
 const money=(value:number)=>value/100;
+function paymentBehavior(installments:Record<string,unknown>[],today:string){
+ const paid=installments.filter(x=>x.status==="مدفوع"),overdue=installments.filter(x=>x.status!=="مدفوع"&&String(x.due_date)<today);
+ const paidAfterSecond=paid.filter(x=>Number(x.reminder_count||0)>=2).length,paidAfterFirst=paid.filter(x=>Number(x.reminder_count||0)===1).length,paidLate=paid.filter(x=>String(x.paid_at||"").slice(0,10)>String(x.due_date||"")).length;
+ const summary=`${paid.length} قسط مسدد · ${overdue.length} متأخر · ${installments.reduce((sum,x)=>sum+Number(x.reminder_count||0),0)} تذكير مسجل`;
+ if(!installments.length||(!paid.length&&!overdue.length))return {label:"جديد",tone:"neutral",summary};
+ if(overdue.some(x=>Number(x.reminder_count||0)>=2))return {label:"متعثر",tone:"red",summary};
+ if(paidAfterSecond)return {label:"بعد التذكير الثاني",tone:"purple",summary};
+ if(paidAfterFirst)return {label:"بعد التذكير الأول",tone:"amber",summary};
+ if(overdue.length||paidLate)return {label:"متأخر",tone:"red",summary};
+ return {label:"ملتزم",tone:"green",summary};
+}
 
 export async function GET(req:Request){
  const auth=await authorize(req,["finance","viewer"]);if(!auth.ok)return auth.response;
@@ -12,7 +23,7 @@ export async function GET(req:Request){
  const [ordersResult,paymentsResult,installmentsResult,notesResult]=await Promise.all([
   db.prepare("SELECT o.id order_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
-  db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
+  db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>()
  ]);
  const today=new Date().toISOString().slice(0,10);
@@ -21,7 +32,7 @@ export async function GET(req:Request){
   const paidCents=orderPayments.reduce((sum,x)=>sum+cents(x.amount),0),totalCents=cents(order.stored_total),remainingCents=Math.max(totalCents-paidCents,0);
   const orderInstallments=installmentsResult.results.filter(x=>x.order_id===order.order_id).map(x=>({...x,amount:money(Number(x.amount_cents)),display_status:x.status!=="مدفوع"&&String(x.due_date)<today?"متأخر":x.status}));
   const note=notesResult.results.find(x=>x.order_id===order.order_id);
-  return {...order,total:money(totalCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,finance_note:note?.note||""};
+  return {...order,total:money(totalCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,payment_behavior:paymentBehavior(orderInstallments,today),finance_note:note?.note||""};
  });
  const totalCents=orders.reduce((s,o)=>s+cents(o.total),0),paidCents=orders.reduce((s,o)=>s+cents(o.paid),0),remainingCents=orders.reduce((s,o)=>s+cents(o.remaining),0);
  return Response.json({orders,summary:{total:money(totalCents),paid:money(paidCents),remaining:money(remainingCents),overdue:orders.reduce((s,o)=>s+o.installments.filter(x=>x.display_status==="متأخر").length,0)}});
@@ -78,6 +89,19 @@ export async function POST(req:Request){
   const paymentId=id("PAY"),newPaid=paidCents+installment.amount_cents;
   await db.batch([db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,'collection','confirmed',?)").bind(paymentId,orderId,money(installment.amount_cents),now,"مسجلة",method,reference,now),db.prepare("UPDATE installments SET status='مدفوع',paid_payment_id=?,paid_at=?,reference=?,updated_at=? WHERE id=?").bind(paymentId,now,reference,now,installmentId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaid),newPaid===totalCents?"مدفوع":"مدفوع جزئياً",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'PAY_INSTALLMENT','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,paymentId,amount:money(installment.amount_cents),reference}),now)]);
   return Response.json({ok:true});
+ }
+ if(action==="remind_installment"){
+  if(!can(auth,"finance.installments.manage"))return Response.json({error:"ليس لديك صلاحية متابعة الأقساط"},{status:403});
+  const installmentId=String(body.installmentId||"");
+  const installment=await db.prepare("SELECT id,status,reminder_count FROM installments WHERE id=? AND order_id=?").bind(installmentId,orderId).first<{id:string;status:string;reminder_count:number}>();
+  if(!installment||installment.status==="مدفوع")return Response.json({error:"القسط غير متاح للتذكير"},{status:409});
+  const nextCount=Math.min(Number(installment.reminder_count||0)+1,2);
+  if(Number(installment.reminder_count||0)>=2)return Response.json({error:"تم تسجيل التذكيرين لهذا القسط مسبقاً"},{status:409});
+  await db.batch([
+   db.prepare("UPDATE installments SET reminder_count=?,first_reminder_at=CASE WHEN ?=1 THEN ? ELSE first_reminder_at END,second_reminder_at=CASE WHEN ?=2 THEN ? ELSE second_reminder_at END,last_reminded_by_email=?,status=?,updated_at=? WHERE id=? AND order_id=?").bind(nextCount,nextCount,now,nextCount,now,auth.email,nextCount===1?"تذكير أول":"تذكير ثانٍ",now,installmentId,orderId),
+   db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_INSTALLMENT_REMINDER','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,reminderNumber:nextCount}),now)
+  ]);
+  return Response.json({ok:true,reminderCount:nextCount});
  }
  if(action==="installment_status"){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});

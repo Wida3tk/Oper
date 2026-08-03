@@ -2521,7 +2521,12 @@ type FinanceInstallment = {
   display_status: string;
   paid_at?: string;
   reference?: string;
+  reminder_count?: number;
+  first_reminder_at?: string;
+  second_reminder_at?: string;
+  last_reminded_by_email?: string;
 };
+type PaymentBehavior = { label: string; tone: string; summary: string };
 type FinanceOrder = {
   order_id: string;
   order_type: string;
@@ -2539,6 +2544,7 @@ type FinanceOrder = {
   remaining: number;
   overpayment: number;
   finance_note: string;
+  payment_behavior: PaymentBehavior;
   payments: FinancePayment[];
   installments: FinanceInstallment[];
 };
@@ -5506,6 +5512,7 @@ function LiveFinance() {
                   {row.installments.filter((x) => x.status !== "مدفوع").length}{" "}
                   قسط متبقٍ
                 </span>
+                <em className={`payment-behavior-badge ${row.payment_behavior?.tone || "neutral"}`}>سلوك السداد: {row.payment_behavior?.label || "جديد"}</em>
                 <b>فتح الملف المالي ←</b>
               </footer>
             </article>
@@ -5557,6 +5564,10 @@ function LiveFinance() {
                 <span>المتبقي</span>
                 <b>{sar(selected.remaining)}</b>
               </p>
+            </div>
+            <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
+              <div><span>سلوك السداد</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
+              <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>
             </div>
             {selected.finance_review_status === "pending" && (
               <div className="legacy-finance-review">
@@ -5696,6 +5707,7 @@ function LiveFinance() {
                         <small>القسط {inst.sequence}</small>
                         <b>{sar(inst.amount)}</b>
                         <span>استحقاق {inst.due_date}</span>
+                        {Boolean(inst.reminder_count) && <small className="installment-reminder-meta">{inst.reminder_count} تذكير · آخر تسجيل بواسطة {inst.last_reminded_by_email}</small>}
                       </div>
                       <select
                         disabled={inst.status === "مدفوع" || saving}
@@ -5709,9 +5721,6 @@ function LiveFinance() {
                         }
                       >
                         <option>قادم</option>
-                        <option>تذكير أول</option>
-                        <option>تذكير ثانٍ</option>
-                        <option>تذكير ثالث</option>
                         <option>متأخر</option>
                         <option>إنذار</option>
                         <option>تطبيق السياسة</option>
@@ -5723,12 +5732,10 @@ function LiveFinance() {
                           <span>{inst.reference}</span>
                         </div>
                       ) : (
-                        <button
-                          className="primary"
-                          onClick={() => setPaying(inst)}
-                        >
-                          تسجيل سداد
-                        </button>
+                        <div className="installment-actions">
+                          <button disabled={saving || Number(inst.reminder_count || 0) >= 2} onClick={() => post({action:"remind_installment",installmentId:inst.id})}>{Number(inst.reminder_count || 0) === 0 ? "تسجيل التذكير الأول" : Number(inst.reminder_count || 0) === 1 ? "تسجيل التذكير الثاني" : "تم التذكيران"}</button>
+                          <button className="primary" onClick={() => setPaying(inst)}>تسجيل سداد</button>
+                        </div>
                       )}
                     </article>
                   ))}

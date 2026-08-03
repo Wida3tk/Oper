@@ -52,9 +52,14 @@ export function ensureFinanceClassificationSchema(db:ReturnType<typeof operation
       "ALTER TABLE orders ADD COLUMN finance_review_status TEXT NOT NULL DEFAULT 'not_required'",
       "ALTER TABLE orders ADD COLUMN base_total REAL NOT NULL DEFAULT 0",
       "ALTER TABLE orders ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0",
+      "ALTER TABLE installments ADD COLUMN reminder_count INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE installments ADD COLUMN first_reminder_at TEXT",
+      "ALTER TABLE installments ADD COLUMN second_reminder_at TEXT",
+      "ALTER TABLE installments ADD COLUMN last_reminded_by_email TEXT",
     ]){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
     await db.prepare("CREATE TABLE IF NOT EXISTS monthly_sales_targets(month_key TEXT PRIMARY KEY,target_amount REAL NOT NULL DEFAULT 0,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
     await db.prepare("CREATE TABLE IF NOT EXISTS system_migrations(key TEXT PRIMARY KEY,applied_at TEXT NOT NULL)").run();
+    await db.prepare("UPDATE installments SET reminder_count=CASE WHEN status IN ('تذكير ثانٍ','تذكير ثالث','إنذار','تطبيق السياسة') THEN 2 WHEN status='تذكير أول' THEN 1 ELSE reminder_count END WHERE reminder_count=0").run();
     const migrated=await db.prepare("SELECT key FROM system_migrations WHERE key='financial-flow-v1'").first();
     if(!migrated)await db.batch([
         db.prepare(`UPDATE payments SET flow_type='legacy',classification_status='confirmed' WHERE order_id IN (
