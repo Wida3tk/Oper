@@ -3399,7 +3399,16 @@ function LiveCustomers({
           status={categoryFilter}
           total={directoryRows.length}
           visible={filtered.length}
-          onProgram={setProgramFilter}
+          onProgram={(program) => {
+            setProgramFilter(program);
+            if (program !== "الكل") {
+              const matchingCustomer = directoryRows.find(
+                (row) => row.program === program,
+              );
+              if (matchingCustomer)
+                setCategoryFilter(customerProgramCategory(matchingCustomer));
+            }
+          }}
           onStatus={(category) => {
             setCategoryFilter(category);
             if (
