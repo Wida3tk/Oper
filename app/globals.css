@@ -372,6 +372,8 @@ html,body{max-width:100%;overflow-x:hidden}
 .brand-mark .brand-wordmark img{width:118px!important;height:49px!important;object-fit:contain!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
 .brand-mark .brand-wordmark span{margin-top:-7px;font-size:8px;letter-spacing:.15px}
 .brand>.brand-mark{gap:8px}
+.brand>.brand-mark .brand-wordmark img,.login-brand .brand-wordmark img{filter:brightness(0) invert(1) drop-shadow(0 7px 16px #315efb2e)}
+.login-form .brand-wordmark img{filter:drop-shadow(0 7px 16px #315efb2e)}
 .login-form .brand-mark .brand-symbol{width:54px!important;height:54px!important;flex-basis:54px!important}
 .login-form .brand-mark .brand-wordmark img,.login-brand .brand-mark .brand-wordmark img{width:142px!important;height:59px!important}
 .sidebar.collapsed .brand-mark .brand-symbol{width:34px!important;height:34px!important;flex-basis:34px!important}
