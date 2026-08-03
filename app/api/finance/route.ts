@@ -7,10 +7,10 @@ function paymentBehavior(installments:Record<string,unknown>[],today:string){
  const paid=installments.filter(x=>x.status==="مدفوع"),overdue=installments.filter(x=>x.status!=="مدفوع"&&String(x.due_date)<today);
  const summary=`${paid.length} قسط مسدد · ${overdue.length} متأخر · ${installments.reduce((sum,x)=>sum+Number(x.reminder_count||0),0)} تذكير مسجل`;
  if(!installments.length)return {label:"جديد",tone:"neutral",summary};
- const behaviorOf=(x:Record<string,unknown>)=>{const reminders=Number(x.reminder_count||0);if(reminders>=4)return "تذكير نهائي";if(reminders===3)return "تذكير ثالث";if(reminders===2)return "تذكير ثاني";if(reminders===1)return "تذكير أول";if(String(x.status)==="موافقة تمديد")return "موافقة تمديد";if(String(x.status)==="متأخر"||String(x.due_date)<today&&String(x.status)!=="مدفوع")return "متأخر";return "ملتزم"};
+ const behaviorOf=(x:Record<string,unknown>)=>{const reminders=Number(x.reminder_count||0);if(String(x.status)==="تطبيق السياسة")return "تطبيق السياسة";if(reminders>=4)return "تذكير نهائي";if(reminders===3)return "تذكير ثالث";if(reminders===2)return "تذكير ثاني";if(reminders===1)return "تذكير أول";if(String(x.status)==="موافقة تمديد")return "موافقة تمديد";if(String(x.status)==="متأخر"||String(x.due_date)<today&&String(x.status)!=="مدفوع")return "متأخر";return "ملتزم"};
  const counts=new Map<string,number>();for(const installment of installments){const label=behaviorOf(installment);counts.set(label,(counts.get(label)||0)+1)}
- const priority=["تذكير نهائي","تذكير ثالث","تذكير ثاني","تذكير أول","متأخر","موافقة تمديد","ملتزم"],label=[...counts].sort((a,b)=>b[1]-a[1]||priority.indexOf(a[0])-priority.indexOf(b[0]))[0]?.[0]||"ملتزم";
- const tone=label==="ملتزم"?"green":label==="متأخر"||label==="تذكير نهائي"?"red":label==="تذكير ثالث"||label==="تذكير ثاني"?"purple":"amber";return {label,tone,summary};
+ const priority=["تطبيق السياسة","تذكير نهائي","تذكير ثالث","تذكير ثاني","تذكير أول","متأخر","موافقة تمديد","ملتزم"],label=[...counts].sort((a,b)=>b[1]-a[1]||priority.indexOf(a[0])-priority.indexOf(b[0]))[0]?.[0]||"ملتزم";
+ const tone=label==="ملتزم"?"green":label==="تطبيق السياسة"||label==="متأخر"||label==="تذكير نهائي"?"red":label==="تذكير ثالث"||label==="تذكير ثاني"?"purple":"amber";return {label,tone,summary};
 }
 
 export async function GET(req:Request){
@@ -116,7 +116,7 @@ export async function POST(req:Request){
  if(action==="installment_status"){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");
-  if(!["ملتزم","تذكير أول","تذكير ثاني","تذكير ثالث","تذكير نهائي","موافقة تمديد","متأخر"].includes(status))return Response.json({error:"سلوك السداد غير صالح"},{status:400});
+  if(!["ملتزم","تذكير أول","تذكير ثاني","تذكير ثالث","تذكير نهائي","موافقة تمديد","تطبيق السياسة","متأخر"].includes(status))return Response.json({error:"سلوك السداد غير صالح"},{status:400});
   const reminderCount=status==="تذكير أول"?1:status==="تذكير ثاني"?2:status==="تذكير ثالث"?3:status==="تذكير نهائي"?4:null;
   if(reminderCount)await db.prepare("UPDATE installments SET status=?,reminder_count=MAX(COALESCE(reminder_count,0),?),first_reminder_at=CASE WHEN first_reminder_at IS NULL THEN ? ELSE first_reminder_at END,second_reminder_at=CASE WHEN ?>=2 AND second_reminder_at IS NULL THEN ? ELSE second_reminder_at END,last_reminded_by_email=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,reminderCount,now,reminderCount,now,auth.email,now,installmentId,orderId).run();
   else await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});

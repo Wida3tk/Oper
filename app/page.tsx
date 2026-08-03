@@ -2487,6 +2487,7 @@ type LiveEnrollment = {
   updated_at?: string;
   payment_id?: string;
   payment_reference?: string;
+  needs_attention?: number;
 };
 type LiveReservation = {
   id: string;
@@ -3679,7 +3680,7 @@ function OperationsCustomerCard({
 }) {
   return (
     <article
-      className={`ops-customer-row ${moving ? "card-moving" : "card-enter"}`}
+      className={`ops-customer-row ${row.needs_attention?"needs-attention":""} ${moving ? "card-moving" : "card-enter"}`}
       style={{ gridColumn: "1 / -1" }}
       role="button"
       tabIndex={0}
@@ -3699,6 +3700,7 @@ function OperationsCustomerCard({
         <div>
           <b>{row.customer_name}</b>
           <span className="ops-order-number">{row.order_number || row.order_id}</span>
+          {Boolean(row.needs_attention)&&<em className="attention-badge">تطبيق السياسة · بحاجة للانتباه</em>}
         </div>
       </button>
       <div className="ops-row-cell">
@@ -3861,6 +3863,7 @@ function LiveAcademy({
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
+  const attentionRows=rows.filter(row=>Boolean(row.needs_attention));
   if (loading || error || !rows.length)
     return <LiveState loading={loading} error={error} empty={!rows.length} />;
   const count = (state: string) =>
@@ -3901,6 +3904,7 @@ function LiveAcademy({
             <p>{selectedRow.program_name}</p>
           </div>
         </div>
+        {Boolean(selectedRow.needs_attention)&&<div className="drawer-attention-note"><ShieldCheck size={18}/><div><b>عميل بحاجة للانتباه</b><span>سلوك السداد الحالي: تطبيق السياسة. مراجعة الملف المالي قبل متابعة الإجراء.</span></div></div>}
         <div className="operations-contact-actions">
           <button className="whatsapp" onClick={() => whatsapp(selectedRow)}>
             <FaWhatsapp size={18} />
@@ -4085,9 +4089,11 @@ function LiveAcademy({
       ))}
     </div>
   );
+  const attentionPanel=focus!=="contact"&&attentionRows.length>0&&<section className="operations-attention"><header><div><ShieldCheck size={19}/><span><b>عملاء بحاجة للانتباه</b><small>تم تطبيق السياسة المالية على ملفاتهم</small></span></div><em>{attentionRows.length}</em></header><div>{attentionRows.map(row=><button key={row.id} onClick={()=>setSelectedRow(row)}><span><b>{row.customer_name}</b><small>{row.program_name} · {row.order_number||row.order_id}</small></span><em>فتح الملف ←</em></button>)}</div></section>;
   if (focus !== "assignment")
     return (
       <>
+        {attentionPanel}
         <CustomerSmartFilters
           programs={availablePrograms}
           statuses={availableStatuses}
@@ -4104,6 +4110,7 @@ function LiveAcademy({
     );
   return (
     <>
+      {attentionPanel}
       <CustomerSmartFilters
         programs={availablePrograms}
         statuses={availableStatuses}
@@ -5745,6 +5752,7 @@ function LiveFinance() {
                         <option>تذكير ثالث</option>
                         <option>تذكير نهائي</option>
                         <option>موافقة تمديد</option>
+                        <option>تطبيق السياسة</option>
                         <option>متأخر</option>
                         {inst.status === "مدفوع" && <option>تم السداد</option>}
                       </select></label>
