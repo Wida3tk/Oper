@@ -91,7 +91,7 @@ function BrandMark({ withText = true }: { withText?: boolean }) {
       <img className="brand-symbol" src="/sulukera-icon.png" alt="" />
       {withText && (
         <div className="brand-wordmark">
-          <img src="/sulukera-wordmark.png" alt="سلوكيرا" />
+          <img src="/sulukera-wordmark-transparent.png" alt="سلوكيرا" />
           <span>مركز العمليات</span>
         </div>
       )}
