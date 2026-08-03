@@ -8,6 +8,7 @@ export async function GET(req: Request) {
   const db = operationalDb();
   await promoteDueReservations(db, auth.email);
   const canSeeFinance = auth.roles.includes("admin") || auth.roles.includes("finance") || can(auth, "finance.view");
+  const canTakeAttentionAction = auth.roles.includes("academy");
   const financeFilter = canSeeFinance ? "" : "AND t.department!='المالية'";
   const [schedule, events, overdue, attention, incomplete] = await Promise.all([
     db.prepare(`SELECT r.id,r.assignment_date,r.start_date,r.reservation_kind,r.cohort_label,r.status,c.name customer_name,p.name program_name
@@ -23,16 +24,18 @@ export async function GET(req: Request) {
            WHEN t.entity_type='payment' THEN (SELECT c.name FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END customer_name
       FROM workflow_tasks t WHERE t.status!='مكتملة' AND t.due_at IS NOT NULL AND date(t.due_at)<date('now','+3 hours') ${financeFilter}
       ORDER BY t.due_at LIMIT 50`).all(),
-    db.prepare(`SELECT DISTINCT 'policy-'||o.id id,c.name customer_name,p.name program_name,'تطبيق السياسة' title,'المالية' department,NULL due_at,'policy' entity_type
-      FROM installments i JOIN orders o ON o.id=i.order_id JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id
-      WHERE i.status='تطبيق السياسة' ORDER BY c.name LIMIT 50`).all(),
+    db.prepare(`SELECT 'policy-'||o.id id,o.id order_id,c.name customer_name,p.name program_name,'تطبيق السياسة' title,'المالية' department,NULL due_at,'policy' entity_type,
+      COALESCE(f.state,'needs_operations') attention_state,f.first_action_by_email,f.first_action_at,f.finance_action_by_email,f.finance_action_at
+      FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id LEFT JOIN attention_followups f ON f.order_id=o.id
+      WHERE (EXISTS(SELECT 1 FROM installments i WHERE i.order_id=o.id AND i.status='تطبيق السياسة') OR f.state IN ('needs_operations','waiting_finance','finance_resolved'))
+      AND COALESCE(f.state,'needs_operations')!='closed' ORDER BY c.name LIMIT 50`).all(),
     db.prepare(`SELECT 'data-'||e.id id,c.name customer_name,p.name program_name,'بيانات العميل غير مكتملة' title,'التشغيلية' department,NULL due_at,'enrollment' entity_type
       FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id
       WHERE e.status!='مكتمل' AND (trim(COALESCE(c.phone,''))='' OR trim(COALESCE(c.email,''))='') ORDER BY e.updated_at LIMIT 50`).all(),
   ]);
   const exceptions = [
     ...overdue.results.map((row) => ({ ...row, kind: "overdue", severity: "red" })),
-    ...(canSeeFinance ? attention.results.map((row) => ({ ...row, kind: "policy", severity: "red" })) : []),
+    ...attention.results.map((row) => ({ ...row, kind: "policy", severity: row.attention_state === "finance_resolved" ? "green" : "red" })),
     ...incomplete.results.map((row) => ({ ...row, kind: "data", severity: "amber" })),
   ];
   const visibleEvents = events.results.filter((row) => {
@@ -45,10 +48,11 @@ export async function GET(req: Request) {
     events: visibleEvents,
     exceptions,
     canManageEvents: auth.roles.includes("admin"),
+    canTakeAttentionAction,
     stats: {
       upcoming: schedule.results.length + visibleEvents.length,
       overdue: overdue.results.length,
-      attention: canSeeFinance ? attention.results.length : 0,
+      attention: attention.results.length,
       incomplete: incomplete.results.length,
     },
   });
@@ -57,8 +61,31 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const auth = await authorize(req, []);
   if (!auth.ok) return auth.response;
-  if (!auth.roles.includes("admin")) return Response.json({ error: "هذه الخاصية متاحة للإدارة فقط" }, { status: 403 });
   const body = await req.json() as Record<string, unknown>;
+  if (String(body.action || "") === "take_attention_action") {
+    if (!auth.roles.includes("academy")) return Response.json({ error: "تسجيل الإجراء متاح لفريق التشغيل فقط" }, { status: 403 });
+    const orderId = String(body.orderId || ""), db = operationalDb(), now = new Date().toISOString();
+    if (!orderId) return Response.json({ error: "ملف العميل غير محدد" }, { status: 400 });
+    const followup = await db.prepare("SELECT state FROM attention_followups WHERE order_id=?").bind(orderId).first<{ state: string }>();
+    const hasPolicy = await db.prepare("SELECT 1 found FROM installments WHERE order_id=? AND status='تطبيق السياسة' LIMIT 1").bind(orderId).first();
+    const state = followup?.state || (hasPolicy ? "needs_operations" : "");
+    if (state === "needs_operations") {
+      await db.batch([
+        db.prepare("INSERT INTO attention_followups(order_id,state,first_action_by_email,first_action_at,updated_at) VALUES(?,'waiting_finance',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='waiting_finance',first_action_by_email=excluded.first_action_by_email,first_action_at=excluded.first_action_at,updated_at=excluded.updated_at").bind(orderId, auth.email, now, now),
+        db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'ATTENTION_OPERATIONAL_ACTION','order',?,'{\"stage\":\"first\"}',?)").bind(id("AUD"), auth.email, orderId, now),
+      ]);
+      return Response.json({ ok: true, state: "waiting_finance" });
+    }
+    if (state === "finance_resolved") {
+      await db.batch([
+        db.prepare("UPDATE attention_followups SET state='closed',final_action_by_email=?,final_action_at=?,updated_at=? WHERE order_id=?").bind(auth.email, now, now, orderId),
+        db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'ATTENTION_OPERATIONAL_ACTION','order',?,'{\"stage\":\"final\"}',?)").bind(id("AUD"), auth.email, orderId, now),
+      ]);
+      return Response.json({ ok: true, state: "closed" });
+    }
+    return Response.json({ error: state === "waiting_finance" ? "الحالة بانتظار تحديث المالية" : "لا توجد متابعة تشغيلية متاحة" }, { status: 409 });
+  }
+  if (!auth.roles.includes("admin")) return Response.json({ error: "هذه الخاصية متاحة للإدارة فقط" }, { status: 403 });
   const title = String(body.title || "").trim(), eventDate = String(body.eventDate || ""), eventTime = String(body.eventTime || ""), details = String(body.details || "").trim();
   const audience = Array.isArray(body.audience) ? body.audience.map(String).filter(Boolean).join(",") : "all";
   if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return Response.json({ error: "اسم الموعد والتاريخ مطلوبان" }, { status: 400 });

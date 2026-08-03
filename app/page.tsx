@@ -3394,10 +3394,11 @@ function LiveCustomers({
 type OperationsCenterData = {
   generatedAt: string;
   canManageEvents: boolean;
+  canTakeAttentionAction: boolean;
   stats: { upcoming: number; overdue: number; attention: number; incomplete: number };
   events: { id: string; title: string; event_date: string; event_time?: string; details?: string; audience: string }[];
   schedule: { id: string; assignment_date?: string; start_date?: string; reservation_kind: string; cohort_label?: string; status: string; customer_name: string; program_name: string }[];
-  exceptions: { id: string; title: string; customer_name?: string; program_name?: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string }[];
+  exceptions: { id: string; order_id?: string; title: string; customer_name?: string; program_name?: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string; attention_state?: "needs_operations" | "waiting_finance" | "finance_resolved" }[];
 };
 
 const DAILY_OPERATIONS_MESSAGES = [
@@ -3439,12 +3440,21 @@ function dailyOperationsMessage(date = new Date()) {
 }
 
 function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
-  const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [acting, setActing] = useState("");
   const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
   useEffect(() => { void load(); const refresh = () => void load(); window.addEventListener("sulukera:data-changed", refresh); return () => window.removeEventListener("sulukera:data-changed", refresh); }, []);
   if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
+  const takeAttentionAction = async (row: OperationsCenterData["exceptions"][number]) => {
+    if (!row.order_id) return;
+    setActing(row.id); setError("");
+    try {
+      await apiJson("/api/operations-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "take_attention_action", orderId: row.order_id }) });
+      await load();
+      window.dispatchEvent(new CustomEvent("sulukera:data-changed", { detail: { entity: "attention", id: row.order_id } }));
+    } catch (cause) { setError((cause as Error).message); } finally { setActing(""); }
+  };
   return <div className="operations-center">
     <section className="operations-command">
       <div><h2>{dailyOperationsMessage()}</h2></div>
@@ -3470,11 +3480,11 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
         </article>) : <div className="guided-empty"><CalendarDays size={26}/><b>لا توجد مواعيد تشغيلية قادمة</b><span>ستظهر هنا مواعيد الإسناد وبداية البرامج عند جدولتها.</span></div>}</div>
       </section>
       <section className="operations-exceptions">
-        <header><div><Activity size={19}/><span><b>غرفة مراقبة العمليات</b><small>حالات تحتاج تدخلاً قبل أن تتعطل الرحلة</small></span></div><em>{data.exceptions.length}</em></header>
+        <header><div><Activity size={19}/><span><b>عملاء بحاجة للانتباه</b><small>متابعة مشتركة بين التشغيل والمالية حتى إغلاق الحالة</small></span></div><em>{data.exceptions.length}</em></header>
         <div>{data.exceptions.length ? data.exceptions.map(item => <article className={item.severity} key={item.id}>
           <i>{item.kind === "policy" ? "!" : item.kind === "overdue" ? "⌛" : "i"}</i>
-          <div><b>{item.title}</b><span>{item.customer_name || "إجراء داخلي"}{item.program_name ? ` · ${item.program_name}` : ""}</span><small>{item.department}{item.due_at ? ` · مستحق ${dateLabel(item.due_at)}` : ""}</small></div>
-          <button onClick={() => onNavigate(routeFor(item))}>معالجة</button>
+          <div><b>{item.kind === "policy" ? item.attention_state === "waiting_finance" ? "بانتظار تحديث المالية" : item.attention_state === "finance_resolved" ? "بحاجة لإجراء تشغيلي" : "بحاجة لإجراء من التشغيل" : item.title}</b><span>{item.customer_name || "إجراء داخلي"}{item.program_name ? ` · ${item.program_name}` : ""}</span><small>{item.kind === "policy" ? item.attention_state === "finance_resolved" ? "تم تحديث الحالة المالية" : item.attention_state === "waiting_finance" ? "تم اتخاذ الإجراء التشغيلي الأول" : "حالة مالية تتطلب الانتباه" : `${item.department}${item.due_at ? ` · مستحق ${dateLabel(item.due_at)}` : ""}`}</small></div>
+          {item.kind === "policy" ? data.canTakeAttentionAction && item.attention_state !== "waiting_finance" && <button disabled={acting === item.id} onClick={() => void takeAttentionAction(item)}>{acting === item.id ? "..." : "تم اتخاذ إجراء"}</button> : <button onClick={() => onNavigate(routeFor(item))}>معالجة</button>}
         </article>) : <div className="guided-empty"><ShieldCheck size={27}/><b>الوضع التشغيلي مستقر</b><span>لا توجد استثناءات أو حالات متأخرة حاليًا.</span></div>}</div>
       </section>
     </div>

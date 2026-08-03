@@ -97,7 +97,10 @@ export async function POST(req:Request){
   if(!method||!reference)return Response.json({error:"وسيلة الدفع والرقم المرجعي مطلوبان"},{status:400});
   const totalCents=cents(order.total);if(paidCents+installment.amount_cents>totalCents)return Response.json({error:"هذه الدفعة تتجاوز المتبقي على العميل"},{status:400});
   const paymentId=id("PAY"),newPaid=paidCents+installment.amount_cents;
-  await db.batch([db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,'collection','confirmed',?)").bind(paymentId,orderId,money(installment.amount_cents),now,"مسجلة",method,reference,now),db.prepare("UPDATE installments SET status='مدفوع',paid_payment_id=?,paid_at=?,reference=?,updated_at=? WHERE id=?").bind(paymentId,now,reference,now,installmentId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaid),newPaid===totalCents?"مدفوع":"مدفوع جزئياً",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'PAY_INSTALLMENT','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,paymentId,amount:money(installment.amount_cents),reference}),now)]);
+  const paymentStatements=[db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,'collection','confirmed',?)").bind(paymentId,orderId,money(installment.amount_cents),now,"مسجلة",method,reference,now),db.prepare("UPDATE installments SET status='مدفوع',paid_payment_id=?,paid_at=?,reference=?,updated_at=? WHERE id=?").bind(paymentId,now,reference,now,installmentId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaid),newPaid===totalCents?"مدفوع":"مدفوع جزئياً",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'PAY_INSTALLMENT','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,paymentId,amount:money(installment.amount_cents),reference}),now)];
+  const attention=await db.prepare("SELECT state FROM attention_followups WHERE order_id=?").bind(orderId).first<{state:string}>();
+  if(installment.status==="تطبيق السياسة"||attention?.state==="waiting_finance")paymentStatements.push(db.prepare("INSERT INTO attention_followups(order_id,state,finance_action_by_email,finance_action_at,updated_at) VALUES(?,'finance_resolved',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='finance_resolved',finance_action_by_email=excluded.finance_action_by_email,finance_action_at=excluded.finance_action_at,updated_at=excluded.updated_at").bind(orderId,auth.email,now,now));
+  await db.batch(paymentStatements);
   return Response.json({ok:true});
  }
  if(action==="remind_installment"){
@@ -117,9 +120,18 @@ export async function POST(req:Request){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");
   if(!["ملتزم","تذكير أول","تذكير ثاني","تذكير ثالث","تذكير نهائي","موافقة تمديد","تطبيق السياسة","متأخر"].includes(status))return Response.json({error:"حالة السداد غير صالحة"},{status:400});
+  const installment=await db.prepare("SELECT status FROM installments WHERE id=? AND order_id=?").bind(installmentId,orderId).first<{status:string}>();
+  if(!installment)return Response.json({error:"القسط غير موجود"},{status:404});
   const reminderCount=status==="تذكير أول"?1:status==="تذكير ثاني"?2:status==="تذكير ثالث"?3:status==="تذكير نهائي"?4:null;
   if(reminderCount)await db.prepare("UPDATE installments SET status=?,reminder_count=MAX(COALESCE(reminder_count,0),?),first_reminder_at=CASE WHEN first_reminder_at IS NULL THEN ? ELSE first_reminder_at END,second_reminder_at=CASE WHEN ?>=2 AND second_reminder_at IS NULL THEN ? ELSE second_reminder_at END,last_reminded_by_email=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,reminderCount,now,reminderCount,now,auth.email,now,installmentId,orderId).run();
-  else await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});
+  else await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();
+  const followup=await db.prepare("SELECT state FROM attention_followups WHERE order_id=?").bind(orderId).first<{state:string}>();
+  if(status==="تطبيق السياسة"&&installment.status!=="تطبيق السياسة"){
+   await db.prepare("INSERT INTO attention_followups(order_id,state,updated_at) VALUES(?,'needs_operations',?) ON CONFLICT(order_id) DO UPDATE SET state='needs_operations',first_action_by_email=NULL,first_action_at=NULL,finance_action_by_email=NULL,finance_action_at=NULL,final_action_by_email=NULL,final_action_at=NULL,updated_at=excluded.updated_at").bind(orderId,now).run();
+  }else if(status!=="تطبيق السياسة"&&(installment.status==="تطبيق السياسة"||followup?.state==="waiting_finance")){
+   await db.prepare("INSERT INTO attention_followups(order_id,state,finance_action_by_email,finance_action_at,updated_at) VALUES(?,'finance_resolved',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='finance_resolved',finance_action_by_email=excluded.finance_action_by_email,finance_action_at=excluded.finance_action_at,updated_at=excluded.updated_at").bind(orderId,auth.email,now,now).run();
+  }
+  return Response.json({ok:true});
  }
  if(action==="note"){
   const note=String(body.note||"").trim();await db.prepare("INSERT INTO finance_notes(order_id,note,updated_by_email,updated_at) VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET note=excluded.note,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(orderId,note,auth.email,now).run();return Response.json({ok:true});
