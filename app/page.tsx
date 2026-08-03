@@ -109,7 +109,7 @@ const navGroups: {
     label: "البداية",
     items: [
       ["dashboard", "الرئيسية", "dashboard"],
-      ["work", "عملاء اليوم", "tasks"],
+      ["work", "مركز العمليات", "tasks"],
     ],
   },
   {
@@ -286,7 +286,7 @@ const tasks = [
 ];
 const titles: Record<View, [string, string]> = {
   dashboard: ["الرئيسية", "ملخص شامل لحركة العمليات والمبيعات والتحصيل"],
-  work: ["عملاء اليوم", "المتابعات والإجراءات المسندة إليك"],
+  work: ["مركز العمليات", "المواعيد التشغيلية والاستثناءات التي تحتاج تدخلاً"],
   customers: ["قاعدة بيانات العملاء", "العملاء الذين اكتملت رحلتهم التشغيلية"],
   reservations: [
     "حجوزات المقاعد",
@@ -869,7 +869,7 @@ function OperationsApp() {
               <HomeDashboard onOpenTasks={() => setView("work")} />
             </>
           )}
-          {view === "work" && <LiveWork />}
+          {view === "work" && <LiveWork onNavigate={go} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
           {view === "reservations" && <Reservations />}
           {view === "direct-programs" && <Reservations kind="برنامج مباشر" />}
@@ -3354,7 +3354,54 @@ function LiveCustomers({
   );
 }
 
-function LiveWork() {
+type OperationsCenterData = {
+  generatedAt: string;
+  stats: { upcoming: number; overdue: number; attention: number; incomplete: number };
+  schedule: { id: string; assignment_date?: string; start_date?: string; reservation_kind: string; cohort_label?: string; status: string; customer_name: string; program_name: string }[];
+  exceptions: { id: string; title: string; customer_name?: string; program_name?: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string }[];
+};
+
+function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
+  const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
+  useEffect(() => { void load(); const refresh = () => void load(); window.addEventListener("sulukera:data-changed", refresh); return () => window.removeEventListener("sulukera:data-changed", refresh); }, []);
+  if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
+  const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
+  const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
+  return <div className="operations-center">
+    <section className="operations-command">
+      <div><span>الرؤية التشغيلية</span><h2>المواعيد والاستثناءات في مكان واحد</h2><p>تعرض هذه الصفحة ما قد يؤثر على جاهزية البرامج، ولا تكرر قوائم متابعة المبيعات.</p></div>
+      <time>آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</time>
+    </section>
+    <div className="operations-center-stats">
+      <article className="blue"><CalendarDays size={20}/><span>مواعيد قادمة</span><b>{data.stats.upcoming}</b><small>خلال 30 يومًا</small></article>
+      <article className="red"><Activity size={20}/><span>إجراءات متأخرة</span><b>{data.stats.overdue}</b><small>تجاوزت تاريخ التنفيذ</small></article>
+      <article className="amber"><ShieldCheck size={20}/><span>بحاجة للانتباه</span><b>{data.stats.attention}</b><small>حالات تطبيق السياسة</small></article>
+      <article className="violet"><CircleUserRound size={20}/><span>بيانات ناقصة</span><b>{data.stats.incomplete}</b><small>تؤثر على جاهزية العميل</small></article>
+    </div>
+    <div className="operations-center-grid">
+      <section className="operations-schedule">
+        <header><div><CalendarDays size={19}/><span><b>الجدول التشغيلي</b><small>الإسناد وبداية البرامج القادمة</small></span></div><em>{data.schedule.length}</em></header>
+        <div>{data.schedule.length ? data.schedule.map(item => <article key={item.id}>
+          <time><b>{dateLabel(item.assignment_date || item.start_date)}</b><span>{item.assignment_date ? "موعد الإسناد" : "بداية البرنامج"}</span></time>
+          <i />
+          <div><b>{item.program_name}</b><span>{item.customer_name} · {item.reservation_kind}</span><small>{item.cohort_label || "دون اسم دفعة"} · البداية {dateLabel(item.start_date)}</small></div>
+          <em>{item.status}</em>
+        </article>) : <div className="guided-empty"><CalendarDays size={26}/><b>لا توجد مواعيد خلال 30 يومًا</b><span>ستظهر هنا مواعيد الإسناد وبدايات البرامج عند جدولتها.</span></div>}</div>
+      </section>
+      <section className="operations-exceptions">
+        <header><div><Activity size={19}/><span><b>غرفة مراقبة العمليات</b><small>حالات تحتاج تدخلاً قبل أن تتعطل الرحلة</small></span></div><em>{data.exceptions.length}</em></header>
+        <div>{data.exceptions.length ? data.exceptions.map(item => <article className={item.severity} key={item.id}>
+          <i>{item.kind === "policy" ? "!" : item.kind === "overdue" ? "⌛" : "i"}</i>
+          <div><b>{item.title}</b><span>{item.customer_name || "إجراء داخلي"}{item.program_name ? ` · ${item.program_name}` : ""}</span><small>{item.department}{item.due_at ? ` · مستحق ${dateLabel(item.due_at)}` : ""}</small></div>
+          <button onClick={() => onNavigate(routeFor(item))}>معالجة</button>
+        </article>) : <div className="guided-empty"><ShieldCheck size={27}/><b>الوضع التشغيلي مستقر</b><span>لا توجد استثناءات أو حالات متأخرة حاليًا.</span></div>}</div>
+      </section>
+    </div>
+  </div>;
+}
+
+function LegacyLiveWork() {
   const [rows, setRows] = useState<LiveTask[]>([]),
     [completed, setCompleted] = useState<LiveTask[]>([]),
     [loading, setLoading] = useState(true),
