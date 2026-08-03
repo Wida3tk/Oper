@@ -2757,13 +2757,36 @@ type HomeData={
  operations:{pendingCustomers:number;customersToday:number;totalCustomers:number;activeReservations:number};
  tasks:LiveTask[];journey:{status:string;count:number}[];
  trainees:{key:string;label:string;count:number;details:{label:string;count:number}[]}[];
- activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;created_at:string}[];
+ activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;subject_name?:string;created_at:string}[];
  finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;daily:{day:string;sales:number;collections:number}[]}|null;
 };
-const activityLabels:Record<string,string>={
- RECORD_PAYMENT_AND_ADMIT:"تسجيل عميل ودفعة مبيعات",PAY_INSTALLMENT:"تسجيل تحصيل قسط",UPDATE_PAYMENT_REFERENCE:"تحديث مرجع السداد",UPDATE_CUSTOMER_DATA:"تعديل بيانات عميل",
- ENROLLMENT_TRANSITION:"انتقال العميل إلى مرحلة جديدة",SCHEDULE_RESERVATION_START:"جدولة حجز أو برنامج مباشر",
- APPROVE_LEGACY_INSTALLMENTS:"اعتماد مراجعة أقساط قديمة",UPDATE_STAFF_ACCESS:"تعديل مستخدم وصلاحياته",DELETE_CUSTOMER:"حذف ملف عميل"
+const activityVerbs:Record<string,(actor:string)=>string>={
+ RECORD_PAYMENT_AND_ADMIT:actor=>`أضاف ${actor} عميلًا جديدًا`,
+ ADD_CUSTOMER_NOTE:actor=>`أضاف ${actor} تحديثًا إلى ملف العميل`,
+ UPDATE_FIRST_PAYMENT:actor=>`عدّل ${actor} قيمة الدفعة الأولى`,
+ RECORD_INSTALLMENT_REMINDER:actor=>`سجّل ${actor} تذكيرًا بسداد قسط`,
+ PAY_INSTALLMENT:actor=>`سجّل ${actor} تحصيل قسط`,
+ UPDATE_PAYMENT_REFERENCE:actor=>`حدّث ${actor} مرجع السداد`,
+ UPDATE_CUSTOMER_DATA:actor=>`عدّل ${actor} بيانات العميل`,
+ ENROLLMENT_TRANSITION:actor=>`نقل ${actor} العميل إلى مرحلة جديدة`,
+ SCHEDULE_RESERVATION_START:actor=>`حدّد ${actor} موعد بدء وإسناد العميل`,
+ APPROVE_LEGACY_INSTALLMENTS:actor=>`اعتمد ${actor} المراجعة المالية`,
+ APPROVE_RESERVATION_TRANSFER:actor=>`اعتمد ${actor} نقل حجز المقعد`,
+ REQUEST_RESERVATION_TRANSFER:actor=>`طلب ${actor} نقل حجز المقعد`,
+ GRANT_TRIAL:actor=>`منح ${actor} العميل فترة تجربة`,
+ TRIAL_SUBSCRIBED:actor=>`حوّل ${actor} عميل التجربة إلى اشتراك`,
+ TRIAL_NOT_INTERESTED:actor=>`صنّف ${actor} عميل التجربة كغير مهتم`,
+ UPDATE_STAFF_ACCESS:actor=>`حدّث ${actor} بيانات مستخدم وصلاحياته`,
+ DELETE_STAFF_ACCOUNT:actor=>`حذف ${actor} حساب مستخدم`,
+ DELETE_CUSTOMER:actor=>`حذف ${actor} ملف عميل`,
+ UPDATE_TASK:actor=>`حدّث ${actor} إجراءً تشغيليًا`,
+ RECONCILE_PAYMENT:actor=>`راجع ${actor} عملية سداد`,
+ RECORD_PAYMENT:actor=>`سجّل ${actor} دفعة جديدة`,
+ AUTO_ASSIGN_RESERVATION:()=>"نقل النظام العميل تلقائيًا إلى التهيئة",
+};
+const activitySentence=(item:HomeData["activity"][number])=>{
+ const actor=item.actor_name||"أحد الموظفين";
+ return (activityVerbs[item.action]||((name:string)=>`نفّذ ${name} تحديثًا في النظام`))(actor);
 };
 function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
  const now=new Date(),[month,setMonth]=useState(now.toISOString().slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[openTraineeGroup,setOpenTraineeGroup]=useState("aba");
@@ -2789,7 +2812,7 @@ function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
    <HomeMetric icon={CircleDollarSign} label="إجمالي المقبوض" value={money(f.cash)} suffix="ر.س" note={`المتبقي ${money(f.remaining)} ر.س`} tone="amber"/>
   </div></section>}
   {f&&<section className="sales-performance"><header><div><span>الأداء المالي</span><h3>المبيعات والتحصيل خلال الشهر</h3><p>الأزرق للمبيعات المسجلة عند إنشاء العميل، والأخضر لتحصيل الأقساط.</p></div><div className="chart-controls"><button className={mode==="daily"?"active":""} onClick={()=>setMode("daily")}>يومي</button><button className={mode==="cumulative"?"active":""} onClick={()=>setMode("cumulative")}>تراكمي</button></div></header><div className="performance-body"><div className="sales-chart" role="img" aria-label={`رسم المبيعات والتحصيل لشهر ${month}`}><div className="chart-summary"><div className="chart-legend"><span><i className="sales"/>المبيعات</span><span><i className="collection"/>التحصيل</span></div><div><span><b>{activeDays}</b> أيام فيها حركة</span><span><b>{compactMoney(peak.sales+peak.collections)}</b> أعلى يوم</span></div></div><div className="chart-area"><div className="chart-scale">{chartTicks.map((tick,index)=><span key={index}>{compactMoney(tick)}</span>)}</div><div className="chart-bars">{chart.map((row,index)=><div className="day-bars" key={row.day} title={`${row.day} — المبيعات ${money(row.sales)} ر.س، التحصيل ${money(row.collections)} ر.س`}><div><i className="sales" style={{height:`${row.sales/chartMax*100}%`}}/><i className="collection" style={{height:`${row.collections/chartMax*100}%`}}/></div>{(index===0||(index+1)%5===0||index===chart.length-1)&&<span>{index+1}</span>}</div>)}</div></div></div><aside className="month-target"><Target size={22}/><span>هدف مبيعات الشهر</span><b>{money(f.target)} <small>ر.س</small></b><div><i style={{width:`${targetRatio}%`}}/></div><p>تحقق {targetRatio}% من الهدف</p>{data.canEditFinanceTarget&&(editingTarget?<section><input inputMode="decimal" value={target} onChange={e=>setTarget(e.target.value)}/><button onClick={saveTarget}>حفظ</button><button onClick={()=>setEditingTarget(false)}>إلغاء</button></section>:<button onClick={()=>setEditingTarget(true)}>تعديل الهدف</button>)}</aside></div></section>}
-  <div className="home-lower-grid"><section className="home-panel"><header><div><Activity size={18}/><span><b>حركة النظام</b><small>آخر الإجراءات المسجلة</small></span></div></header><div className="activity-feed">{data.activity.length?data.activity.map(item=><article key={item.id}><i/><div><b>{activityLabels[item.action]||item.action}</b><span>{item.actor_name||item.actor_email} · {item.entity_id}</span></div><time>{new Date(item.created_at).toLocaleString("ar-SA-u-nu-latn",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</time></article>):<div className="ops-empty compact">لا توجد حركة مسجلة بعد.</div>}</div></section>
+  <div className="home-lower-grid"><section className="home-panel"><header><div><Activity size={18}/><span><b>حركة النظام</b><small>آخر الإجراءات المسجلة</small></span></div></header><div className="activity-feed">{data.activity.length?data.activity.map(item=><article key={item.id}><i/><div><b>{activitySentence(item)}</b><span>{item.subject_name?`العميل: ${item.subject_name}`:"تحديث مسجل في النظام"}</span></div><time>{new Date(item.created_at).toLocaleString("ar-SA-u-nu-latn",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</time></article>):<div className="ops-empty compact">لا توجد حركة مسجلة بعد.</div>}</div></section>
   <section className="home-panel trainee-panel"><header><div><UsersRound size={18}/><span><b>توزيع المتدربين</b><small>حسب البرنامج والمسار</small></span></div></header><div className="trainee-groups">{data.trainees.map(group=><article className={openTraineeGroup===group.key?"active":""} key={group.key}><button onClick={()=>setOpenTraineeGroup(openTraineeGroup===group.key?"":group.key)} aria-expanded={openTraineeGroup===group.key}><span>{group.label}</span><b>{group.count}</b></button>{openTraineeGroup===group.key&&<div>{group.details.length?group.details.map(detail=><span key={detail.label}><i>{detail.label}</i><b>{detail.count}</b></span>):<small>لا يوجد متدربون في هذا التصنيف حالياً.</small>}</div>}</article>)}</div></section></div>
   <section className="journey-overview"><header><div><UserRoundCheck size={18}/><span><b>تقدم رحلة العميل</b><small>توزيع العملاء الموجودين حالياً في كل مرحلة</small></span></div><em>{journeyTotal} عميل ضمن المسار</em></header><div className="journey-visual">{journeyStages.map((row,index)=><article className={row.status===bottleneck.status&&row.count>0?"bottleneck":""} key={row.status}><div className="journey-stage-label"><span><i>{index+1}</i>{row.status}</span><b>{row.count}</b></div><div className="journey-track" role="progressbar" aria-label={`${row.status}: ${row.count} عميل`} aria-valuemin={0} aria-valuemax={journeyMax} aria-valuenow={row.count}><i style={{width:`${row.count?Math.max(6,row.count/journeyMax*100):0}%`}}/></div><small>{journeyTotal?Math.round(row.count/journeyTotal*100):0}% من الحالات الحالية</small></article>)}</div>{bottleneck.count>0&&<aside className="bottleneck-insight"><Activity size={18}/><div><b>مرحلة التكدس الحالية: {bottleneck.status}</b><span>{bottleneck.count} عميل في هذه المرحلة؛ وهي الأعلى وتحتاج متابعة تشغيلية أولاً.</span></div></aside>}</section>
  </div>

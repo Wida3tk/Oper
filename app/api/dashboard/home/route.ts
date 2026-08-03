@@ -20,7 +20,19 @@ export async function GET(req:Request){
     db.prepare("SELECT COUNT(*) count FROM customers WHERE deleted_at IS NULL").first(),
     db.prepare("SELECT COUNT(*) count FROM seat_reservations WHERE status NOT IN ('تم التحويل','تم النقل')").first(),
     db.prepare("SELECT status,COUNT(*) count FROM enrollments GROUP BY status ORDER BY MIN(created_at)").all(),
-    db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.actor_email,a.created_at,s.display_name actor_name FROM audit_log a LEFT JOIN staff_accounts s ON s.email=a.actor_email ORDER BY a.created_at DESC LIMIT 10").all(),
+    db.prepare(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.actor_email,a.created_at,s.display_name actor_name,
+      CASE a.entity_type
+        WHEN 'customer' THEN (SELECT c.name FROM customers c WHERE c.id=a.entity_id)
+        WHEN 'payment' THEN (SELECT c.name FROM payments pay JOIN orders o ON o.id=pay.order_id JOIN customers c ON c.id=o.customer_id WHERE pay.id=a.entity_id)
+        WHEN 'payment_intent' THEN (SELECT c.name FROM payment_intents pi JOIN customers c ON c.id=pi.resulting_customer_id WHERE pi.id=a.entity_id)
+        WHEN 'installment' THEN (SELECT c.name FROM installments ins JOIN orders o ON o.id=ins.order_id JOIN customers c ON c.id=o.customer_id WHERE ins.id=a.entity_id)
+        WHEN 'order' THEN (SELECT c.name FROM orders o JOIN customers c ON c.id=o.customer_id WHERE o.id=a.entity_id)
+        WHEN 'enrollment' THEN (SELECT c.name FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=a.entity_id)
+        WHEN 'trial' THEN (SELECT c.name FROM program_trials t JOIN customers c ON c.id=t.customer_id WHERE t.id=a.entity_id)
+        WHEN 'seat_reservation' THEN (SELECT c.name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id WHERE r.id=a.entity_id)
+        ELSE NULL
+      END subject_name
+      FROM audit_log a LEFT JOIN staff_accounts s ON s.email=a.actor_email ORDER BY a.created_at DESC LIMIT 10`).all(),
     db.prepare(`SELECT p.name program_name,COALESCE(NULLIF(o.track,''),'غير محدد') detail,COUNT(DISTINCT e.customer_id) count
       FROM enrollments e JOIN programs p ON p.id=e.program_id JOIN orders o ON o.id=e.order_id
       GROUP BY p.name,COALESCE(NULLIF(o.track,''),'غير محدد') ORDER BY count DESC,p.name`).all(),
