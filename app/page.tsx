@@ -5657,17 +5657,14 @@ function LiveFinance() {
                   />
                 </label>
                 <label>
-                  قيمة الدفعة الأخيرة · قابلة للتعديل
+                  قيمة الدفعة الأخيرة · اختيارية
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
                     readOnly={scheduleCount === 1}
-                    value={
-                      scheduleCount === 1
-                        ? (automaticFinalCents / 100).toFixed(2)
-                        : scheduleEdit==="final"?finalAmount:normalizedFinalAmount.toFixed(2)
-                    }
+                    value={scheduleEdit==="final"?finalAmount:""}
+                    placeholder={scheduleCount===1?normalizedFinalAmount.toFixed(2):"تُحسب تلقائياً عند تركها فارغة"}
                     onChange={(e) => {setFinalAmount(e.target.value);setRegularAmountInput("");setScheduleEdit("final")}}
                   />
                 </label>
@@ -5703,9 +5700,10 @@ function LiveFinance() {
               <div className={`schedule-check ${Math.abs(scheduleTotal - scheduleRemaining) < 0.005 ? "valid" : ""}`}>
                 <span>مجموع الجدول: <b>{sar(scheduleTotal)}</b></span>
                 <span>المتبقي المطلوب: <b>{sar(scheduleRemaining)}</b></span>
+                <span>الدفعة الأخيرة المحسوبة: <b>{sar(normalizedFinalAmount)}</b></span>
               </div>
               <p className="finance-safety">
-                يخصم النظام الدفعة الأولى وجميع الدفعات المسجلة، ثم يقسم المتبقي تلقائياً. يمكن تعديل قيمة القسط الشهري فيعيد النظام حساب الدفعة الأخيرة، أو تعديل الدفعة الأخيرة فيعيد حساب الأقساط الشهرية. إعادة الجدولة تعتمد المتبقي الحالي ولا تحذف أي
+                يخصم النظام الدفعة الأولى وجميع الدفعات المسجلة، ثم يقسم المتبقي تلقائياً. عند ترك الدفعة الأخيرة فارغة تُحسب تلقائياً، ويمكن تحديدها فقط إذا كانت الحالة تحتاج مبلغاً مختلفاً. تعديل القسط الشهري يعيد حساب الدفعة الأخيرة، وتعديل الأخيرة يعيد حساب الأقساط الشهرية. إعادة الجدولة تعتمد المتبقي الحالي ولا تحذف أي
                 دفعات أو أقساط مسددة.
               </p>
               {selected.installments.length ? (
