@@ -5065,6 +5065,8 @@ function LiveFinance() {
     [selected, setSelected] = useState<FinanceOrder | null>(null),
     [total, setTotal] = useState(""),
     [count, setCount] = useState("4"),
+    [regularAmount, setRegularAmount] = useState(""),
+    [finalAmount, setFinalAmount] = useState(""),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
     [paying, setPaying] = useState<FinanceInstallment | null>(null),
     [method, setMethod] = useState("تحويل بنكي"),
@@ -5100,6 +5102,8 @@ function LiveFinance() {
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
+    setRegularAmount("");
+    setFinalAmount("");
     setPaying(null);
     setReference("");
   };
@@ -5141,6 +5145,13 @@ function LiveFinance() {
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || financeStatus(row) === statusFilter),
   );
+  const scheduleCount = Math.max(1, Math.floor(Number(count || 0)));
+  const scheduleTotal =
+    (scheduleCount > 1 ? scheduleCount - 1 : 0) * Number(regularAmount || 0) +
+    Number(finalAmount || 0);
+  const scheduleRemaining = selected
+    ? Math.max(Number(total || 0) - selected.paid, 0)
+    : 0;
   return (
     <>
       <div className="kpis finance-kpis">
@@ -5324,6 +5335,27 @@ function LiveFinance() {
                   />
                 </label>
                 <label>
+                  قيمة القسط الشهري
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    disabled={scheduleCount === 1}
+                    value={regularAmount}
+                    onChange={(e) => setRegularAmount(e.target.value)}
+                  />
+                </label>
+                <label>
+                  قيمة الدفعة الأخيرة
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={finalAmount}
+                    onChange={(e) => setFinalAmount(e.target.value)}
+                  />
+                </label>
+                <label>
                   أول استحقاق
                   <input
                     type="date"
@@ -5333,9 +5365,18 @@ function LiveFinance() {
                 </label>
                 <button
                   className="primary"
-                  disabled={saving}
+                  disabled={
+                    saving || Math.abs(scheduleTotal - scheduleRemaining) >= 0.005
+                  }
                   onClick={() =>
-                    post({ action: "schedule", total, count, start })
+                    post({
+                      action: "schedule",
+                      total,
+                      count,
+                      regularAmount,
+                      finalAmount,
+                      start,
+                    })
                   }
                 >
                   {selected.installments.length
@@ -5343,9 +5384,14 @@ function LiveFinance() {
                     : "إنشاء جدول الأقساط"}
                 </button>
               </div>
+              <div className={`schedule-check ${Math.abs(scheduleTotal - scheduleRemaining) < 0.005 ? "valid" : ""}`}>
+                <span>مجموع الجدول: <b>{sar(scheduleTotal)}</b></span>
+                <span>المتبقي المطلوب: <b>{sar(scheduleRemaining)}</b></span>
+              </div>
               <p className="finance-safety">
-                إعادة الجدولة تشمل المتبقي فقط ولا تحذف الدفعات أو الأقساط
-                المسددة.
+                عدد الأقساط يشمل الدفعة الأخيرة. تُكرر قيمة القسط الشهري في
+                جميع الأشهر السابقة، وتُسجل الدفعة الأخيرة بالقيمة المحددة.
+                إعادة الجدولة لا تحذف الدفعات أو الأقساط المسددة.
               </p>
               {selected.installments.length ? (
                 <div className="installment-list">

@@ -27,3 +27,11 @@ test("loads the customer directory from the live API", async () => {
   assert.match(source, /apiJson\("\/api\/customers"\)/);
   assert.match(source, /view\s*===\s*"customers"\s*&&\s*<LiveCustomers/);
 });
+
+test("supports a custom final installment while preserving the order balance", async () => {
+  const source = await read("../app/api/finance/route.ts");
+  assert.match(source, /regularAmountCents=cents\(body\.regularAmount\)/);
+  assert.match(source, /finalAmountCents=cents\(body\.finalAmount\)/);
+  assert.match(source, /scheduledTotal!==remaining/);
+  assert.match(source, /i===count-1\?finalAmountCents:regularAmountCents/);
+});

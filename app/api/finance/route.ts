@@ -56,13 +56,16 @@ export async function POST(req:Request){
  if(action==="schedule"){
   if(!can(auth,"finance.total.edit")||!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية تعديل الإجمالي والأقساط"},{status:403});
   const totalCents=cents(body.total),count=Math.floor(Number(body.count||0)),start=String(body.start||"");
+  const regularAmountCents=cents(body.regularAmount),finalAmountCents=cents(body.finalAmount);
   if(totalCents<paidCents)return Response.json({error:"إجمالي العقد لا يمكن أن يكون أقل من الدفعات المسجلة"},{status:400});
   if(count<1||count>36||!/^\d{4}-\d{2}-\d{2}$/.test(start))return Response.json({error:"عدد الأقساط وتاريخ البداية مطلوبان"},{status:400});
   const remaining=totalCents-paidCents;if(remaining<1)return Response.json({error:"إجمالي العقد الحالي يساوي المبلغ المدفوع. عدّلي إجمالي العقد إلى قيمته الكاملة أولاً، ثم أنشئي جدول الأقساط"},{status:400});
-  const base=Math.floor(remaining/count),extra=remaining-base*count;if(base<1)return Response.json({error:"عدد الأقساط أكبر من المبلغ المتبقي"},{status:400});
+  if(finalAmountCents<1||(count>1&&regularAmountCents<1))return Response.json({error:"مبلغ القسط الشهري ومبلغ الدفعة الأخيرة مطلوبان"},{status:400});
+  const scheduledTotal=(count>1?(count-1)*regularAmountCents:0)+finalAmountCents;
+  if(scheduledTotal!==remaining)return Response.json({error:`مجموع جدول الأقساط يجب أن يساوي المتبقي على العميل (${money(remaining).toFixed(2)} ر.س)`},{status:400});
   const paidSeq=await db.prepare("SELECT COALESCE(MAX(sequence),0) seq FROM installments WHERE order_id=? AND status='مدفوع'").bind(orderId).first<{seq:number}>();
   const statements=[db.prepare("UPDATE orders SET total=?,paid=?,payment_plan='أقساط',status=?,updated_at=? WHERE id=?").bind(money(totalCents),money(paidCents),remaining===0?"مدفوع":"مدفوع جزئياً",now,orderId),db.prepare("DELETE FROM installments WHERE order_id=? AND status!='مدفوع'").bind(orderId)];
-  for(let i=0;i<count;i++)statements.push(db.prepare("INSERT INTO installments(id,order_id,sequence,amount_cents,due_date,status,created_at,updated_at) VALUES(?,?,?,?,?,'قادم',?,?)").bind(id("INS"),orderId,Number(paidSeq?.seq||0)+i+1,base+(i===count-1?extra:0),dueDate(start,i),now,now));
+  for(let i=0;i<count;i++)statements.push(db.prepare("INSERT INTO installments(id,order_id,sequence,amount_cents,due_date,status,created_at,updated_at) VALUES(?,?,?,?,?,'قادم',?,?)").bind(id("INS"),orderId,Number(paidSeq?.seq||0)+i+1,i===count-1?finalAmountCents:regularAmountCents,dueDate(start,i),now,now));
   await db.batch(statements);return Response.json({ok:true});
  }
  if(action==="pay_installment"){
