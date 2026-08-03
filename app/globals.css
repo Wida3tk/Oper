@@ -378,3 +378,11 @@ html,body{max-width:100%;overflow-x:hidden}
 .login-form .brand-mark .brand-wordmark img,.login-brand .brand-mark .brand-wordmark img{width:142px!important;height:59px!important}
 .sidebar.collapsed .brand-mark .brand-symbol{width:34px!important;height:34px!important;flex-basis:34px!important}
 @media(max-width:620px){.brand-mark .brand-wordmark img{width:108px!important;height:45px!important}}
+
+/* Compact brand and actionable notification center. */
+.brand-mark .brand-wordmark img{width:108px!important;height:45px!important}.login-form .brand-mark .brand-wordmark img,.login-brand .brand-mark .brand-wordmark img{width:132px!important;height:55px!important}
+.top-notifications{position:relative;flex:0 0 auto}.top-notifications .bell{margin:0}
+.notifications-menu{position:absolute;left:0;top:49px;width:310px;padding:8px;border:1px solid #e1e6ef;border-radius:13px;background:#fff;box-shadow:0 18px 42px #17213a20;z-index:65}
+.notifications-menu>header{padding:9px 10px 11px;border-bottom:1px solid #edf0f4}.notifications-menu>header b,.notifications-menu>header span{display:block}.notifications-menu>header b{font-size:12px}.notifications-menu>header span{margin-top:4px;color:#8994a6;font-size:8px}
+.notifications-menu>button{width:100%;min-height:58px;display:flex;align-items:center;gap:10px;padding:9px 10px;border:0;border-bottom:1px solid #f0f2f5;background:#fff;color:#27344c;text-align:right;cursor:pointer}.notifications-menu>button:last-child{border-bottom:0}.notifications-menu>button:hover{background:#f7f9ff;border-radius:9px}.notifications-menu>button span b,.notifications-menu>button span small{display:block}.notifications-menu>button span b{font-size:10px}.notifications-menu>button span small{margin-top:4px;color:#8a95a7;font-size:8px}.notifications-menu>button em{margin-right:auto;min-width:25px;height:25px;padding:0 7px;display:grid;place-items:center;border-radius:13px;background:#edf2ff;color:#315efb;font-style:normal;font-size:9px;font-weight:850}.notifications-menu>p{margin:0;padding:25px 10px;text-align:center;color:#7e899b;font-size:9px}
+@media(max-width:760px){.notifications-menu{position:fixed;left:12px;right:12px;top:68px;width:auto}}

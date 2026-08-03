@@ -455,6 +455,7 @@ function OperationsApp() {
     [sidebarCollapsed, setSidebarCollapsed] = useState(false),
     [mobileOpen, setMobileOpen] = useState(false),
     [accountOpen, setAccountOpen] = useState(false),
+    [notificationsOpen, setNotificationsOpen] = useState(false),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
       email: "",
@@ -633,6 +634,13 @@ function OperationsApp() {
     month: "long",
     year: "numeric",
   }).format(new Date());
+  const headerNotifications = [
+    { view: "work" as View, label: "عملاء بحاجة إلى متابعة اليوم", count: taskCount },
+    { view: "contact" as View, label: "بانتظار تسليم العميل", count: navCounts.contact || 0 },
+    { view: "registration" as View, label: "بانتظار تهيئة العميل", count: navCounts.registration || 0 },
+    { view: "assignment" as View, label: "بانتظار تفعيل المقررات", count: navCounts.assignment || 0 },
+    { view: "finance" as View, label: "بانتظار الإجراء المالي", count: navCounts.finance || 0 },
+  ].filter((item) => item.count > 0 && canOpen(item.view));
   return (
     <main className="shell" dir="rtl">
       {mobileOpen && (
@@ -801,10 +809,32 @@ function OperationsApp() {
               placeholder="ابحث عن عميل، رقم طلب أو برنامج..."
             />
           </label>
-          <button className="bell" title="الإشعارات" aria-label="الإشعارات">
-            <Bell size={18} />
-            {taskCount > 0 && <i />}
-          </button>
+          <div className="top-notifications">
+            <button
+              className="bell"
+              title="الإشعارات"
+              aria-label="الإشعارات"
+              aria-expanded={notificationsOpen}
+              onClick={() => {
+                setNotificationsOpen((value) => !value);
+                setAccountOpen(false);
+              }}
+            >
+              <Bell size={18} />
+              {headerNotifications.length > 0 && <i />}
+            </button>
+            {notificationsOpen && (
+              <div className="notifications-menu">
+                <header><b>الإشعارات</b><span>{headerNotifications.length} أقسام تحتاج متابعة</span></header>
+                {headerNotifications.length ? headerNotifications.map((item) => (
+                  <button key={item.view} onClick={() => { go(item.view); setNotificationsOpen(false); }}>
+                    <span><b>{item.label}</b><small>انقر لفتح القائمة ومتابعتها</small></span>
+                    <em>{item.count}</em>
+                  </button>
+                )) : <p>لا توجد إشعارات جديدة حاليًا</p>}
+              </div>
+            )}
+          </div>
           {has("customers.manage") && (
             <button className="primary" onClick={() => go("new")}>
               <UserPlus size={17} />
@@ -814,7 +844,7 @@ function OperationsApp() {
           <div className="top-account">
             <button
               className="top-account-trigger"
-              onClick={() => setAccountOpen((value) => !value)}
+              onClick={() => { setAccountOpen((value) => !value); setNotificationsOpen(false); }}
               aria-expanded={accountOpen}
             >
               <i>{currentUser.name.slice(0, 2)}</i>
