@@ -2152,8 +2152,8 @@ function Registration({ done }: { done: () => void }) {
               title="الدفع"
               text={
                 form.journey === "تجربة"
-                  ? "التجربة لا تحتاج دفعة أو موافقة إدارية."
-                  : "تسجيل الإيصال ينشئ العميل فوراً؛ المالية تطابق العملية لاحقاً."
+                  ? "راجع بيانات التجربة قبل المتابعة."
+                  : "أدخل المبلغ وحدد طريقة السداد."
               }
             />
             <div className="source-grid">
@@ -2317,62 +2317,37 @@ function Registration({ done }: { done: () => void }) {
                 )}
               </div>
             )}
-            {form.journey !== "تجربة" &&
-              !isSupervision &&
-              !directPayment &&
-              form.payment !== "أقساط" && (
-              <div className="finance-route-status complete">
-                <i>✓</i>
-                <div>
-                  <b>مكتمل مالياً عبر {form.source}</b>
-                  <span>لن يُنشأ طلب مراجعة للمالية.</span>
-                </div>
-              </div>
-            )}
-            {form.journey !== "تجربة" &&
-              (isSupervision || form.payment === "أقساط" ||
-                (directPayment &&
-                  ["تحويل بنكي", "Paytabs"].includes(form.method))) && (
-                <div className="finance-route-status review">
-                  <i>!</i>
-                  <div>
-                    <b>سيرسل إلى مراجعة المالية</b>
-                    <span>
-                      {isSupervision
-                        ? "جميع مبالغ الإشراف تُراجع وتُسجل ضمن التحصيل."
-                        : form.payment === "أقساط"
-                        ? "جميع طلبات الأقساط تحتاج اعتماد المالية."
-                        : form.method === "Paytabs"
-                          ? "ستراجع المالية رابط مرجع السداد."
-                          : "ستراجع المالية صورة التحويل البنكي."}
-                    </span>
-                  </div>
-                </div>
-              )}
             <div
-              className={`automation-note ${form.journey === "تجربة" ? "auto" : "manual"}`}
+              className={`finance-route-status payment-route-summary ${
+                form.journey === "تجربة" ||
+                (!isSupervision &&
+                  form.payment !== "أقساط" &&
+                  (!directPayment || form.method === "تمارا"))
+                  ? "complete"
+                  : "review"
+              }`}
             >
-              <i>✓</i>
-              <div>
-                <b>
-                  {form.journey === "تجربة"
-                    ? "ستبدأ التجربة مباشرة"
-                    : "سيتم تسجيل العملية فوراً"}
-                </b>
-                <p>
-                  {form.journey === "تجربة"
-                    ? "سيحسب النظام مدة التجربة من إعداد البرنامج وينشئ متابعة للمبيعات."
-                    : isSupervision
-                      ? "سيُنشأ طلب للمالية لاعتماد قيمة الإشراف ومتابعتها ضمن التحصيل."
-                    : !directPayment && form.payment !== "أقساط"
-                      ? `سيُغلق الإجراء المالي مباشرة لأن السداد مسجل عبر ${form.source}.`
-                      : form.payment === "أقساط"
-                        ? "سيُنشأ طلب اعتماد للمالية لتنظيم الأقساط."
-                        : form.method === "تمارا"
-                          ? "سيُسجل السداد عبر تمارا كعملية مكتملة."
-                          : "سيُنشأ طلب مراجعة للمالية مع مستند السداد."}
-                </p>
-              </div>
+              <i>
+                {form.journey === "تجربة" ||
+                (!isSupervision &&
+                  form.payment !== "أقساط" &&
+                  (!directPayment || form.method === "تمارا"))
+                  ? "✓"
+                  : "!"}
+              </i>
+              <b>
+                {form.journey === "تجربة"
+                  ? "تبدأ التجربة مباشرة دون إجراء مالي."
+                  : isSupervision
+                    ? "تُسجّل العملية مباشرة وتنتقل إلى المالية لاعتمادها ضمن التحصيل."
+                    : form.payment === "أقساط"
+                      ? "تُسجّل العملية مباشرة وتنتقل إلى المالية لتنظيم الأقساط."
+                      : directPayment && form.method === "تحويل بنكي"
+                        ? "تُسجّل العملية مباشرة وتنتقل إلى المالية لمراجعة التحويل البنكي."
+                        : directPayment && form.method === "Paytabs"
+                          ? "تُسجّل العملية مباشرة وتنتقل إلى المالية لمراجعة مرجع السداد."
+                          : `تُسجّل العملية مباشرة وتُعد مكتملة مالياً عبر ${form.source}.`}
+              </b>
             </div>
           </>
         )}
