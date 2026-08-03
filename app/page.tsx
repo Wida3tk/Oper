@@ -2662,6 +2662,10 @@ function CustomerSmartFilters({
   visible,
   onProgram,
   onStatus,
+  title = "تصنيف العملاء",
+  description = "عرض القائمة حسب البرنامج أو حالة العميل",
+  secondaryLabel = "حالة العميل",
+  secondaryAllLabel = "كل الحالات",
 }: {
   programs: string[];
   statuses: string[];
@@ -2671,14 +2675,18 @@ function CustomerSmartFilters({
   visible: number;
   onProgram: (value: string) => void;
   onStatus: (value: string) => void;
+  title?: string;
+  description?: string;
+  secondaryLabel?: string;
+  secondaryAllLabel?: string;
 }) {
   const active = program !== "الكل" || status !== "الكل";
   return (
     <section className="smart-customer-filters" aria-label="تصنيف العملاء">
       <header>
         <div>
-          <span>تصنيف العملاء</span>
-          <b>عرض القائمة حسب البرنامج أو حالة العميل</b>
+          <span>{title}</span>
+          <b>{description}</b>
         </div>
         <em>
           <strong>{visible}</strong> من {total} عميل
@@ -2695,9 +2703,9 @@ function CustomerSmartFilters({
           </select>
         </label>
         <label>
-          <span>حالة العميل</span>
+          <span>{secondaryLabel}</span>
           <select value={status} onChange={(e) => onStatus(e.target.value)}>
-            <option value="الكل">كل الحالات</option>
+            <option value="الكل">{secondaryAllLabel}</option>
             {statuses.map((value) => (
               <option key={value} value={value}>{value}</option>
             ))}
@@ -3252,7 +3260,7 @@ function LiveCustomers({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
-    [statusFilter, setStatusFilter] = useState("الكل");
+    [categoryFilter, setCategoryFilter] = useState("الكل");
   const load = () => {
     apiJson("/api/customers")
       .then((data) =>
@@ -3317,14 +3325,15 @@ function LiveCustomers({
         new Set(directoryRows.map((x) => x.program).filter((x) => x !== "—")),
       ),
     ],
-    statuses = Array.from(
-      new Set(directoryRows.map((x) => x.state).filter(Boolean)),
+    categories = Array.from(
+      new Set(directoryRows.map((row) => customerProgramCategory(row))),
     );
   const filtered = directoryRows.filter(
     (row) =>
       `${row.name} ${row.id} ${row.phone} ${row.program}`.includes(query) &&
       (programFilter === "الكل" || row.program === programFilter) &&
-      (statusFilter === "الكل" || row.state === statusFilter),
+      (categoryFilter === "الكل" ||
+        customerProgramCategory(row) === categoryFilter),
   );
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
@@ -3332,7 +3341,7 @@ function LiveCustomers({
     <>
       <div className="customer-summary">
         <div>
-          <span>إجمالي العملاء</span>
+          <span>إجمالي العملاء المكتملين</span>
           <b>{directoryRows.length}</b>
         </div>
         <div className="highlight">
@@ -3340,7 +3349,7 @@ function LiveCustomers({
           <b>{filtered.length}</b>
         </div>
         <div>
-          <span>برامج نشطة</span>
+          <span>البرامج</span>
           <b>
             {
               new Set(
@@ -3352,29 +3361,33 @@ function LiveCustomers({
           </b>
         </div>
         <div>
-          <span>ملفات مكتملة</span>
-          <b>{directoryRows.length}</b>
+          <span>التصنيفات</span>
+          <b>{categories.length}</b>
         </div>
       </div>
       <div className="card full customer-directory">
         <div className="directory-head">
           <div>
-            <h2>دليل العملاء الحي</h2>
-            <p>حدّد البرنامج أو حالة العميل لعرض القائمة وعدد العملاء المطابقين.</p>
+            <h2>قاعدة العملاء المكتملين</h2>
+            <p>اسم العميل وبرنامجه في قائمة واحدة واضحة، مع تصنيف شامل لكل البرامج.</p>
           </div>
         </div>
         <CustomerSmartFilters
           programs={programs.slice(1)}
-          statuses={statuses}
+          statuses={categories}
           program={programFilter}
-          status={statusFilter}
+          status={categoryFilter}
           total={directoryRows.length}
           visible={filtered.length}
           onProgram={setProgramFilter}
-          onStatus={setStatusFilter}
+          onStatus={setCategoryFilter}
+          title="تصنيف قاعدة العملاء"
+          description="عرض العملاء حسب البرنامج أو التصنيف"
+          secondaryLabel="التصنيف"
+          secondaryAllLabel="كل التصنيفات"
         />
         {filtered.length ? (
-          <CustomerTable list={filtered} open={open} />
+          <CompletedCustomerTable list={filtered} open={open} />
         ) : (
           <LiveState loading={false} error="" empty />
         )}
@@ -6199,6 +6212,65 @@ function CustomerTable({
                 <span className={`pill ${p.tone}`}>{p.state}</span>
               </td>
               <td>{p.due}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function customerProgramCategory(customer: (typeof initialPeople)[number]) {
+  const value = `${customer.program} ${customer.track}`.toLowerCase();
+  if (value.includes("تقييم الكفاءة") || value.includes("competency"))
+    return "تقييم الكفاءة";
+  if (
+    value.includes("إدارة السلوك التنظيمي") ||
+    value.includes("ادارة السلوك التنظيمي") ||
+    value.includes("obm")
+  )
+    return "إدارة السلوك التنظيمي";
+  if (
+    value.includes("تحليل السلوك التطبيقي") ||
+    value.includes("abat") ||
+    value.includes("qba") ||
+    value.includes("qasp") ||
+    value.includes("aba")
+  )
+    return "تحليل السلوك التطبيقي";
+  return "التعليم المستمر";
+}
+
+function CompletedCustomerTable({
+  list,
+  open,
+}: {
+  list: typeof initialPeople;
+  open: (p: (typeof initialPeople)[number]) => void;
+}) {
+  return (
+    <div className="table-wrap completed-customer-table">
+      <table>
+        <thead>
+          <tr>
+            <th>اسم العميل</th>
+            <th>البرنامج</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((customer) => (
+            <tr key={customer.id} onClick={() => open(customer)}>
+              <td>
+                <b>{customer.name}</b>
+                <small>فتح ملف العميل</small>
+              </td>
+              <td>
+                <b>{customer.program}</b>
+                <small>
+                  {customer.track !== "—" ? customer.track : customerProgramCategory(customer)}
+                  {customer.cohort !== "—" ? ` · ${customer.cohort}` : ""}
+                </small>
+              </td>
             </tr>
           ))}
         </tbody>
