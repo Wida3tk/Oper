@@ -77,6 +77,7 @@ body.customer-drawer-open{overflow:hidden}
 @media(max-width:600px){.trainee-groups article>div{grid-template-columns:1fr}}
 
 .finance-hero{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}.finance-hero .seat-fee-paid,.finance-order-money .seat-fee-paid,.money .seat-fee-paid{background:#f1f7ff;border-color:#d6e5ff}.finance-hero .seat-fee-paid b,.finance-order-money .seat-fee-paid b,.money .seat-fee-paid b{color:#2457df}.finance-hero .actual-paid-total,.money .actual-paid-total{background:#effaf5;border-color:#cdebdc}.finance-hero .actual-paid-total b,.money .actual-paid-total b{color:#16865a}
+.editable-money-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:end}.editable-money-field button{height:38px;border:0;border-radius:8px;background:#2457df;color:#fff;padding:0 10px;font:700 8px inherit;white-space:nowrap}.editable-money-field button:disabled{opacity:.45;cursor:not-allowed}
 
 .brand-mark img{
  object-fit:cover;

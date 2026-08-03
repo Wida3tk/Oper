@@ -79,6 +79,18 @@ export async function POST(req:Request){
   for(let i=0;i<count;i++)statements.push(db.prepare("INSERT INTO installments(id,order_id,sequence,amount_cents,due_date,status,created_at,updated_at) VALUES(?,?,?,?,?,'قادم',?,?)").bind(id("INS"),orderId,Number(paidSeq?.seq||0)+i+1,i===count-1?finalAmountCents:regularAmountCents,dueDate(start,i),now,now));
   await db.batch(statements);return Response.json({ok:true});
  }
+ if(action==="update_first_payment"){
+  if(!can(auth,"finance.payments.record"))return Response.json({error:"لا تملكين صلاحية تعديل الدفعة الأولى"},{status:403});
+  const amountCents=cents(body.amount);if(amountCents<0||amountCents>cents(order.total))return Response.json({error:"قيمة الدفعة الأولى يجب أن تكون بين صفر وإجمالي عقد البرنامج"},{status:400});
+  const existingInstallments=await db.prepare("SELECT COUNT(*) count FROM installments WHERE order_id=?").bind(orderId).first<{count:number}>();
+  if(Number(existingInstallments?.count||0)>0)return Response.json({error:"أعيدي جدولة الأقساط بعد حذف الجدول الحالي قبل تعديل الدفعة الأولى"},{status:409});
+  const first=await db.prepare("SELECT id FROM payments WHERE order_id=? ORDER BY CASE WHEN flow_type='sale' THEN 0 ELSE 1 END,COALESCE(paid_at,created_at),created_at LIMIT 1").bind(orderId).first<{id:string}>();
+  if(!first)return Response.json({error:"لا توجد دفعة أولى مسجلة لهذا الطلب"},{status:404});
+  const otherPaid=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=? AND id!=?").bind(orderId,first.id).first<{paid:number}>(),newPaidCents=cents(otherPaid?.paid)+amountCents;
+  if(newPaidCents>cents(order.total))return Response.json({error:"إجمالي الدفعات يتجاوز عقد البرنامج"},{status:400});
+  await db.batch([db.prepare("UPDATE payments SET amount=? WHERE id=?").bind(money(amountCents),first.id),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT payment_intent_id FROM (SELECT pi.id payment_intent_id FROM payment_intents pi WHERE pi.resulting_order_id=? ORDER BY pi.created_at LIMIT 1))").bind(money(amountCents),now,orderId,orderId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaidCents),newPaidCents===cents(order.total)?"مدفوع":newPaidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_FIRST_PAYMENT','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({paymentId:first.id,amount:money(amountCents)}),now)]);
+  return Response.json({ok:true,paid:money(newPaidCents),remaining:money(cents(order.total)-newPaidCents)});
+ }
  if(action==="pay_installment"){
   if(!can(auth,"finance.payments.record"))return Response.json({error:"لا تملكين صلاحية تسجيل الدفعات والمراجع"},{status:403});
   const installmentId=String(body.installmentId||""),method=String(body.method||"").trim(),reference=String(body.reference||"").trim();

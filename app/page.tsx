@@ -5197,6 +5197,7 @@ function LiveFinance() {
     [total, setTotal] = useState(""),
     [count, setCount] = useState("4"),
     [regularAmountInput, setRegularAmountInput] = useState(""),
+    [firstPaymentAmount, setFirstPaymentAmount] = useState(""),
     [finalAmount, setFinalAmount] = useState(""),
     [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
@@ -5220,6 +5221,7 @@ function LiveFinance() {
         setSelected(updated);
         if (updated) {
           setTotal(String(updated.total));
+          setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
         }
       }
     } catch (e) {
@@ -5234,6 +5236,7 @@ function LiveFinance() {
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
+    setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
     setRegularAmountInput("");
     setFinalAmount("");
     setScheduleEdit("auto");
@@ -5643,7 +5646,7 @@ function LiveFinance() {
                 </label>
                 <label>
                   الدفعة الأولى من البرنامج · دون رسوم المقعد
-                  <input type="text" readOnly value={sar(Number(selectedFirstProgramPayment?.amount||0))} />
+                  <span className="editable-money-field"><input type="number" min="0" max={selected.total} step="0.01" value={firstPaymentAmount} onChange={e=>setFirstPaymentAmount(e.target.value)}/><button type="button" disabled={saving||Number(firstPaymentAmount)===Number(selectedFirstProgramPayment?.amount||0)} onClick={()=>post({action:"update_first_payment",amount:Number(firstPaymentAmount||0)})}>حفظ الدفعة</button></span>
                 </label>
                 <label>
                   المتبقي من عقد البرنامج · دون رسوم المقعد
