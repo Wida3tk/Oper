@@ -1026,14 +1026,23 @@ function OperationsApp() {
             <Section title="تحديثات العميل">
               <CustomerNotes customerId={selected.id} />
             </Section>
+            {currentUser.roles.includes("admin") && (
+              <Section title="إدارة الملف">
+                <AdminDeleteCustomer
+                  customerId={selected.id}
+                  customerName={selected.name}
+                  onDeleted={() => {
+                    setPanel(false);
+                    setPeople((current) =>
+                      current.filter((customer) => customer.id !== selected.id),
+                    );
+                    window.dispatchEvent(new Event("sulukera:data-changed"));
+                  }}
+                />
+              </Section>
+            )}
           </aside>
         </>
-      )}
-      {panel && currentUser.roles.includes("admin") && (
-        <AdminDeleteCustomer
-          customerId={selected.id}
-          customerName={selected.name}
-        />
       )}
     </main>
   );
@@ -1141,9 +1150,11 @@ function CustomerNotes({ customerId }: { customerId: string }) {
 function AdminDeleteCustomer({
   customerId,
   customerName,
+  onDeleted,
 }: {
   customerId: string;
   customerName: string;
+  onDeleted: () => void;
 }) {
   const [confirming, setConfirming] = useState(false),
     [typed, setTyped] = useState(""),
@@ -1158,7 +1169,7 @@ function AdminDeleteCustomer({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ customerId }),
       });
-      window.location.reload();
+      onDeleted();
     } catch (e) {
       setError((e as Error).message);
       setSaving(false);
