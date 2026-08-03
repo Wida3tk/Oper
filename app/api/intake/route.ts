@@ -68,7 +68,9 @@ export async function POST(req: Request) {
   const discountedProgramTotal = Math.round(baseTotal*(1-discountPercent/100)*100)/100;
   const seatFee = hasSeatReservation ? Math.round(Number(body.seatFee || 0)*100)/100 : 0;
   if(hasSeatReservation&&!(seatFee>0))return Response.json({error:"مبلغ حجز المقعد مطلوب"},{status:400});
-  const contractTotal = Math.round((discountedProgramTotal+seatFee)*100)/100;
+  // Seat reservation fees are paid and reported separately; they never enter
+  // the program contract, discount, remaining balance, or installment schedule.
+  const contractTotal = discountedProgramTotal;
   const amount = paymentPlan === "أقساط"
     ? Math.round(Number(body.amount || 0)*100)/100
     : contractTotal;

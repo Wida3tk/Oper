@@ -1640,7 +1640,7 @@ function Registration({ done }: { done: () => void }) {
     baseTotal * (1 - discountPercent / 100) * 100,
   ) / 100;
   const seatFee = hasSeatReservation ? Number(form.seatFee || 0) : 0;
-  const finalTotal = Math.round((discountedTotal + seatFee) * 100) / 100;
+  const finalTotal = discountedTotal;
   const payableAmount =
     form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
   const phoneInvalid = !internationalPhonePattern.test(form.phone);
@@ -1712,7 +1712,7 @@ function Registration({ done }: { done: () => void }) {
         (!(payableAmount > 0) || payableAmount >= finalTotal)
       ) {
         setSaveError(
-          "الدفعة الأولى يجب أن تكون أكبر من صفر وأقل من الإجمالي النهائي",
+          "الدفعة الأولى يجب أن تكون أكبر من صفر وأقل من إجمالي البرنامج",
         );
         return;
       }
@@ -2201,7 +2201,7 @@ function Registration({ done }: { done: () => void }) {
                     </p>
                   )}
                   <p className="net">
-                    <span>الإجمالي النهائي</span>
+                    <span>إجمالي البرنامج</span>
                     <b>{finalTotal.toLocaleString("en-US")} ر.س</b>
                   </p>
                   {form.payment === "دفع كامل" && (
@@ -2346,7 +2346,7 @@ function Registration({ done }: { done: () => void }) {
                       />
                     )}
                     <Review
-                      label="الإجمالي النهائي"
+                      label="إجمالي البرنامج"
                       value={`${finalTotal.toLocaleString("en-US")} ر.س`}
                     />
                   </>
