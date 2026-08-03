@@ -5728,9 +5728,9 @@ function LiveFinance() {
                         <span>استحقاق {inst.due_date}</span>
                         {Boolean(inst.reminder_count) && <small className="installment-reminder-meta">{inst.reminder_count} تذكير · آخر تسجيل بواسطة {inst.last_reminded_by_email}</small>}
                       </div>
-                      <select
+                      <label className="installment-behavior"><span>سلوك السداد</span><select
                         disabled={inst.status === "مدفوع" || saving}
-                        value={inst.status}
+                        value={inst.status==="مدفوع"?"تم السداد":inst.status}
                         onChange={(e) =>
                           post({
                             action: "installment_status",
@@ -5739,14 +5739,15 @@ function LiveFinance() {
                           })
                         }
                       >
-                        <option>قادم</option>
+                        <option>ملتزم</option>
                         <option>تذكير أول</option>
-                        <option>تذكير ثانٍ</option>
+                        <option>تذكير ثاني</option>
+                        <option>تذكير ثالث</option>
+                        <option>تذكير نهائي</option>
+                        <option>موافقة تمديد</option>
                         <option>متأخر</option>
-                        <option>إنذار</option>
-                        <option>تطبيق السياسة</option>
-                        {inst.status === "مدفوع" && <option>مدفوع</option>}
-                      </select>
+                        {inst.status === "مدفوع" && <option>تم السداد</option>}
+                      </select></label>
                       {inst.status === "مدفوع" ? (
                         <div className="paid-ref">
                           <b>تم السداد</b>
