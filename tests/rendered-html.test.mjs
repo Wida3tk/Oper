@@ -53,3 +53,11 @@ test("creates readable sequential order numbers by program family", async () => 
   assert.match(operations, /order_number_sequences/);
   assert.match(intake, /nextOrderNumber/);
 });
+
+test("shows whether each enrolled program is live or recorded", async () => {
+  const api = await read("../app/api/enrollments/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(api, /o\.delivery program_delivery/);
+  assert.match(page, /ops-program-delivery/);
+  assert.match(page, /نمط البرنامج/);
+});

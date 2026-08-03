@@ -2455,6 +2455,7 @@ type LiveEnrollment = {
   email: string;
   program_name: string;
   program_track?: string;
+  program_delivery?: string;
   order_id: string;
   order_number?: string;
   owner_email?: string;
@@ -3670,7 +3671,10 @@ function OperationsCustomerCard({
       <div className="ops-row-cell">
         <span>البرنامج</span>
         <b>{row.program_name}</b>
-        {row.program_track && row.program_track !== "غير محدد" && <small className="ops-program-track">البرنامج الفرعي: {row.program_track}</small>}
+        <div className="ops-program-tags">
+          {row.program_track && row.program_track !== "غير محدد" && <small className="ops-program-track">البرنامج الفرعي: {row.program_track}</small>}
+          {row.program_delivery && <small className={`ops-program-delivery ${row.program_delivery === "مباشر" ? "live" : "recorded"}`}>{row.program_delivery}</small>}
+        </div>
       </div>
       <div className="ops-row-cell contact">
         <span>بيانات التواصل</span>
@@ -3918,7 +3922,7 @@ function LiveAcademy({
           </div>
           <div className="info customer-data">
             <label>
-              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}</b>
+              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}{selectedRow.program_delivery && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}</b>
             </label>
             <label>
               رقم الطلب<b>{selectedRow.order_number || selectedRow.order_id}</b>
