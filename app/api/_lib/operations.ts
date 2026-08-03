@@ -25,6 +25,7 @@ export function ensureOrderNumberSchema(db:ReturnType<typeof operationalDb>){
   if(orderNumberSchemaReady)return orderNumberSchemaReady;
   orderNumberSchemaReady=(async()=>{
     try{await db.prepare("ALTER TABLE orders ADD COLUMN order_number TEXT").run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
+    try{await db.prepare("ALTER TABLE orders ADD COLUMN competency_assessment INTEGER NOT NULL DEFAULT 0").run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
     await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number) WHERE order_number IS NOT NULL").run();
     await db.prepare("CREATE TABLE IF NOT EXISTS order_number_sequences(prefix TEXT PRIMARY KEY,current_value INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL)").run();
     const {results}=await db.prepare("SELECT o.id,COALESCE(p.name,o.program,'') program_name FROM orders o LEFT JOIN programs p ON p.id=o.program_id WHERE o.order_number IS NULL ORDER BY o.created_at,o.id").all<{id:string;program_name:string}>();

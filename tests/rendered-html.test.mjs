@@ -61,3 +61,12 @@ test("shows whether each enrolled program is live or recorded", async () => {
   assert.match(page, /ops-program-delivery/);
   assert.match(page, /نمط البرنامج/);
 });
+
+test("offers competency assessment only with the ABAT track", async () => {
+  const api = await read("../app/api/intake/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(api, /competencyAssessment&&!isAbat/);
+  assert.match(api, /competency_assessment/);
+  assert.match(page, /مع تقييم كفاءة/);
+  assert.match(page, /isAbat &&/);
+});

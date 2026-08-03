@@ -1577,6 +1577,7 @@ function Registration({ done }: { done: () => void }) {
     discount: "0",
     seatReserved: "لا",
     seatFee: "",
+    competencyAssessment: "لا",
   });
   const [proof, setProof] = useState({ name: "", data: "" });
   useEffect(() => {
@@ -1607,9 +1608,11 @@ function Registration({ done }: { done: () => void }) {
         track: program.tracks?.[0]?.name || "",
         seatReserved: "لا",
         seatFee: "",
+        competencyAssessment: "لا",
       }));
   };
   const selectedProgram = programs.find((p) => p.id === form.programId);
+  const isAbat = selectedProgram?.name.includes("تحليل السلوك التطبيقي") && form.track.toUpperCase() === "ABAT";
   const directProgram = form.journey === "برنامج مباشر";
   const seatReservationEligible =
     form.delivery === "مباشر" &&
@@ -1773,6 +1776,7 @@ function Registration({ done }: { done: () => void }) {
         contractTotal: finalTotal,
         baseTotal,
         discountPercent,
+        competencyAssessment: Boolean(isAbat && form.competencyAssessment === "نعم"),
         seatReserved: hasSeatReservation,
         seatFee,
         proofAssetKey: proof.data,
@@ -1921,11 +1925,24 @@ function Registration({ done }: { done: () => void }) {
                   <select
                     required
                     value={form.track}
-                    onChange={(e) => set("track", e.target.value)}
+                    onChange={(e) => setForm((current) => ({
+                      ...current,
+                      track: e.target.value,
+                      delivery: e.target.value.toUpperCase() === "ABAT" ? "مسجل" : current.delivery,
+                      competencyAssessment: e.target.value.toUpperCase() === "ABAT" ? current.competencyAssessment : "لا",
+                    }))}
                   >
                     {selectedProgram?.tracks?.map((track) => (
                       <option key={track.name}>{track.name}</option>
                     ))}
+                  </select>
+                </Field>
+              )}
+              {isAbat && (
+                <Field label="مع تقييم كفاءة؟ *">
+                  <select required value={form.competencyAssessment} onChange={(e) => set("competencyAssessment", e.target.value)}>
+                    <option>لا</option>
+                    <option>نعم</option>
                   </select>
                 </Field>
               )}
@@ -1940,7 +1957,7 @@ function Registration({ done }: { done: () => void }) {
                   <option>تجربة</option>
                 </select>
               </Field>
-              <Field label="نمط البرنامج *">
+              {!isAbat && <Field label="نمط البرنامج *">
                 <select
                   required
                   value={form.delivery}
@@ -1960,7 +1977,7 @@ function Registration({ done }: { done: () => void }) {
                   <option>مسجل</option>
                   <option>مباشر</option>
                 </select>
-              </Field>
+              </Field>}
               {seatReservationEligible && (
                 <Field label="هل تم حجز المقعد؟ *">
                   <select
@@ -2292,8 +2309,9 @@ function Registration({ done }: { done: () => void }) {
                 />
                 <Review
                   label="نمط الدراسة"
-                  value={`${form.delivery} · ${form.language}`}
+                  value={`${isAbat ? "ABAT" : form.delivery} · ${form.language}`}
                 />
+                {isAbat && <Review label="تقييم الكفاءة" value={form.competencyAssessment} />}
                 {form.startDate && (
                   <Review label="تاريخ بدء البرنامج" value={form.startDate} />
                 )}{" "}
@@ -2456,6 +2474,7 @@ type LiveEnrollment = {
   program_name: string;
   program_track?: string;
   program_delivery?: string;
+  competency_assessment?: number;
   order_id: string;
   order_number?: string;
   owner_email?: string;
@@ -3673,7 +3692,8 @@ function OperationsCustomerCard({
         <b>{row.program_name}</b>
         <div className="ops-program-tags">
           {row.program_track && row.program_track !== "غير محدد" && <small className="ops-program-track">البرنامج الفرعي: {row.program_track}</small>}
-          {row.program_delivery && <small className={`ops-program-delivery ${row.program_delivery === "مباشر" ? "live" : "recorded"}`}>{row.program_delivery}</small>}
+          {row.program_delivery && row.program_track?.toUpperCase() !== "ABAT" && <small className={`ops-program-delivery ${row.program_delivery === "مباشر" ? "live" : "recorded"}`}>{row.program_delivery}</small>}
+          {Boolean(row.competency_assessment) && <small className="ops-competency-badge">مع تقييم كفاءة</small>}
         </div>
       </div>
       <div className="ops-row-cell contact">
@@ -3922,7 +3942,7 @@ function LiveAcademy({
           </div>
           <div className="info customer-data">
             <label>
-              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}{selectedRow.program_delivery && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}</b>
+              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}{selectedRow.program_delivery && selectedRow.program_track?.toUpperCase() !== "ABAT" && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}{Boolean(selectedRow.competency_assessment) && <small className="drawer-competency-badge">مع تقييم كفاءة</small>}</b>
             </label>
             <label>
               رقم الطلب<b>{selectedRow.order_number || selectedRow.order_id}</b>
