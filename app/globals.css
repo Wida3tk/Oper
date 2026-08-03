@@ -63,6 +63,16 @@ body.customer-drawer-open{overflow:hidden}
  .topbar .top-logo .brand-mark>div{display:none}
 }
 
+/* Adaptive financial chart: keep real values legible without scaling them to the monthly target. */
+.chart-summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.chart-summary>div:last-child{display:flex;gap:8px}
+.chart-summary>div:last-child span{display:flex;align-items:center;gap:5px;background:#f5f8ff;border:1px solid #e5ecfa;border-radius:20px;padding:5px 9px;font-size:8px;color:#64748b}
+.chart-summary>div:last-child b{font-size:10px;color:#1d4ed8;font-variant-numeric:tabular-nums}
+.chart-area{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px;margin-top:13px}
+.chart-area .chart-bars{margin-top:0}
+.chart-scale{height:208px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;color:#94a3b8;font-size:7px;font-variant-numeric:tabular-nums;padding-bottom:1px}
+@media(max-width:600px){.chart-summary{align-items:flex-start;flex-direction:column}.chart-summary>div:last-child{flex-wrap:wrap}.chart-area{min-width:660px}}
+
 .brand-mark img{
  object-fit:cover;
  border-radius:11px;
