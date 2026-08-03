@@ -147,7 +147,7 @@ const navGroups: {
     label: "المالية",
     icon: Landmark,
     collapsible: true,
-    items: [["finance", "التحصيل", "finance"]],
+    items: [["finance", "المبيعات والتحصيل", "finance"]],
   },
 ];
 const initialPeople = [
@@ -301,8 +301,8 @@ const titles: Record<View, [string, string]> = {
   ],
   assignment: ["تفعيل المقررات", "العملاء الجاهزون لتفعيل البرنامج والمقررات"],
   finance: [
-    "التحصيل",
-    "متابعة الأقساط والمدفوعات والمراجعات المالية",
+    "المالية",
+    "إدارة المبيعات والتحصيل والمراجعات المالية في مكان واحد",
   ],
   programs: ["إدارة البرامج", "أضف البرامج وتحكم بظهورها في تسجيل العميل"],
   reports: ["التقارير الإدارية", "مؤشرات الأداء وجودة العمليات"],
@@ -2483,6 +2483,9 @@ type FinancePayment = {
   status: string;
   payment_intent_id?: string;
   reconciliation_status?: string;
+  flow_type?: string;
+  classification_status?: string;
+  created_at?: string;
 };
 type FinanceInstallment = {
   id: string;
@@ -5054,6 +5057,7 @@ function TransferReviews() {
 
 function LiveFinance() {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
+    [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
     [summary, setSummary] = useState({
       total: 0,
       paid: 0,
@@ -5147,10 +5151,67 @@ function LiveFinance() {
     if (row.paid > 0) return "دفعة جزئية";
     return "غير مدفوع";
   };
+  const firstPayment = (row: FinanceOrder) =>
+    [...row.payments].sort((a, b) =>
+      String(a.paid_at || a.created_at || "").localeCompare(
+        String(b.paid_at || b.created_at || ""),
+      ),
+    )[0];
+  const salesEntries = rows
+    .map((row) => {
+      const payment =
+        row.payments.find((item) => item.flow_type === "sale") ||
+        firstPayment(row);
+      return payment ? { row, payment } : null;
+    })
+    .filter(
+      (entry): entry is { row: FinanceOrder; payment: FinancePayment } =>
+        Boolean(entry),
+    );
+  const saleStatus = ({ row, payment }: (typeof salesEntries)[number]) => {
+    if (
+      row.finance_review_status === "pending" ||
+      payment.classification_status === "pending"
+    )
+      return "بانتظار المراجعة";
+    if (String(payment.reconciliation_status || "").includes("مرفوض"))
+      return "مرفوض";
+    return "مكتملة";
+  };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const monthKey = todayKey.slice(0, 7);
+  const saleDate = (payment: FinancePayment) =>
+    String(payment.paid_at || payment.created_at || "").slice(0, 10);
+  const salesTotal = salesEntries.reduce(
+    (sum, entry) => sum + Number(entry.payment.amount || 0),
+    0,
+  );
+  const salesToday = salesEntries
+    .filter((entry) => saleDate(entry.payment) === todayKey)
+    .reduce((sum, entry) => sum + Number(entry.payment.amount || 0), 0);
+  const salesMonth = salesEntries
+    .filter((entry) => saleDate(entry.payment).startsWith(monthKey))
+    .reduce((sum, entry) => sum + Number(entry.payment.amount || 0), 0);
+  const salesPending = salesEntries.filter(
+    (entry) => saleStatus(entry) === "بانتظار المراجعة",
+  ).length;
+  const collectionPayments = rows.flatMap((row) =>
+    row.payments.filter((payment) => payment.flow_type === "collection"),
+  );
+  const collectionsToday = collectionPayments
+    .filter((payment) => saleDate(payment) === todayKey)
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const collectionsMonth = collectionPayments
+    .filter((payment) => saleDate(payment).startsWith(monthKey))
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const collectionsTotal = collectionPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
   const financePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
-  const financeStatuses = [
+  const collectionStatuses = [
     "بانتظار المراجعة",
     "متأخر",
     "مستحق اليوم",
@@ -5159,10 +5220,21 @@ function LiveFinance() {
     "غير مدفوع",
     "مدفوع",
   ].filter((status) => rows.some((row) => financeStatus(row) === status));
+  const salesStatuses = ["بانتظار المراجعة", "مكتملة", "مرفوض"].filter(
+    (status) => salesEntries.some((entry) => saleStatus(entry) === status),
+  );
+  const activeStatuses =
+    financeTab === "sales" ? salesStatuses : collectionStatuses;
   const filteredFinance = rows.filter(
     (row) =>
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || financeStatus(row) === statusFilter),
+  );
+  const filteredSales = salesEntries.filter(
+    ({ row, payment }) =>
+      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (statusFilter === "الكل" ||
+        saleStatus({ row, payment }) === statusFilter),
   );
   const scheduleCount = Math.max(1, Math.floor(Number(count || 0)));
   const scheduleRemaining = selected
@@ -5191,51 +5263,72 @@ function LiveFinance() {
     regularAmount * Math.max(scheduleCount - 1, 0) + normalizedFinalAmount;
   return (
     <>
+      <div className="finance-tabs" role="tablist" aria-label="أقسام المالية">
+        <button
+          role="tab"
+          aria-selected={financeTab === "sales"}
+          className={financeTab === "sales" ? "active" : ""}
+          onClick={() => {
+            setFinanceTab("sales");
+            setStatusFilter("الكل");
+          }}
+        >
+          <BadgeDollarSign size={20} />
+          <span><b>المبيعات</b><small>الدفعة الأولى والدفع الكامل</small></span>
+          <em>{salesEntries.length}</em>
+        </button>
+        <button
+          role="tab"
+          aria-selected={financeTab === "collections"}
+          className={financeTab === "collections" ? "active" : ""}
+          onClick={() => {
+            setFinanceTab("collections");
+            setStatusFilter("الكل");
+          }}
+        >
+          <HandCoins size={20} />
+          <span><b>التحصيل</b><small>الأقساط والدفعات اللاحقة</small></span>
+          <em>{rows.filter((row) => row.remaining > 0).length}</em>
+        </button>
+      </div>
       <div className="kpis finance-kpis">
-        <Kpi
-          title="قيمة العقود"
-          value={Number(summary.total).toLocaleString("ar-SA-u-nu-latn")}
-          tag="ر.س"
-          note="إجمالي الطلبات"
-          tone="blue"
-        />
-        <Kpi
-          title="المحصل فعلياً"
-          value={Number(summary.paid).toLocaleString("ar-SA-u-nu-latn")}
-          tag="ر.س"
-          note="من سجل الدفعات"
-          tone="green"
-        />
-        <Kpi
-          title="المتبقي"
-          value={Number(summary.remaining).toLocaleString("ar-SA-u-nu-latn")}
-          tag="ر.س"
-          note="بعد خصم جميع الدفعات"
-          tone="amber"
-        />
-        <Kpi
-          title="أقساط متأخرة"
-          value={String(summary.overdue)}
-          tag="قسط"
-          note="تحتاج متابعة"
-          tone="red"
-        />
+        {financeTab === "sales" ? (
+          <>
+            <Kpi title="مبيعات اليوم" value={salesToday.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="دفعات أولى ودفع كامل" tone="blue" />
+            <Kpi title="مبيعات الشهر" value={salesMonth.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="من بداية الشهر الحالي" tone="green" />
+            <Kpi title="إجمالي المبيعات" value={salesTotal.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="الحركات المسجلة" tone="blue" />
+            <Kpi title="بانتظار المراجعة" value={String(salesPending)} tag="عملية" note="تحتاج إجراء مالي" tone="amber" />
+          </>
+        ) : (
+          <>
+            <Kpi title="تحصيل اليوم" value={collectionsToday.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="أقساط مسجلة اليوم" tone="green" />
+            <Kpi title="تحصيل الشهر" value={collectionsMonth.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="الأقساط منذ بداية الشهر" tone="blue" />
+            <Kpi title="المتبقي" value={Number(summary.remaining).toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="بعد خصم جميع الدفعات" tone="amber" />
+            <Kpi title="إجمالي التحصيل" value={collectionsTotal.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note={`${summary.overdue} قسط متأخر`} tone="red" />
+          </>
+        )}
       </div>
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
           <CustomerSmartFilters
             programs={financePrograms}
-            statuses={financeStatuses}
+            statuses={activeStatuses}
             program={programFilter}
             status={statusFilter}
-            total={rows.length}
-            visible={filteredFinance.length}
+            total={financeTab === "sales" ? salesEntries.length : rows.length}
+            visible={financeTab === "sales" ? filteredSales.length : filteredFinance.length}
             onProgram={setProgramFilter}
             onStatus={setStatusFilter}
           />
-          <div className="finance-order-list">
-          {filteredFinance.map((row) => (
+          <div className={`finance-order-list ${financeTab}`}>
+          {financeTab === "sales" ? filteredSales.map(({row,payment}) => (
+            <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : ""}`} onClick={() => open(row)} key={payment.id}>
+              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name} · {row.order_id}</span></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : "green"}`}>{saleStatus({row,payment})}</em></div>
+              <div className="finance-order-money sale-money"><p className="paid"><span>مبلغ المبيعات</span><b>{sar(payment.amount)}</b></p><p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
+              <footer><span>{saleDate(payment) || "دون تاريخ"}</span><span>{payment.reference || "دون مرجع"}</span><b>فتح الملف المالي ←</b></footer>
+            </article>
+          )) : filteredFinance.map((row) => (
             <article
               className={`finance-order-card ${financeStatus(row) === "مدفوع" ? "settled" : financeStatus(row) === "متأخر" ? "late" : ""}`}
               onClick={() => open(row)}
