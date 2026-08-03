@@ -1575,6 +1575,8 @@ function Registration({ done }: { done: () => void }) {
     amount: "",
     contractTotal: "",
     discount: "0",
+    seatReserved: "لا",
+    seatFee: "",
   });
   const [proof, setProof] = useState({ name: "", data: "" });
   useEffect(() => {
@@ -1603,13 +1605,22 @@ function Registration({ done }: { done: () => void }) {
         programId,
         program: program.name,
         track: program.tracks?.[0]?.name || "",
+        seatReserved: "لا",
+        seatFee: "",
       }));
   };
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const directProgram = form.journey === "برنامج مباشر";
+  const seatReservationEligible =
+    form.delivery === "مباشر" &&
+    ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي"].some((name) =>
+      selectedProgram?.name.includes(name),
+    );
+  const hasSeatReservation =
+    seatReservationEligible && form.seatReserved === "نعم";
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
-  const scheduledJourney = directProgram;
+  const scheduledJourney = directProgram || hasSeatReservation;
   const reservationDatesInvalid =
     scheduledJourney &&
     (!form.cohort ||
@@ -1621,8 +1632,10 @@ function Registration({ done }: { done: () => void }) {
   const discountedTotal = Math.round(
     baseTotal * (1 - discountPercent / 100) * 100,
   ) / 100;
+  const seatFee = hasSeatReservation ? Number(form.seatFee || 0) : 0;
+  const finalTotal = Math.round((discountedTotal + seatFee) * 100) / 100;
   const payableAmount =
-    form.payment === "أقساط" ? Number(form.amount || 0) : discountedTotal;
+    form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
   const phoneInvalid = !internationalPhonePattern.test(form.phone);
   const readProof = (file?: File) => {
     setSaveError("");
@@ -1668,10 +1681,13 @@ function Registration({ done }: { done: () => void }) {
         !form.language ||
         (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
         (form.delivery === "مباشر" && !form.cohort) ||
+        (hasSeatReservation && !(seatFee > 0)) ||
         reservationDatesInvalid)
     ) {
       setSaveError(
-        reservationDatesInvalid
+        hasSeatReservation && !(seatFee > 0)
+          ? "يلزم إدخال مبلغ حجز المقعد"
+          : reservationDatesInvalid
           ? "يلزم إدخال تاريخ بدء البرنامج وتاريخ إسناد يسبقه أو يساويه"
           : form.delivery === "مباشر"
             ? "يلزم تحديد البرنامج والمسار واللغة واسم الدفعة"
@@ -1686,10 +1702,10 @@ function Registration({ done }: { done: () => void }) {
       }
       if (
         form.payment === "أقساط" &&
-        (!(payableAmount > 0) || payableAmount >= discountedTotal)
+        (!(payableAmount > 0) || payableAmount >= finalTotal)
       ) {
         setSaveError(
-          "الدفعة الأولى يجب أن تكون أكبر من صفر وأقل من المبلغ بعد الخصم",
+          "الدفعة الأولى يجب أن تكون أكبر من صفر وأقل من الإجمالي النهائي",
         );
         return;
       }
@@ -1717,6 +1733,7 @@ function Registration({ done }: { done: () => void }) {
       !form.language ||
       (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
       (form.delivery === "مباشر" && !form.cohort) ||
+      (hasSeatReservation && !(seatFee > 0)) ||
       reservationDatesInvalid
     ) {
       setSaveError(
@@ -1730,9 +1747,9 @@ function Registration({ done }: { done: () => void }) {
     if (
       form.journey !== "تجربة" &&
       (!(baseTotal > 0) ||
-        !(discountedTotal > 0) ||
+        !(finalTotal > 0) ||
         (form.payment === "أقساط" &&
-          (!(payableAmount > 0) || payableAmount >= discountedTotal)))
+          (!(payableAmount > 0) || payableAmount >= finalTotal)))
     ) {
       setSaveError("تحقق من المبلغ الأساسي والخصم والدفعة الأولى");
       setStep(3);
@@ -1753,9 +1770,11 @@ function Registration({ done }: { done: () => void }) {
       const payload = {
         ...form,
         amount: payableAmount,
-        contractTotal: discountedTotal,
+        contractTotal: finalTotal,
         baseTotal,
         discountPercent,
+        seatReserved: hasSeatReservation,
+        seatFee,
         proofAssetKey: proof.data,
         proofFileName: proof.name,
         mode: form.journey === "تجربة" ? "trial" : "payment",
@@ -1925,12 +1944,53 @@ function Registration({ done }: { done: () => void }) {
                 <select
                   required
                   value={form.delivery}
-                  onChange={(e) => set("delivery", e.target.value)}
+                  onChange={(e) =>
+                    setForm((current) => ({
+                      ...current,
+                      delivery: e.target.value,
+                      seatReserved:
+                        e.target.value === "مباشر"
+                          ? current.seatReserved
+                          : "لا",
+                      seatFee:
+                        e.target.value === "مباشر" ? current.seatFee : "",
+                    }))
+                  }
                 >
                   <option>مسجل</option>
                   <option>مباشر</option>
                 </select>
               </Field>
+              {seatReservationEligible && (
+                <Field label="هل تم حجز المقعد؟ *">
+                  <select
+                    required
+                    value={form.seatReserved}
+                    onChange={(e) => {
+                      set("seatReserved", e.target.value);
+                      if (e.target.value === "لا") set("seatFee", "");
+                    }}
+                  >
+                    <option>لا</option>
+                    <option>نعم</option>
+                  </select>
+                </Field>
+              )}
+              {hasSeatReservation && (
+                <Field label="مبلغ حجز المقعد *">
+                  <input
+                    required
+                    inputMode="decimal"
+                    dir="ltr"
+                    value={form.seatFee}
+                    onChange={(e) => set("seatFee", e.target.value)}
+                    placeholder="0.00 ر.س"
+                  />
+                  <small className="field-help">
+                    مبلغ ثابت يُضاف بعد الخصم ولا تُطبق عليه نسبة الخصم.
+                  </small>
+                </Field>
+              )}
               <Field label="اللغة *">
                 <select
                   required
@@ -2110,8 +2170,18 @@ function Registration({ done }: { done: () => void }) {
                     <b>{discountPercent}%</b>
                   </p>
                   <p className="net">
-                    <span>المبلغ بعد الخصم</span>
+                    <span>سعر البرنامج بعد الخصم</span>
                     <b>{discountedTotal.toLocaleString("en-US")} ر.س</b>
+                  </p>
+                  {hasSeatReservation && (
+                    <p>
+                      <span>مبلغ حجز المقعد</span>
+                      <b>{seatFee.toLocaleString("en-US")} ر.س</b>
+                    </p>
+                  )}
+                  <p className="net">
+                    <span>الإجمالي النهائي</span>
+                    <b>{finalTotal.toLocaleString("en-US")} ر.س</b>
                   </p>
                   {form.payment === "دفع كامل" && (
                     <small>سيُسجل هذا المبلغ كاملاً كدفعة المبيعات.</small>
@@ -2227,7 +2297,7 @@ function Registration({ done }: { done: () => void }) {
                 {form.startDate && (
                   <Review label="تاريخ بدء البرنامج" value={form.startDate} />
                 )}{" "}
-                {directProgram && (
+                {scheduledJourney && (
                   <Review label="تاريخ الإسناد" value={form.assignmentDate} />
                 )}
                 <Review label="مصدر الشراء" value={form.source} />
@@ -2244,8 +2314,18 @@ function Registration({ done }: { done: () => void }) {
                     />
                     <Review label="الخصم" value={`${discountPercent}%`} />
                     <Review
-                      label="الإجمالي بعد الخصم"
+                      label="سعر البرنامج بعد الخصم"
                       value={`${discountedTotal.toLocaleString("en-US")} ر.س`}
+                    />
+                    {hasSeatReservation && (
+                      <Review
+                        label="مبلغ حجز المقعد"
+                        value={`${seatFee.toLocaleString("en-US")} ر.س`}
+                      />
+                    )}
+                    <Review
+                      label="الإجمالي النهائي"
+                      value={`${finalTotal.toLocaleString("en-US")} ر.س`}
                     />
                   </>
                 )}
@@ -2271,7 +2351,7 @@ function Registration({ done }: { done: () => void }) {
                       <small>المبيعات · حسب مدة البرنامج</small>
                     </span>
                   </p>
-                ) : directProgram ? (
+                ) : scheduledJourney ? (
                   <p className="next">
                     <i>2</i>
                     <span>
