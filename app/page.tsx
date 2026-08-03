@@ -1598,9 +1598,12 @@ function Reports() {
   );
 }
 
-const internationalPhonePattern = /^00[1-9]\d{8,14}$/;
-const normalizePhoneInput = (value: string) =>
-  value.replace(/[^\d+]/g, "").replace(/^\+/, "00");
+const internationalPhonePattern = /^\+[1-9]\d{8,14}$/;
+const normalizePhoneInput = (value: string) => {
+  const cleaned = value.replace(/[^\d+]/g, "");
+  if (cleaned.startsWith("00")) return `+${cleaned.slice(2)}`;
+  return cleaned.startsWith("+") ? `+${cleaned.slice(1).replace(/\+/g, "")}` : `+${cleaned.replace(/\+/g, "")}`;
+};
 
 function Registration({ done }: { done: () => void }) {
   const [step, setStep] = useState(1),
@@ -1610,7 +1613,7 @@ function Registration({ done }: { done: () => void }) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [form, setForm] = useState({
     name: "",
-    phone: "00966",
+    phone: "+966",
     email: "",
     journey: "اشتراك",
     programId: "PRG-ABA",
@@ -1729,7 +1732,7 @@ function Registration({ done }: { done: () => void }) {
     if (step === 1 && (!form.name || !form.phone || !form.email || phoneInvalid)) {
       setSaveError(
         phoneInvalid
-          ? "رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"
+          ? "رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: +9665xxxxxxxx"
           : "الاسم والجوال والبريد الإلكتروني حقول إلزامية",
       );
       return;
@@ -1939,10 +1942,10 @@ function Registration({ done }: { done: () => void }) {
                   onChange={(e) =>
                     set("phone", normalizePhoneInput(e.target.value))
                   }
-                  placeholder="009665xxxxxxxx"
+                  placeholder="+9665xxxxxxxx"
                 />
                 <small className="field-help">
-                  أدخل مفتاح الدولة أولاً؛ الافتراضي للسعودية 00966
+                  أدخل مفتاح الدولة أولاً؛ الافتراضي للسعودية +966
                 </small>
               </Field>
               <Field label="البريد الإلكتروني *">
