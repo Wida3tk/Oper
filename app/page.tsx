@@ -3321,15 +3321,33 @@ function LiveCustomers({
   // The database contains every customer whose registration created a live
   // record. Their current operational stage must not remove them from it.
   const directoryRows = rows;
-  const programs = [
+  const categoryOrder = [
+      "شهادة تحليل السلوك",
+      "إدارة السلوك التنظيمي",
+      "تقييم الكفاءة",
+      "التعليم المستمر",
+      "التجربة",
+      "غير مصنف",
+    ],
+    availableCategories = new Set(
+      directoryRows.map((row) => customerProgramCategory(row)),
+    ),
+    categories = categoryOrder.filter((category) => availableCategories.has(category)),
+    programs = [
       "الكل",
       ...Array.from(
-        new Set(directoryRows.map((x) => x.program).filter((x) => x !== "—")),
+        new Set(
+          directoryRows
+            .filter(
+              (row) =>
+                categoryFilter === "الكل" ||
+                customerProgramCategory(row) === categoryFilter,
+            )
+            .map((row) => row.program)
+            .filter((program) => program && program !== "—"),
+        ),
       ),
-    ],
-    categories = Array.from(
-      new Set(directoryRows.map((row) => customerProgramCategory(row))),
-    );
+    ];
   const filtered = directoryRows.filter(
     (row) =>
       `${row.name} ${row.id} ${row.phone} ${row.program}`.includes(query) &&
@@ -3382,7 +3400,19 @@ function LiveCustomers({
           total={directoryRows.length}
           visible={filtered.length}
           onProgram={setProgramFilter}
-          onStatus={setCategoryFilter}
+          onStatus={(category) => {
+            setCategoryFilter(category);
+            if (
+              programFilter !== "الكل" &&
+              !directoryRows.some(
+                (row) =>
+                  row.program === programFilter &&
+                  (category === "الكل" ||
+                    customerProgramCategory(row) === category),
+              )
+            )
+              setProgramFilter("الكل");
+          }}
           title="تصنيف قاعدة العملاء"
           description="عرض العملاء حسب البرنامج أو التصنيف"
           secondaryLabel="التصنيف"
@@ -6247,7 +6277,7 @@ function customerProgramCategory(customer: (typeof initialPeople)[number]) {
     value.includes("qasp") ||
     value.includes("aba")
   )
-    return "تحليل السلوك التطبيقي";
+    return "شهادة تحليل السلوك";
   return "التعليم المستمر";
 }
 
