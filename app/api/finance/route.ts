@@ -19,7 +19,7 @@ export async function GET(req:Request){
  const db=operationalDb();
  await ensureFinanceClassificationSchema(db);
  const [ordersResult,paymentsResult,installmentsResult,notesResult]=await Promise.all([
-  db.prepare("SELECT o.id order_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind='حجز مقعد'),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
+  db.prepare("SELECT o.id order_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
   db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>()
@@ -45,7 +45,7 @@ export async function POST(req:Request){
  const auth=await authorize(req,["finance"]);if(!auth.ok)return auth.response;
  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),orderId=String(body.orderId||"");
  if(!orderId)return Response.json({error:"رقم الطلب مطلوب"},{status:400});
- const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number}>();
+ const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,order_type FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;order_type:string}>();
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
  const paidRow=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=?").bind(orderId).first<{paid:number}>(),paidCents=cents(paidRow?.paid);
  if(["review_legacy_installments","approve_finance_review"].includes(action)){
@@ -54,7 +54,7 @@ export async function POST(req:Request){
   if(review?.finance_review_status!=="pending")return Response.json({error:"الطلب لا ينتظر مراجعة المالية"},{status:409});
   const first=await db.prepare("SELECT id FROM payments WHERE order_id=? ORDER BY COALESCE(paid_at,created_at),created_at LIMIT 1").bind(orderId).first<{id:string}>();
   await db.batch([
-   db.prepare("UPDATE payments SET flow_type=CASE WHEN id=? THEN 'sale' WHEN id IN (SELECT paid_payment_id FROM installments WHERE order_id=? AND paid_payment_id IS NOT NULL) THEN 'collection' ELSE 'collection' END,classification_status='confirmed' WHERE order_id=?").bind(first?.id||"",orderId,orderId),
+   db.prepare("UPDATE payments SET flow_type=CASE WHEN ?='إشراف' THEN 'collection' WHEN id=? THEN 'sale' ELSE 'collection' END,classification_status='confirmed' WHERE order_id=?").bind(order.order_type,first?.id||"",orderId),
    db.prepare("UPDATE orders SET finance_review_status='approved',updated_at=? WHERE id=?").bind(now,orderId),
    db.prepare("UPDATE payment_intents SET status='معتمدة',reviewed_by_finance_email=?,reviewed_at=?,updated_at=? WHERE resulting_order_id=?").bind(auth.email,now,now,orderId),
    db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_type='payment' AND entity_id IN (SELECT id FROM payments WHERE order_id=?) AND status!='مكتملة'").bind(now,orderId),

@@ -74,9 +74,9 @@ test("offers competency assessment only with the ABAT track", async () => {
 test("limits language selection to organizational behavior management", async () => {
   const api = await read("../app/api/intake/route.ts");
   const page = await read("../app/page.tsx");
-  assert.match(api, /isObm&&!language/);
+  assert.match(api, /isObm&&!isSupervision&&!language/);
   assert.match(api, /orderLanguage=isObm\?language:""/);
-  assert.match(page, /isObm && <Field label="اللغة \*">/);
+  assert.match(page, /isObm && !isSupervision && <Field label="اللغة \*">/);
   assert.match(page, /نوع الاشتراك \*/);
 });
 
@@ -94,8 +94,21 @@ test("calculates payment behavior from installments and recorded reminders", asy
 test("completes Asara registrations without onboarding tasks", async () => {
   const intake = await read("../app/api/intake/route.ts");
   assert.match(intake, /isAsara=source==="عصارة"/);
-  assert.match(intake, /else if\(isAsara\)/);
+  assert.match(intake, /else if\(autoAsara\)/);
   assert.match(intake, /status,completed_at,created_at,updated_at/);
   assert.match(intake, /VALUES\(\?,\?,\?,\?,'مكتمل',\?,\?,\?\)/);
-  assert.match(intake, /isAsara\?"مكتمل"/);
+  assert.match(intake, /autoAsara\?"مكتمل"/);
+});
+
+test("routes supervision through onboarding and collection without course activation", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  const transition = await read("../app/api/enrollments/transition/route.ts");
+  const finance = await read("../app/api/finance/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(page, /<option>إشراف<\/option>/);
+  assert.match(intake, /isSupervision\?50/);
+  assert.match(intake, /isSupervision\?"collection":"sale"/);
+  assert.match(transition, /enrollment\.order_type==="إشراف"/);
+  assert.match(transition, /to:"مكتمل",column:"completed_at"/);
+  assert.match(finance, /order\.order_type,first/);
 });

@@ -1667,18 +1667,20 @@ function Registration({ done }: { done: () => void }) {
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const isAbat = selectedProgram?.name.includes("تحليل السلوك التطبيقي") && form.track.toUpperCase() === "ABAT";
   const isObm = Boolean(selectedProgram?.name.includes("إدارة السلوك التنظيمي"));
+  const isSupervision = form.journey === "إشراف";
   const directProgram = form.journey === "برنامج مباشر";
   const seatReservationEligible =
-    form.source !== "عصارة" &&
-    form.delivery === "مباشر" &&
-    ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي"].some((name) =>
-      selectedProgram?.name.includes(name),
-    );
+    isSupervision ||
+    (form.source !== "عصارة" &&
+      form.delivery === "مباشر" &&
+      ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي"].some((name) =>
+        selectedProgram?.name.includes(name),
+      ));
   const hasSeatReservation =
     seatReservationEligible && form.seatReserved === "نعم";
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
-  const scheduledJourney = !asara && (directProgram || hasSeatReservation);
+  const scheduledJourney = isSupervision || (!asara && (directProgram || hasSeatReservation));
   const reservationDatesInvalid =
     scheduledJourney &&
     (!form.cohort ||
@@ -1690,7 +1692,7 @@ function Registration({ done }: { done: () => void }) {
   const discountedTotal = Math.round(
     baseTotal * (1 - discountPercent / 100) * 100,
   ) / 100;
-  const seatFee = hasSeatReservation ? Number(form.seatFee || 0) : 0;
+  const seatFee = hasSeatReservation ? (isSupervision ? 50 : Number(form.seatFee || 0)) : 0;
   const finalTotal = discountedTotal;
   const payableAmount =
     form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
@@ -1736,7 +1738,7 @@ function Registration({ done }: { done: () => void }) {
       step === 2 &&
       (!form.programId ||
         !form.delivery ||
-        (isObm && !form.language) ||
+        (isObm && !isSupervision && !form.language) ||
         (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
         (scheduledJourney && !form.cohort) ||
         (hasSeatReservation && !(seatFee > 0)) ||
@@ -1788,7 +1790,7 @@ function Registration({ done }: { done: () => void }) {
     if (
       !form.programId ||
       !form.delivery ||
-      (isObm && !form.language) ||
+      (isObm && !isSupervision && !form.language) ||
       (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
       (scheduledJourney && !form.cohort) ||
       (hasSeatReservation && !(seatFee > 0)) ||
@@ -1837,7 +1839,7 @@ function Registration({ done }: { done: () => void }) {
         proofAssetKey: proof.data,
         proofFileName: proof.name,
         mode: form.journey === "تجربة" ? "trial" : "payment",
-        purchaseType: "برنامج",
+        purchaseType: isSupervision ? "إشراف" : "برنامج",
       };
       const r = await fetch("/api/intake", {
         method: "POST",
@@ -1871,6 +1873,8 @@ function Registration({ done }: { done: () => void }) {
             ? "تم تسجيل العميل وبدء فترة التجربة."
             : form.journey === "برنامج مباشر"
               ? "تم تسجيل العميل وإضافته إلى البرامج المباشرة."
+              : form.journey === "إشراف"
+                ? "تم تسجيل عميل الإشراف وجدولة انتقاله إلى التهيئة."
               : "تم تسجيل العميل بنجاح وإضافته إلى النظام."}
         </p>
         <div>
@@ -2009,10 +2013,11 @@ function Registration({ done }: { done: () => void }) {
                 >
                   <option>اشتراك</option>
                   <option>برنامج مباشر</option>
+                  <option>إشراف</option>
                   <option>تجربة</option>
                 </select>
               </Field>
-              {!isAbat && <Field label="نمط البرنامج *">
+              {!isAbat && !isSupervision && <Field label="نمط البرنامج *">
                 <select
                   required
                   value={form.delivery}
@@ -2054,16 +2059,19 @@ function Registration({ done }: { done: () => void }) {
                     required
                     inputMode="decimal"
                     dir="ltr"
-                    value={form.seatFee}
+                    value={isSupervision ? "50" : form.seatFee}
+                    readOnly={isSupervision}
                     onChange={(e) => set("seatFee", e.target.value)}
                     placeholder="0.00 ر.س"
                   />
                   <small className="field-help">
-                    مبلغ ثابت يُضاف بعد الخصم ولا تُطبق عليه نسبة الخصم.
+                    {isSupervision
+                      ? "رسوم مقعد الإشراف ثابتة: 50 ر.س، ولا تدخل ضمن قيمة العقد أو الخصم."
+                      : "مبلغ ثابت يُضاف بعد الخصم ولا تُطبق عليه نسبة الخصم."}
                   </small>
                 </Field>
               )}
-              {isObm && <Field label="اللغة *">
+              {isObm && !isSupervision && <Field label="اللغة *">
                 <select
                   required
                   value={form.language}
@@ -2293,6 +2301,7 @@ function Registration({ done }: { done: () => void }) {
               </div>
             )}
             {form.journey !== "تجربة" &&
+              !isSupervision &&
               !directPayment &&
               form.payment !== "أقساط" && (
               <div className="finance-route-status complete">
@@ -2304,7 +2313,7 @@ function Registration({ done }: { done: () => void }) {
               </div>
             )}
             {form.journey !== "تجربة" &&
-              (form.payment === "أقساط" ||
+              (isSupervision || form.payment === "أقساط" ||
                 (directPayment &&
                   ["تحويل بنكي", "Paytabs"].includes(form.method))) && (
                 <div className="finance-route-status review">
@@ -2312,7 +2321,9 @@ function Registration({ done }: { done: () => void }) {
                   <div>
                     <b>سيرسل إلى مراجعة المالية</b>
                     <span>
-                      {form.payment === "أقساط"
+                      {isSupervision
+                        ? "جميع مبالغ الإشراف تُراجع وتُسجل ضمن التحصيل."
+                        : form.payment === "أقساط"
                         ? "جميع طلبات الأقساط تحتاج اعتماد المالية."
                         : form.method === "Paytabs"
                           ? "ستراجع المالية رابط مرجع السداد."
@@ -2334,6 +2345,8 @@ function Registration({ done }: { done: () => void }) {
                 <p>
                   {form.journey === "تجربة"
                     ? "سيحسب النظام مدة التجربة من إعداد البرنامج وينشئ متابعة للمبيعات."
+                    : isSupervision
+                      ? "سيُنشأ طلب للمالية لاعتماد قيمة الإشراف ومتابعتها ضمن التحصيل."
                     : !directPayment && form.payment !== "أقساط"
                       ? `سيُغلق الإجراء المالي مباشرة لأن السداد مسجل عبر ${form.source}.`
                       : form.payment === "أقساط"
@@ -2364,7 +2377,7 @@ function Registration({ done }: { done: () => void }) {
                 />
                 <Review
                   label="نمط الدراسة"
-                  value={isObm ? `${isAbat ? "ABAT" : form.delivery} · ${form.language}` : (isAbat ? "ABAT" : form.delivery)}
+                  value={isSupervision ? "إشراف" : isObm ? `${isAbat ? "ABAT" : form.delivery} · ${form.language}` : (isAbat ? "ABAT" : form.delivery)}
                 />
                 {isAbat && <Review label="تقييم الكفاءة" value={form.competencyAssessment} />}
                 {form.startDate && (
@@ -2531,6 +2544,7 @@ type LiveEnrollment = {
   program_delivery?: string;
   competency_assessment?: number;
   order_id: string;
+  order_type?: string;
   order_number?: string;
   owner_email?: string;
   purchase_source?: string;
@@ -3735,6 +3749,10 @@ const enrollmentSteps: Record<string, [string, string]> = {
   "تم الإسناد": ["completed", "إكمال البرنامج"],
   نشط: ["completed", "إكمال البرنامج"],
 };
+const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
+  row.order_type === "إشراف" && row.status === "تم التواصل"
+    ? ["registered", "إتمام تهيئة الإشراف"]
+    : enrollmentSteps[row.status];
 function PaymentReferenceControl({
   paymentId,
   initialReference = "",
@@ -3943,7 +3961,7 @@ function LiveAcademy({
     void load();
   }, []);
   const advance = async (row: LiveEnrollment) => {
-    const step = enrollmentSteps[row.status];
+    const step = enrollmentStep(row);
     if (!step) return;
     setMoving(row.id);
     try {
@@ -4141,7 +4159,7 @@ function LiveAcademy({
               );
             })}
           </div>
-          {enrollmentSteps[selectedRow.status] && (
+          {enrollmentStep(selectedRow) && (
             <button
               className="primary drawer-next"
               disabled={moving === selectedRow.id}
@@ -4152,7 +4170,7 @@ function LiveAcademy({
             >
               {moving === selectedRow.id
                 ? "جارٍ التحديث..."
-                : enrollmentSteps[selectedRow.status][1]}
+                : enrollmentStep(selectedRow)?.[1]}
             </button>
           )}
         </Section>
@@ -4203,7 +4221,7 @@ function LiveAcademy({
                   key={row.id}
                   row={row}
                   stage={stageLabel(state)}
-                  nextLabel={enrollmentSteps[row.status]?.[1]}
+                  nextLabel={enrollmentStep(row)?.[1]}
                   moving={moving === row.id}
                   onOpen={() => setSelectedRow(row)}
                   onWhatsapp={() => whatsapp(row)}
@@ -4211,7 +4229,7 @@ function LiveAcademy({
                     window.location.href = `mailto:${row.email}`;
                   }}
                   onAdvance={
-                    enrollmentSteps[row.status]
+                    enrollmentStep(row)
                       ? () => void advance(row)
                       : undefined
                   }
@@ -5514,7 +5532,7 @@ function LiveFinance() {
   const financePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
-  const collectionRows=rows.filter(row=>row.payment_plan==="أقساط"&&row.finance_review_status==="approved");
+  const collectionRows=rows.filter(row=>(row.payment_plan==="أقساط"||row.order_type==="إشراف")&&row.finance_review_status==="approved");
   const collectionStatuses = [
     "بانتظار المراجعة",
     "متأخر",
