@@ -3372,7 +3372,7 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
   return <div className="operations-center">
     <section className="operations-command">
-      <div><span>الرؤية التشغيلية</span><h2>استعد لما هو قادم، وأنجز ما يحتاج تدخلك اليوم</h2><p>تابع مواعيد البرامج والحالات التي تحتاج تدخلاً في الوقت المناسب.</p></div>
+      <div><h2>استعد لما هو قادم… واصنع الفرق اليوم</h2></div>
       <time>آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</time>
     </section>
     <div className="operations-center-stats">
