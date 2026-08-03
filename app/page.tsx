@@ -3343,21 +3343,23 @@ function LiveCustomers({
                 categoryFilter === "الكل" ||
                 customerProgramCategory(row) === categoryFilter,
             )
-            .map((row) => row.program)
+            .map((row) => customerProgramLabel(row))
             .filter((program) => program && program !== "—"),
         ),
       ),
     ];
   const filtered = directoryRows.filter(
     (row) =>
-      `${row.name} ${row.id} ${row.phone} ${row.program}`.includes(query) &&
-      (programFilter === "الكل" || row.program === programFilter) &&
+      `${row.name} ${row.id} ${row.phone} ${row.program} ${row.track} ${customerProgramLabel(row)}`.includes(query) &&
+      (programFilter === "الكل" || customerProgramLabel(row) === programFilter) &&
       (categoryFilter === "الكل" ||
         customerProgramCategory(row) === categoryFilter),
   );
   useEffect(() => {
     if (programFilter === "الكل") return;
-    const matchingCustomer = rows.find((row) => row.program === programFilter);
+    const matchingCustomer = rows.find(
+      (row) => customerProgramLabel(row) === programFilter,
+    );
     if (!matchingCustomer) return;
     const expectedCategory = customerProgramCategory(matchingCustomer);
     if (categoryFilter !== expectedCategory) setCategoryFilter(expectedCategory);
@@ -3381,8 +3383,8 @@ function LiveCustomers({
             {
               new Set(
                 directoryRows
-                  .map((row) => row.program)
-                  .filter((x) => x !== "لا يوجد طلب حالي"),
+                  .map((row) => customerProgramLabel(row))
+                  .filter((value) => value !== "غير مصنف"),
               ).size
             }
           </b>
@@ -3410,7 +3412,7 @@ function LiveCustomers({
             setProgramFilter(program);
             if (program !== "الكل") {
               const matchingCustomer = directoryRows.find(
-                (row) => row.program === program,
+                (row) => customerProgramLabel(row) === program,
               );
               if (matchingCustomer)
                 setCategoryFilter(customerProgramCategory(matchingCustomer));
@@ -3422,7 +3424,7 @@ function LiveCustomers({
               programFilter !== "الكل" &&
               !directoryRows.some(
                 (row) =>
-                  row.program === programFilter &&
+                  customerProgramLabel(row) === programFilter &&
                   (category === "الكل" ||
                     customerProgramCategory(row) === category),
               )
@@ -6269,14 +6271,15 @@ function CustomerTable({
 }
 
 function customerProgramCategory(customer: (typeof initialPeople)[number]) {
-  const value = `${customer.program} ${customer.track}`.toLowerCase();
+  const program = String(customer.program || "").trim(),
+    value = program.toLowerCase();
   if (
     customer.state === "غير مهتم" ||
     value.includes("تجربة") ||
     String(customer.source).includes("تجربة")
   )
     return "التجربة";
-  if (!customer.program || customer.program === "—" || value.includes("لا يوجد طلب"))
+  if (!program || program === "—" || value.includes("لا يوجد طلب"))
     return "غير مصنف";
   if (value.includes("تقييم الكفاءة") || value.includes("competency"))
     return "تقييم الكفاءة";
@@ -6288,13 +6291,25 @@ function customerProgramCategory(customer: (typeof initialPeople)[number]) {
     return "إدارة السلوك التنظيمي";
   if (
     value.includes("تحليل السلوك التطبيقي") ||
-    value.includes("abat") ||
-    value.includes("qba") ||
-    value.includes("qasp") ||
     value.includes("aba")
   )
     return "شهادة تحليل السلوك";
   return "التعليم المستمر";
+}
+
+function customerProgramLabel(customer: (typeof initialPeople)[number]) {
+  const category = customerProgramCategory(customer);
+  const track = String(customer.track || "").trim();
+  const hasTrack = track && track !== "—" && track !== "غير محدد";
+  if (category === "شهادة تحليل السلوك") return hasTrack ? track : "غير محدد";
+  if (category === "إدارة السلوك التنظيمي") return hasTrack ? track : "غير محدد";
+  if (category === "التعليم المستمر") {
+    if (customer.program === "التعليم المستمر" && hasTrack) return track;
+    return customer.program || "غير مصنف";
+  }
+  if (category === "التجربة") return customer.program !== "—" ? customer.program : "تجربة";
+  if (category === "غير مصنف") return "غير مصنف";
+  return customer.program || category;
 }
 
 function CompletedCustomerTable({
@@ -6321,9 +6336,9 @@ function CompletedCustomerTable({
                 <small>فتح ملف العميل</small>
               </td>
               <td>
-                <b>{customer.program}</b>
+                <b>{customerProgramLabel(customer)}</b>
                 <small>
-                  {customer.track !== "—" ? customer.track : customerProgramCategory(customer)}
+                  {customerProgramCategory(customer)}
                   {customer.cohort !== "—" ? ` · ${customer.cohort}` : ""}
                 </small>
               </td>
