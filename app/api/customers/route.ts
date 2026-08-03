@@ -10,6 +10,7 @@ export async function GET(req: Request) {
     SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,c.created_at,
            o.id order_id,o.program,o.track,o.purchase_source source,o.owner,
            o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,o.scheduled_start_date,
+           COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id),0) seat_fee,
            p.name program_name
     FROM customers c
     LEFT JOIN orders o ON o.id=(

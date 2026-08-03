@@ -580,6 +580,7 @@ function OperationsApp() {
   const selectedDetails = selected as typeof selected & {
     email?: string;
     orderId?: string;
+    seatFee?: number;
   };
   const has = (permission: string) =>
     currentUser.roles.includes("admin") ||
@@ -958,6 +959,7 @@ function OperationsApp() {
                     ر.س
                   </b>
                 </p>
+                {Number(selectedDetails.seatFee || 0)>0&&<p className="seat-fee-paid">رسوم المقعد المدفوعة<b>{Number(selectedDetails.seatFee).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ر.س</b></p>}
               </div>
               <div className="progress">
                 <i
@@ -2546,6 +2548,7 @@ type FinanceOrder = {
   overpayment: number;
   finance_note: string;
   payment_behavior: PaymentBehavior;
+  seat_fee: number;
   payments: FinancePayment[];
   installments: FinanceInstallment[];
 };
@@ -3212,6 +3215,7 @@ function LiveCustomers({
                   : "متابعة الملف",
               paid: Number(row.paid || 0),
               total: Number(row.total || 0),
+              seatFee: Number(row.seat_fee || 0),
             };
           }),
         ),
@@ -5566,6 +5570,7 @@ function LiveFinance() {
                 <span>المتبقي</span>
                 <b>{sar(selected.remaining)}</b>
               </p>
+              {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
             </div>
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
