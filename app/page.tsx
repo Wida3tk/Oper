@@ -950,7 +950,7 @@ function OperationsApp() {
                   </b>
                 </p>
                 <p>
-                  المحصل
+                  المدفوع من قيمة البرنامج
                   <b>
                     {selected.paid.toLocaleString("en-US", {
                       minimumFractionDigits: 2,
@@ -960,6 +960,7 @@ function OperationsApp() {
                   </b>
                 </p>
                 {Number(selectedDetails.seatFee || 0)>0&&<p className="seat-fee-paid">رسوم المقعد المدفوعة<b>{Number(selectedDetails.seatFee).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ر.س</b></p>}
+                {Number(selectedDetails.seatFee || 0)>0&&<p className="actual-paid-total">إجمالي المدفوع فعلياً<b>{(selected.paid+Number(selectedDetails.seatFee)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ر.س</b></p>}
               </div>
               <div className="progress">
                 <i
@@ -5478,7 +5479,7 @@ function LiveFinance() {
           {financeTab === "sales" ? filteredSales.map(({row,payment}) => (
             <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : ""}`} onClick={() => open(row)} key={payment.id}>
               <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name} · {row.order_id}</span></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : "green"}`}>{saleStatus({row,payment})}</em></div>
-              <div className="finance-order-money sale-money"><p className="paid"><span>مبلغ المبيعات</span><b>{sar(payment.amount)}</b></p><p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
+              <div className="finance-order-money sale-money"><p className="paid"><span>المدفوع من البرنامج</span><b>{sar(payment.amount)}</b></p>{row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}<p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
               <footer><span>{saleDate(payment) || "دون تاريخ"}</span><span>{payment.reference || "دون مرجع"}</span><b>فتح الملف المالي ←</b></footer>
             </article>
           )) : filteredFinance.map((row) => (
@@ -5507,9 +5508,10 @@ function LiveFinance() {
                   <b>{sar(row.total)}</b>
                 </p>
                 <p className="paid">
-                  <span>المدفوع</span>
+                  <span>المدفوع من البرنامج</span>
                   <b>{sar(row.paid)}</b>
                 </p>
+                {row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}
                 <p className="remaining">
                   <span>المتبقي</span>
                   <b>{sar(row.remaining)}</b>
@@ -5562,11 +5564,11 @@ function LiveFinance() {
             {error && <div className="ops-error compact">{error}</div>}
             <div className="finance-hero">
               <p>
-                <span>إجمالي العقد</span>
+                <span>إجمالي البرنامج بعد الخصم</span>
                 <b>{sar(selected.total)}</b>
               </p>
               <p>
-                <span>المدفوع فعلياً</span>
+                <span>المدفوع من قيمة البرنامج</span>
                 <b>{sar(selected.paid)}</b>
               </p>
               <p>
@@ -5574,6 +5576,7 @@ function LiveFinance() {
                 <b>{sar(selected.remaining)}</b>
               </p>
               {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
+              {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
             </div>
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
@@ -5638,7 +5641,7 @@ function LiveFinance() {
                   />
                 </label>
                 <label>
-                  الدفعة الأولى / المدفوع
+                  المدفوع من قيمة البرنامج
                   <input type="text" readOnly value={sar(selected.paid)} />
                 </label>
                 <label>
