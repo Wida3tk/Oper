@@ -3370,10 +3370,6 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
   if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
-  const timeline = [
-    ...data.events.map(item => ({ kind: "event" as const, date: item.event_date, item })),
-    ...data.schedule.map(item => ({ kind: "schedule" as const, date: item.assignment_date || item.start_date || "", item })),
-  ].sort((a, b) => a.date.localeCompare(b.date));
   const resetEventForm = () => setEventForm({ id: "", title: "", eventDate: "", eventTime: "", details: "", audience: ["all"] });
   const saveEvent = async () => { setSavingEvent(true); setError(""); try { await apiJson("/api/operations-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(eventForm) }); setEventFormOpen(false); resetEventForm(); await load(); } catch (e) { setError((e as Error).message); } finally { setSavingEvent(false); } };
   const deleteEvent = async (eventId: string) => { if (!window.confirm("حذف هذا الموعد من جدول الفريق؟")) return; try { await apiJson(`/api/operations-center?id=${encodeURIComponent(eventId)}`, { method: "DELETE" }); await load(); } catch (e) { setError((e as Error).message); } };
@@ -3382,28 +3378,31 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
     <section className="operations-command">
       <div><span>الرؤية التشغيلية</span><h2>استعد لما هو قادم، وأنجز ما يحتاج تدخلك اليوم</h2><p>تابع مواعيد البرامج والحالات التي تحتاج تدخلاً في الوقت المناسب.</p></div>
       <time>آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</time>
-      {data.canManageEvents && <button onClick={() => { resetEventForm(); setEventFormOpen(true); }}>إضافة موعد</button>}
     </section>
-    {data.canManageEvents && eventFormOpen && <section className="team-event-form">
-      <header><div><CalendarDays size={19}/><span><b>{eventForm.id ? "تعديل الموعد" : "إضافة موعد للفريق"}</b><small>سيظهر الموعد تلقائيًا للأقسام المحددة داخل الجدول.</small></span></div><button onClick={() => setEventFormOpen(false)}>×</button></header>
-      <div><label>اسم الموعد<input value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} placeholder="مثال: بداية الدفعة الثانية عشرة" /></label><label>التاريخ<input type="date" value={eventForm.eventDate} onChange={e => setEventForm({ ...eventForm, eventDate: e.target.value })}/></label><label>الوقت — اختياري<input type="time" value={eventForm.eventTime} onChange={e => setEventForm({ ...eventForm, eventTime: e.target.value })}/></label><label>التفاصيل<input value={eventForm.details} onChange={e => setEventForm({ ...eventForm, details: e.target.value })} placeholder="تعليمات أو وصف مختصر" /></label></div>
-      <fieldset><legend>يظهر إلى</legend>{[["all","جميع الموظفين"],["sales","المبيعات"],["academy","التشغيلية"],["finance","المالية"]].map(([value,label]) => <label className={eventForm.audience.includes(value) ? "active" : ""} key={value}><input type="checkbox" checked={eventForm.audience.includes(value)} onChange={() => { const next = value === "all" ? ["all"] : eventForm.audience.filter(x => x !== "all"); setEventForm({ ...eventForm, audience: next.includes(value) ? next.filter(x => x !== value) : [...next, value] }); }}/>{label}</label>)}</fieldset>
-      {error && <div className="ops-error compact">{error}</div>}<button className="primary" disabled={savingEvent || !eventForm.title || !eventForm.eventDate} onClick={saveEvent}>{savingEvent ? "جارٍ الحفظ..." : "حفظ الموعد"}</button>
-    </section>}
     <div className="operations-center-stats">
       <article className="blue"><CalendarDays size={20}/><span>مواعيد قادمة</span><b>{data.stats.upcoming}</b><small>خلال 30 يومًا</small></article>
       <article className="red"><Activity size={20}/><span>إجراءات متأخرة</span><b>{data.stats.overdue}</b><small>تجاوزت تاريخ التنفيذ</small></article>
       <article className="amber"><ShieldCheck size={20}/><span>بحاجة للانتباه</span><b>{data.stats.attention}</b><small>حالات تطبيق السياسة</small></article>
       <article className="violet"><CircleUserRound size={20}/><span>بيانات ناقصة</span><b>{data.stats.incomplete}</b><small>تؤثر على جاهزية العميل</small></article>
     </div>
+    <section className="team-events-board">
+      <header><div><CalendarDays size={19}/><span><b>مواعيد الفريق القادمة</b><small>المواعيد المهمة التي يجب أن تبقى أمام الفريق</small></span></div>{data.canManageEvents && <button onClick={() => { resetEventForm(); setEventFormOpen(true); }}>إضافة موعد</button>}</header>
+      {data.canManageEvents && eventFormOpen && <div className="team-event-form">
+        <header><div><CalendarDays size={19}/><span><b>{eventForm.id ? "تعديل الموعد" : "إضافة موعد للفريق"}</b><small>سيظهر الموعد تلقائيًا للأقسام المحددة.</small></span></div><button onClick={() => setEventFormOpen(false)}>×</button></header>
+        <div><label>اسم الموعد<input value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} placeholder="مثال: بداية الدفعة الثانية عشرة" /></label><label>التاريخ<input type="date" value={eventForm.eventDate} onChange={e => setEventForm({ ...eventForm, eventDate: e.target.value })}/></label><label>الوقت — اختياري<input type="time" value={eventForm.eventTime} onChange={e => setEventForm({ ...eventForm, eventTime: e.target.value })}/></label><label>التفاصيل<input value={eventForm.details} onChange={e => setEventForm({ ...eventForm, details: e.target.value })} placeholder="تعليمات أو وصف مختصر" /></label></div>
+        <fieldset><legend>يظهر إلى</legend>{[["all","جميع الموظفين"],["sales","المبيعات"],["academy","التشغيلية"],["finance","المالية"]].map(([value,label]) => <label className={eventForm.audience.includes(value) ? "active" : ""} key={value}><input type="checkbox" checked={eventForm.audience.includes(value)} onChange={() => { const next = value === "all" ? ["all"] : eventForm.audience.filter(x => x !== "all"); setEventForm({ ...eventForm, audience: next.includes(value) ? next.filter(x => x !== value) : [...next, value] }); }}/>{label}</label>)}</fieldset>
+        {error && <div className="ops-error compact">{error}</div>}<button className="primary" disabled={savingEvent || !eventForm.title || !eventForm.eventDate} onClick={saveEvent}>{savingEvent ? "جارٍ الحفظ..." : "حفظ الموعد"}</button>
+      </div>}
+      <div className="team-event-cards">{data.events.length ? data.events.map(item => <article key={item.id}>
+        <time><CalendarDays size={18}/><span><b>{dateLabel(item.event_date)}</b><small>{item.event_time || "طوال اليوم"}</small></span></time><div><b>{item.title}</b><span>{item.details || "موعد مجدول"}</span></div>{data.canManageEvents && <footer><button onClick={() => editEvent(item)}>تعديل</button><button onClick={() => deleteEvent(item.id)}>حذف</button></footer>}
+      </article>) : <div className="team-events-empty">لا توجد مواعيد فريق مضافة حاليًا.</div>}</div>
+    </section>
     <div className="operations-center-grid">
       <section className="operations-schedule">
         <header><div><CalendarDays size={19}/><span><b>الجدول التشغيلي</b><small>الإسناد وبداية البرامج القادمة</small></span></div><em>{data.schedule.length}</em></header>
-        <div>{timeline.length ? timeline.map(row => row.kind === "event" ? <article className="team-event" key={row.item.id}>
-          <time><b>{dateLabel(row.item.event_date)}</b><span>{row.item.event_time || "طوال اليوم"}</span></time><i/><div><b>{row.item.title}</b><span>{row.item.details || "موعد مجدول"}</span></div>{data.canManageEvents && <nav><button onClick={() => editEvent(row.item)}>تعديل</button><button onClick={() => deleteEvent(row.item.id)}>حذف</button></nav>}
-        </article> : <article key={row.item.id}>
-          <time><b>{dateLabel(row.item.assignment_date || row.item.start_date)}</b><span>{row.item.assignment_date ? "موعد الإسناد" : "بداية البرنامج"}</span></time><i/><div><b>{row.item.program_name}</b><span>{row.item.customer_name} · {row.item.reservation_kind}</span><small>{row.item.cohort_label || "دون اسم دفعة"} · البداية {dateLabel(row.item.start_date)}</small></div><em>{row.item.status}</em>
-        </article>) : <div className="guided-empty"><CalendarDays size={26}/><b>لا توجد مواعيد قادمة</b><span>ستظهر هنا مواعيد البرامج والفريق عند جدولتها.</span></div>}</div>
+        <div>{data.schedule.length ? data.schedule.map(item => <article key={item.id}>
+          <time><b>{dateLabel(item.assignment_date || item.start_date)}</b><span>{item.assignment_date ? "موعد الإسناد" : "بداية البرنامج"}</span></time><i/><div><b>{item.program_name}</b><span>{item.customer_name} · {item.reservation_kind}</span><small>{item.cohort_label || "دون اسم دفعة"} · البداية {dateLabel(item.start_date)}</small></div><em>{item.status}</em>
+        </article>) : <div className="guided-empty"><CalendarDays size={26}/><b>لا توجد مواعيد تشغيلية قادمة</b><span>ستظهر هنا مواعيد الإسناد وبداية البرامج عند جدولتها.</span></div>}</div>
       </section>
       <section className="operations-exceptions">
         <header><div><Activity size={19}/><span><b>غرفة مراقبة العمليات</b><small>حالات تحتاج تدخلاً قبل أن تتعطل الرحلة</small></span></div><em>{data.exceptions.length}</em></header>
