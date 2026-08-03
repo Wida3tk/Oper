@@ -4,6 +4,7 @@ import {
   Activity,
   Armchair,
   BadgeDollarSign,
+  Bell,
   BookOpenCheck,
   ChartNoAxesCombined,
   CircleDollarSign,
@@ -30,10 +31,12 @@ import {
   PanelRightOpen,
   PhoneCall,
   ReceiptText,
+  Search,
   Settings2,
   ShieldCheck,
   Target,
   UserRoundCheck,
+  UserPlus,
   UsersRound,
   WalletCards,
   X,
@@ -452,6 +455,7 @@ function OperationsApp() {
     [openGroups, setOpenGroups] = useState<string[]>([]),
     [sidebarCollapsed, setSidebarCollapsed] = useState(false),
     [mobileOpen, setMobileOpen] = useState(false),
+    [accountOpen, setAccountOpen] = useState(false),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
       email: "",
@@ -782,11 +786,12 @@ function OperationsApp() {
           >
             <Menu size={20} />
           </button>
-          <div className="top-logo">
-            <BrandMark />
+          <div className="topbar-page">
+            <b>{titles[view][0]}</b>
+            <span>{titles[view][1]}</span>
           </div>
-          <label>
-            <i>⌕</i>
+          <label className="global-search">
+            <Search size={18} />
             <input
               aria-label="البحث في العملاء والطلبات والبرامج"
               value={query}
@@ -797,23 +802,39 @@ function OperationsApp() {
               placeholder="ابحث عن عميل، رقم طلب أو برنامج..."
             />
           </label>
-          <button className="bell">
-            ♢<i />
+          <button className="bell" title="الإشعارات" aria-label="الإشعارات">
+            <Bell size={18} />
+            {taskCount > 0 && <i />}
           </button>
           {has("customers.manage") && (
             <button className="primary" onClick={() => go("new")}>
-              ＋ تسجيل جديد
+              <UserPlus size={17} />
+              <span>تسجيل عميل</span>
             </button>
           )}
+          <div className="top-account">
+            <button
+              className="top-account-trigger"
+              onClick={() => setAccountOpen((value) => !value)}
+              aria-expanded={accountOpen}
+            >
+              <i>{currentUser.name.slice(0, 2)}</i>
+              <span>
+                <b>{currentUser.name}</b>
+                <small>{currentUser.roles.includes("admin") ? "مدير النظام" : currentUser.roles.map((role) => roleNames[role] || role).join("، ")}</small>
+              </span>
+              <ChevronDown size={15} />
+            </button>
+            {accountOpen && (
+              <div className="top-account-menu">
+                <div><b>{currentUser.name}</b><span>{currentUser.email}</span></div>
+                <button onClick={logout}><LogOut size={16} /> تسجيل الخروج</button>
+              </div>
+            )}
+          </div>
         </header>
         <div className="content">
-          <header className="heading">
-            <div>
-              <h1>{titles[view][0]}</h1>
-              <p>{titles[view][1]}</p>
-            </div>
-            <span>اليوم · {todayLabel}</span>
-          </header>
+          <div className="page-date">اليوم · {todayLabel}</div>
           {view === "dashboard" && (
             <>
               <HomeDashboard onOpenTasks={() => setView("work")} />
