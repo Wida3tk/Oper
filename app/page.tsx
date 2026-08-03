@@ -5347,6 +5347,7 @@ function LiveFinance() {
   const financePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
+  const collectionRows=rows.filter(row=>row.payment_plan==="أقساط"&&row.finance_review_status==="approved");
   const collectionStatuses = [
     "بانتظار المراجعة",
     "متأخر",
@@ -5355,13 +5356,13 @@ function LiveFinance() {
     "دفعة جزئية",
     "غير مدفوع",
     "مدفوع",
-  ].filter((status) => rows.some((row) => financeStatus(row) === status));
+  ].filter((status) => collectionRows.some((row) => financeStatus(row) === status));
   const salesStatuses = ["بانتظار المراجعة", "مكتملة", "مرفوض"].filter(
     (status) => salesEntries.some((entry) => saleStatus(entry) === status),
   );
   const activeStatuses =
     financeTab === "sales" ? salesStatuses : collectionStatuses;
-  const filteredFinance = rows.filter(
+  const filteredFinance = collectionRows.filter(
     (row) =>
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || financeStatus(row) === statusFilter),
