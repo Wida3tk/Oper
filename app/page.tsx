@@ -3318,7 +3318,9 @@ function LiveCustomers({
     window.addEventListener("sulukera:data-changed", refresh);
     return () => window.removeEventListener("sulukera:data-changed", refresh);
   }, []);
-  const directoryRows = rows.filter((row) => row.state === "مكتمل");
+  // The database contains every customer whose registration created a live
+  // record. Their current operational stage must not remove them from it.
+  const directoryRows = rows;
   const programs = [
       "الكل",
       ...Array.from(
@@ -3341,7 +3343,7 @@ function LiveCustomers({
     <>
       <div className="customer-summary">
         <div>
-          <span>إجمالي العملاء المكتملين</span>
+          <span>إجمالي العملاء</span>
           <b>{directoryRows.length}</b>
         </div>
         <div className="highlight">
@@ -3368,8 +3370,8 @@ function LiveCustomers({
       <div className="card full customer-directory">
         <div className="directory-head">
           <div>
-            <h2>قاعدة العملاء المكتملين</h2>
-            <p>اسم العميل وبرنامجه في قائمة واحدة واضحة، مع تصنيف شامل لكل البرامج.</p>
+            <h2>قاعدة بيانات العملاء</h2>
+            <p>جميع العملاء المسجلين في النظام، مع عرض الاسم والبرنامج فقط.</p>
           </div>
         </div>
         <CustomerSmartFilters
@@ -6222,6 +6224,14 @@ function CustomerTable({
 
 function customerProgramCategory(customer: (typeof initialPeople)[number]) {
   const value = `${customer.program} ${customer.track}`.toLowerCase();
+  if (
+    customer.state === "غير مهتم" ||
+    value.includes("تجربة") ||
+    String(customer.source).includes("تجربة")
+  )
+    return "التجربة";
+  if (!customer.program || customer.program === "—" || value.includes("لا يوجد طلب"))
+    return "غير مصنف";
   if (value.includes("تقييم الكفاءة") || value.includes("competency"))
     return "تقييم الكفاءة";
   if (
