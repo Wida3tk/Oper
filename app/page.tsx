@@ -91,7 +91,7 @@ function BrandMark({ withText = true }: { withText?: boolean }) {
       <img className="brand-symbol" src="/sulukera-icon.png" alt="" />
       {withText && (
         <div className="brand-wordmark">
-          <img src="/sulukera-wordmark-transparent.png" alt="سلوكيرا" />
+          <img src="/sulukera-wordmark-white-v2.png" alt="سلوكيرا" />
         </div>
       )}
     </div>
@@ -821,7 +821,7 @@ function OperationsApp() {
               }}
             >
               <Bell size={18} />
-              {headerNotifications.length > 0 && <i />}
+              {headerNotifications.length > 0 && <i>{headerNotifications.length}</i>}
             </button>
             {notificationsOpen && (
               <div className="notifications-menu">
