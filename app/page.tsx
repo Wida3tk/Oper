@@ -1616,6 +1616,7 @@ function Registration({ done }: { done: () => void }) {
   const isObm = Boolean(selectedProgram?.name.includes("إدارة السلوك التنظيمي"));
   const directProgram = form.journey === "برنامج مباشر";
   const seatReservationEligible =
+    form.source !== "عصارة" &&
     form.delivery === "مباشر" &&
     ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي"].some((name) =>
       selectedProgram?.name.includes(name),
@@ -1624,7 +1625,7 @@ function Registration({ done }: { done: () => void }) {
     seatReservationEligible && form.seatReserved === "نعم";
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
-  const scheduledJourney = directProgram || hasSeatReservation;
+  const scheduledJourney = !asara && (directProgram || hasSeatReservation);
   const reservationDatesInvalid =
     scheduledJourney &&
     (!form.cohort ||
@@ -1684,7 +1685,7 @@ function Registration({ done }: { done: () => void }) {
         !form.delivery ||
         (isObm && !form.language) ||
         (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
-        (form.delivery === "مباشر" && !form.cohort) ||
+        (scheduledJourney && !form.cohort) ||
         (hasSeatReservation && !(seatFee > 0)) ||
         reservationDatesInvalid)
     ) {
@@ -1736,7 +1737,7 @@ function Registration({ done }: { done: () => void }) {
       !form.delivery ||
       (isObm && !form.language) ||
       (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
-      (form.delivery === "مباشر" && !form.cohort) ||
+      (scheduledJourney && !form.cohort) ||
       (hasSeatReservation && !(seatFee > 0)) ||
       reservationDatesInvalid
     ) {

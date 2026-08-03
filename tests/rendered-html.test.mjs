@@ -89,3 +89,12 @@ test("calculates payment behavior from installments and recorded reminders", asy
   assert.match(finance, /متعثر/);
   assert.match(operations, /reminder_count/);
 });
+
+test("completes Asara registrations without onboarding tasks", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  assert.match(intake, /isAsara=source==="عصارة"/);
+  assert.match(intake, /else if\(isAsara\)/);
+  assert.match(intake, /status,completed_at,created_at,updated_at/);
+  assert.match(intake, /VALUES\(\?,\?,\?,\?,'مكتمل',\?,\?,\?\)/);
+  assert.match(intake, /isAsara\?"مكتمل"/);
+});
