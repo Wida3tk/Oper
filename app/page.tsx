@@ -2454,7 +2454,9 @@ type LiveEnrollment = {
   phone: string;
   email: string;
   program_name: string;
+  program_track?: string;
   order_id: string;
+  order_number?: string;
   owner_email?: string;
   purchase_source?: string;
   updated_at?: string;
@@ -3662,12 +3664,13 @@ function OperationsCustomerCard({
         <i>{row.customer_name.slice(0, 2)}</i>
         <div>
           <b>{row.customer_name}</b>
-          <span>{row.order_id}</span>
+          <span className="ops-order-number">{row.order_number || row.order_id}</span>
         </div>
       </button>
       <div className="ops-row-cell">
         <span>البرنامج</span>
         <b>{row.program_name}</b>
+        {row.program_track && row.program_track !== "غير محدد" && <small className="ops-program-track">البرنامج الفرعي: {row.program_track}</small>}
       </div>
       <div className="ops-row-cell contact">
         <span>بيانات التواصل</span>
@@ -3915,10 +3918,10 @@ function LiveAcademy({
           </div>
           <div className="info customer-data">
             <label>
-              البرنامج<b>{selectedRow.program_name}</b>
+              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}</b>
             </label>
             <label>
-              رقم الطلب<b>{selectedRow.order_id}</b>
+              رقم الطلب<b>{selectedRow.order_number || selectedRow.order_id}</b>
             </label>
           </div>
         </Section>

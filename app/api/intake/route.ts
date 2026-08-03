@@ -1,4 +1,4 @@
-import { authorize, cleanContact, ensureDirectProgramSchema, ensureFinanceClassificationSchema, id, operationalDb } from "../_lib/operations";
+import { authorize, cleanContact, ensureDirectProgramSchema, ensureFinanceClassificationSchema, id, nextOrderNumber, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -96,12 +96,12 @@ export async function POST(req: Request) {
   const paymentIntentStatus = needsFinanceReview ? "بانتظار مراجعة المالية" : "مكتملة";
   const intentId = id("PAYI");
   const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
-  const customerId=existing?.id||id("CUS"),orderId=id("ORD"),paymentId=id("PAY"),reservationId=isScheduled?id("RSV"):null,enrollmentId=isScheduled?null:id("ENR");
+  const customerId=existing?.id||id("CUS"),orderId=id("ORD"),orderNumber=await nextOrderNumber(db,program.name),paymentId=id("PAY"),reservationId=isScheduled?id("RSV"):null,enrollmentId=isScheduled?null:id("ENR");
   const statements=[];
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,(isReservation||hasSeatReservation)?"صاحب حجز":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
-    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,seat_reservation,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'غير مسند',?,?,?,?)").bind(orderId,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,source,paymentPlan,baseTotal,discountPercent,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",financeReviewStatus,hasSeatReservation?1:0,isScheduled?cohort:null,isScheduled?startDate:null,now,now),
+    db.prepare("INSERT INTO orders(id,order_number,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,seat_reservation,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'غير مسند',?,?,?,?)").bind(orderId,orderNumber,customerId,purchaseType,programId,program.name,track||"غير محدد",delivery,language,source,paymentPlan,baseTotal,discountPercent,contractTotal,amount,paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",isScheduled?"غير مطبق":"تم التواصل",financeReviewStatus,hasSeatReservation?1:0,isScheduled?cohort:null,isScheduled?startDate:null,now,now),
     db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,'sale',?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,reference,proofAssetKey,classificationStatus,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );

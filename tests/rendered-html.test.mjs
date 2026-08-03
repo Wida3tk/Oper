@@ -42,3 +42,14 @@ test("stores payment reference links with an audit trail", async () => {
   assert.match(source, /UPDATE payments SET reference=/);
   assert.match(source, /UPDATE_PAYMENT_REFERENCE/);
 });
+
+test("creates readable sequential order numbers by program family", async () => {
+  const operations = await read("../app/api/_lib/operations.ts");
+  const intake = await read("../app/api/intake/route.ts");
+  assert.match(operations, /return "ABA"/);
+  assert.match(operations, /return "OBM"/);
+  assert.match(operations, /return "CA"/);
+  assert.match(operations, /return "CEU"/);
+  assert.match(operations, /order_number_sequences/);
+  assert.match(intake, /nextOrderNumber/);
+});

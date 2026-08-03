@@ -11,6 +11,37 @@ export function operationalDb() {
 
 let directProgramSchemaReady:Promise<void>|null=null;
 let financeClassificationSchemaReady:Promise<void>|null=null;
+let orderNumberSchemaReady:Promise<void>|null=null;
+
+export function orderNumberPrefix(programName:string){
+  const name=String(programName||"").trim();
+  if(name.includes("تحليل السلوك التطبيقي"))return "ABA";
+  if(name.includes("إدارة السلوك التنظيمي"))return "OBM";
+  if(name.includes("تقييم الكفاءة"))return "CA";
+  return "CEU";
+}
+
+export function ensureOrderNumberSchema(db:ReturnType<typeof operationalDb>){
+  if(orderNumberSchemaReady)return orderNumberSchemaReady;
+  orderNumberSchemaReady=(async()=>{
+    try{await db.prepare("ALTER TABLE orders ADD COLUMN order_number TEXT").run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
+    await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number) WHERE order_number IS NOT NULL").run();
+    await db.prepare("CREATE TABLE IF NOT EXISTS order_number_sequences(prefix TEXT PRIMARY KEY,current_value INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL)").run();
+    const {results}=await db.prepare("SELECT o.id,COALESCE(p.name,o.program,'') program_name FROM orders o LEFT JOIN programs p ON p.id=o.program_id WHERE o.order_number IS NULL ORDER BY o.created_at,o.id").all<{id:string;program_name:string}>();
+    const counters:Record<string,number>={ABA:0,OBM:0,CEU:0,CA:0},now=new Date().toISOString(),updates=[];
+    for(const row of results){const prefix=orderNumberPrefix(row.program_name),sequence=++counters[prefix];updates.push(db.prepare("UPDATE orders SET order_number=? WHERE id=? AND order_number IS NULL").bind(`${prefix}-${String(sequence).padStart(6,"0")}`,row.id))}
+    for(const prefix of Object.keys(counters))updates.push(db.prepare("INSERT INTO order_number_sequences(prefix,current_value,updated_at) VALUES(?,?,?) ON CONFLICT(prefix) DO UPDATE SET current_value=MAX(current_value,excluded.current_value),updated_at=excluded.updated_at").bind(prefix,counters[prefix],now));
+    if(updates.length)await db.batch(updates);
+  })().catch(error=>{orderNumberSchemaReady=null;throw error});
+  return orderNumberSchemaReady;
+}
+
+export async function nextOrderNumber(db:ReturnType<typeof operationalDb>,programName:string){
+  await ensureOrderNumberSchema(db);
+  const prefix=orderNumberPrefix(programName),now=new Date().toISOString();
+  const row=await db.prepare("INSERT INTO order_number_sequences(prefix,current_value,updated_at) VALUES(?,1,?) ON CONFLICT(prefix) DO UPDATE SET current_value=current_value+1,updated_at=excluded.updated_at RETURNING current_value").bind(prefix,now).first<{current_value:number}>();
+  return `${prefix}-${String(Number(row?.current_value||1)).padStart(6,"0")}`;
+}
 export function ensureFinanceClassificationSchema(db:ReturnType<typeof operationalDb>){
   if(financeClassificationSchemaReady)return financeClassificationSchemaReady;
   financeClassificationSchemaReady=(async()=>{

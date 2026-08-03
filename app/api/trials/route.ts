@@ -1,4 +1,4 @@
-import { authorize, id, operationalDb } from "../_lib/operations";
+import { authorize, id, nextOrderNumber, operationalDb } from "../_lib/operations";
 
 export const dynamic="force-dynamic";
 
@@ -34,9 +34,9 @@ export async function POST(req:Request){
     ]);
     return Response.json({ok:true,status:"غير مهتم"});
   }
-  const orderId=id("ORD"),enrollmentId=id("ENR");
+  const orderId=id("ORD"),orderNumber=await nextOrderNumber(db,String(trial.program_name||"")),enrollmentId=id("ENR");
   await db.batch([
-    db.prepare("INSERT INTO orders(id,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,created_at,updated_at) VALUES(?,?,'برنامج',?,?, 'غير محدد','مسجل','العربية','تحويل من تجربة','بانتظار تنظيم الاشتراك',0,0,'جديد','تم التواصل','غير مسند',?,?)").bind(orderId,trial.customer_id,trial.program_id,trial.program_name,now,now),
+    db.prepare("INSERT INTO orders(id,order_number,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,total,paid,status,academy_status,owner,created_at,updated_at) VALUES(?,?,?,'برنامج',?,?, 'غير محدد','مسجل','العربية','تحويل من تجربة','بانتظار تنظيم الاشتراك',0,0,'جديد','تم التواصل','غير مسند',?,?)").bind(orderId,orderNumber,trial.customer_id,trial.program_id,trial.program_name,now,now),
     db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,created_at,updated_at) VALUES(?,?,?,?, 'تم التواصل',?,?)").bind(enrollmentId,trial.customer_id,trial.program_id,orderId,now,now),
     db.prepare("UPDATE program_trials SET status='تم الاشتراك',outcome='اشتراك',converted_order_id=?,updated_at=? WHERE id=?").bind(orderId,now,trialId),
     db.prepare("UPDATE customers SET customer_type='مشترك',updated_at=? WHERE id=?").bind(now,trial.customer_id),
