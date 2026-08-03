@@ -1194,7 +1194,8 @@ function AdminDeleteCustomer({
             <h2 id="delete-customer-title">تأكيد حذف العميل</h2>
             <p>
               سيُخفى ملف <b>{customerName}</b> من النظام وتُغلق متابعاته
-              المفتوحة. تُحفظ السجلات المالية وسجل التدقيق.
+              المفتوحة. تُحذف دفعاته وأقساطه ومبالغه من المبيعات والتحصيل،
+              ويُحفظ سجل التدقيق فقط.
             </p>
             <label>
               اكتب اسم العميل للتأكيد
@@ -1222,7 +1223,7 @@ function AdminDeleteCustomer({
                 disabled={saving || typed.trim() !== customerName.trim()}
                 onClick={remove}
               >
-                {saving ? "جارٍ الحذف…" : "حذف العميل نهائيًا"}
+                {saving ? "جارٍ الحذف…" : "حذف العميل وبياناته المالية"}
               </button>
             </div>
           </section>

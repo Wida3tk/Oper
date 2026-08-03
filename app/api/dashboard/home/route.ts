@@ -46,17 +46,18 @@ export async function GET(req:Request){
   let finance=null;
   if(canSeeFinance){
     const [contracts,contractPayments,flows,target,review]=await Promise.all([
-      db.prepare("SELECT COUNT(*) orders,COALESCE(SUM(total),0) value FROM orders WHERE substr(created_at,1,7)=?").bind(month).first(),
+      db.prepare("SELECT COUNT(*) orders,COALESCE(SUM(o.total),0) value FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND substr(o.created_at,1,7)=?").bind(month).first(),
       db.prepare(`SELECT COALESCE(SUM(p.amount),0) paid
-        FROM payments p JOIN orders o ON o.id=p.order_id
-        WHERE substr(o.created_at,1,7)=? AND p.classification_status='confirmed'`).bind(month).first(),
-      db.prepare(`SELECT substr(COALESCE(paid_at,created_at),1,10) day,
-        COALESCE(SUM(CASE WHEN flow_type='sale' THEN amount ELSE 0 END),0) sales,
-        COALESCE(SUM(CASE WHEN flow_type='collection' THEN amount ELSE 0 END),0) collections
-        FROM payments WHERE classification_status='confirmed' AND flow_type IN ('sale','collection') AND substr(COALESCE(paid_at,created_at),1,7)=?
+        FROM payments p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id
+        WHERE c.deleted_at IS NULL AND substr(o.created_at,1,7)=? AND p.classification_status='confirmed'`).bind(month).first(),
+      db.prepare(`SELECT substr(COALESCE(p.paid_at,p.created_at),1,10) day,
+        COALESCE(SUM(CASE WHEN p.flow_type='sale' THEN p.amount ELSE 0 END),0) sales,
+        COALESCE(SUM(CASE WHEN p.flow_type='collection' THEN p.amount ELSE 0 END),0) collections
+        FROM payments p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id
+        WHERE c.deleted_at IS NULL AND p.classification_status='confirmed' AND p.flow_type IN ('sale','collection') AND substr(COALESCE(p.paid_at,p.created_at),1,7)=?
         GROUP BY day ORDER BY day`).bind(month).all(),
       db.prepare("SELECT target_amount FROM monthly_sales_targets WHERE month_key=?").bind(month).first(),
-      db.prepare("SELECT COUNT(*) count FROM orders WHERE finance_review_status='pending'").first(),
+      db.prepare("SELECT COUNT(*) count FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND o.finance_review_status='pending'").first(),
     ]);
     const daily=flows.results.map(row=>({day:String(row.day),sales:num(row.sales),collections:num(row.collections)}));
     const sales=daily.reduce((sum,row)=>sum+row.sales,0),collections=daily.reduce((sum,row)=>sum+row.collections,0),contractValue=num((contracts as Record<string,unknown>)?.value);
