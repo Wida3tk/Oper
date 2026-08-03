@@ -5065,7 +5065,6 @@ function LiveFinance() {
     [selected, setSelected] = useState<FinanceOrder | null>(null),
     [total, setTotal] = useState(""),
     [count, setCount] = useState("4"),
-    [regularAmount, setRegularAmount] = useState(""),
     [finalAmount, setFinalAmount] = useState(""),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
     [paying, setPaying] = useState<FinanceInstallment | null>(null),
@@ -5102,7 +5101,6 @@ function LiveFinance() {
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
-    setRegularAmount("");
     setFinalAmount("");
     setPaying(null);
     setReference("");
@@ -5167,12 +5165,30 @@ function LiveFinance() {
       (statusFilter === "الكل" || financeStatus(row) === statusFilter),
   );
   const scheduleCount = Math.max(1, Math.floor(Number(count || 0)));
-  const scheduleTotal =
-    (scheduleCount > 1 ? scheduleCount - 1 : 0) * Number(regularAmount || 0) +
-    Number(finalAmount || 0);
   const scheduleRemaining = selected
     ? Math.max(Number(total || 0) - selected.paid, 0)
     : 0;
+  const scheduleRemainingCents = Math.round(scheduleRemaining * 100);
+  const automaticRegularCents = Math.floor(
+    scheduleRemainingCents / scheduleCount,
+  );
+  const automaticFinalCents =
+    scheduleRemainingCents - automaticRegularCents * (scheduleCount - 1);
+  const requestedFinalCents = finalAmount
+    ? Math.round(Number(finalAmount) * 100)
+    : automaticFinalCents;
+  const regularAmountCents =
+    scheduleCount > 1
+      ? Math.round(
+          (scheduleRemainingCents - requestedFinalCents) / (scheduleCount - 1),
+        )
+      : 0;
+  const normalizedFinalCents =
+    scheduleRemainingCents - regularAmountCents * (scheduleCount - 1);
+  const regularAmount = Math.max(regularAmountCents, 0) / 100;
+  const normalizedFinalAmount = Math.max(normalizedFinalCents, 0) / 100;
+  const scheduleTotal =
+    regularAmount * Math.max(scheduleCount - 1, 0) + normalizedFinalAmount;
   return (
     <>
       <div className="kpis finance-kpis">
@@ -5356,23 +5372,25 @@ function LiveFinance() {
                   />
                 </label>
                 <label>
-                  قيمة القسط الشهري
+                  قيمة القسط الشهري · تلقائي
                   <input
                     type="number"
-                    min="0.01"
-                    step="0.01"
-                    disabled={scheduleCount === 1}
-                    value={regularAmount}
-                    onChange={(e) => setRegularAmount(e.target.value)}
+                    readOnly
+                    value={regularAmount.toFixed(2)}
                   />
                 </label>
                 <label>
-                  قيمة الدفعة الأخيرة
+                  قيمة الدفعة الأخيرة · قابلة للتعديل
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={finalAmount}
+                    readOnly={scheduleCount === 1}
+                    value={
+                      scheduleCount === 1
+                        ? (automaticFinalCents / 100).toFixed(2)
+                        : finalAmount || (automaticFinalCents / 100).toFixed(2)
+                    }
                     onChange={(e) => setFinalAmount(e.target.value)}
                   />
                 </label>
@@ -5395,7 +5413,7 @@ function LiveFinance() {
                       total,
                       count,
                       regularAmount,
-                      finalAmount,
+                      finalAmount: normalizedFinalAmount,
                       start,
                     })
                   }
@@ -5410,9 +5428,10 @@ function LiveFinance() {
                 <span>المتبقي المطلوب: <b>{sar(scheduleRemaining)}</b></span>
               </div>
               <p className="finance-safety">
-                عدد الأقساط يشمل الدفعة الأخيرة. تُكرر قيمة القسط الشهري في
-                جميع الأشهر السابقة، وتُسجل الدفعة الأخيرة بالقيمة المحددة.
-                إعادة الجدولة لا تحذف الدفعات أو الأقساط المسددة.
+                يقسم النظام المتبقي تلقائياً على عدد الأقساط. يمكن تعديل
+                الدفعة الأخيرة فقط، وسيُعاد احتساب قيمة الأقساط الشهرية
+                تلقائياً. إعادة الجدولة تعتمد المتبقي الحالي ولا تحذف أي
+                دفعات أو أقساط مسددة.
               </p>
               {selected.installments.length ? (
                 <div className="installment-list">
