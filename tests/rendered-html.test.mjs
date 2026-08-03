@@ -35,3 +35,10 @@ test("supports a custom final installment while preserving the order balance", a
   assert.match(source, /scheduledTotal!==remaining/);
   assert.match(source, /i===count-1\?finalAmountCents:regularAmountCents/);
 });
+
+test("stores payment reference links with an audit trail", async () => {
+  const source = await read("../app/api/payments/route.ts");
+  assert.match(source, /export async function PATCH/);
+  assert.match(source, /UPDATE payments SET reference=/);
+  assert.match(source, /UPDATE_PAYMENT_REFERENCE/);
+});

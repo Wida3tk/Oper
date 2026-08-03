@@ -2,6 +2,26 @@ import { authorize, ensureFinanceClassificationSchema, id, operationalDb } from 
 
 export const dynamic = "force-dynamic";
 
+export async function PATCH(req: Request) {
+  const auth = await authorize(req, ["sales", "finance"]);
+  if (!auth.ok) return auth.response;
+  const body = await req.json() as Record<string, unknown>;
+  const paymentId = String(body.paymentId || "").trim();
+  const reference = String(body.reference || "").trim();
+  if (!paymentId || !/^https?:\/\/\S+$/i.test(reference)) {
+    return Response.json({ error: "رابط مرجع السداد الصحيح مطلوب" }, { status: 400 });
+  }
+  const db = operationalDb();
+  const payment = await db.prepare("SELECT id,reference FROM payments WHERE id=?").bind(paymentId).first<{id:string;reference:string|null}>();
+  if (!payment) return Response.json({ error: "الدفعة غير موجودة" }, { status: 404 });
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare("UPDATE payments SET reference=? WHERE id=?").bind(reference, paymentId),
+    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_PAYMENT_REFERENCE','payment',?,?,?)").bind(id("AUD"), auth.email, paymentId, JSON.stringify({ from: payment.reference || "", to: reference }), now),
+  ]);
+  return Response.json({ ok: true, paymentId, reference, updatedBy: auth.email, updatedAt: now });
+}
+
 export async function POST(req: Request) {
   const auth = await authorize(req, ["sales", "finance"]);
   if (!auth.ok) return auth.response;

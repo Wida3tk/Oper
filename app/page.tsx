@@ -828,8 +828,8 @@ function OperationsApp() {
               <Registration done={() => setView("customers")} />
             </>
           )}
-          {view === "registration" && <LiveAcademy focus="registration" />}
-          {view === "assignment" && <LiveAcademy focus="assignment" />}
+          {view === "registration" && <LiveAcademy focus="registration" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
+          {view === "assignment" && <LiveAcademy focus="assignment" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
           {view === "finance" && (
             <>
               <TransferReviews />
@@ -2458,6 +2458,8 @@ type LiveEnrollment = {
   owner_email?: string;
   purchase_source?: string;
   updated_at?: string;
+  payment_id?: string;
+  payment_reference?: string;
 };
 type LiveReservation = {
   id: string;
@@ -2659,7 +2661,7 @@ type HomeData={
  finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;daily:{day:string;sales:number;collections:number}[]}|null;
 };
 const activityLabels:Record<string,string>={
- RECORD_PAYMENT_AND_ADMIT:"تسجيل عميل ودفعة مبيعات",PAY_INSTALLMENT:"تسجيل تحصيل قسط",UPDATE_CUSTOMER_DATA:"تعديل بيانات عميل",
+ RECORD_PAYMENT_AND_ADMIT:"تسجيل عميل ودفعة مبيعات",PAY_INSTALLMENT:"تسجيل تحصيل قسط",UPDATE_PAYMENT_REFERENCE:"تحديث مرجع السداد",UPDATE_CUSTOMER_DATA:"تعديل بيانات عميل",
  ENROLLMENT_TRANSITION:"انتقال العميل إلى مرحلة جديدة",SCHEDULE_RESERVATION_START:"جدولة حجز أو برنامج مباشر",
  APPROVE_LEGACY_INSTALLMENTS:"اعتماد مراجعة أقساط قديمة",UPDATE_STAFF_ACCESS:"تعديل مستخدم وصلاحياته",DELETE_CUSTOMER:"حذف ملف عميل"
 };
@@ -3556,6 +3558,70 @@ const enrollmentSteps: Record<string, [string, string]> = {
   "تم الإسناد": ["completed", "إكمال البرنامج"],
   نشط: ["completed", "إكمال البرنامج"],
 };
+function PaymentReferenceControl({
+  paymentId,
+  initialReference = "",
+  canEdit = false,
+  onSaved,
+}: {
+  paymentId?: string;
+  initialReference?: string;
+  canEdit?: boolean;
+  onSaved?: (reference: string) => void;
+}) {
+  const [reference, setReferenceValue] = useState(initialReference),
+    [draft, setDraft] = useState(initialReference),
+    [editing, setEditing] = useState(false),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  useEffect(() => {
+    setReferenceValue(initialReference);
+    setDraft(initialReference);
+  }, [initialReference, paymentId]);
+  const save = async () => {
+    if (!paymentId || !/^https?:\/\/\S+$/i.test(draft.trim())) {
+      setError("أدخل رابطاً صحيحاً يبدأ بـ http أو https");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await apiJson("/api/payments", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paymentId, reference: draft.trim() }),
+      });
+      setReferenceValue(draft.trim());
+      setEditing(false);
+      onSaved?.(draft.trim());
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (!paymentId) return null;
+  if (editing)
+    return (
+      <div className="payment-reference-editor">
+        <input dir="ltr" type="url" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="https://..." />
+        <button disabled={saving} onClick={() => void save()}>{saving ? "..." : "حفظ"}</button>
+        <button className="cancel" onClick={() => { setEditing(false); setDraft(reference); setError(""); }}>إلغاء</button>
+        {error && <small>{error}</small>}
+      </div>
+    );
+  const referenceIsLink = /^https?:\/\/\S+$/i.test(reference);
+  if (referenceIsLink)
+    return (
+      <div className="payment-reference-ready">
+        <a href={reference} target="_blank" rel="noopener noreferrer"><ReceiptText size={17} />فتح مرجع السداد</a>
+        {canEdit && <button onClick={() => setEditing(true)}>تعديل</button>}
+      </div>
+    );
+  return canEdit ? (
+    <button className="payment-reference-empty" onClick={() => setEditing(true)}><ReceiptText size={17} />{reference ? "استبدال المرجع الحالي برابط" : "إضافة مرجع السداد"}</button>
+  ) : null;
+}
 function OperationsCustomerCard({
   row,
   stage,
@@ -3666,8 +3732,10 @@ function OperationsCustomerCard({
 }
 function LiveAcademy({
   focus,
+  canManagePaymentReference,
 }: {
   focus: "contact" | "registration" | "assignment";
+  canManagePaymentReference: boolean;
 }) {
   const [rows, setRows] = useState<LiveEnrollment[]>([]),
     [loading, setLoading] = useState(true),
@@ -3807,6 +3875,24 @@ function LiveAcademy({
             <Mail size={17} />
             إيميل
           </button>
+          <PaymentReferenceControl
+            paymentId={selectedRow.payment_id}
+            initialReference={selectedRow.payment_reference}
+            canEdit={canManagePaymentReference}
+            onSaved={(paymentReference) => {
+              setSelectedRow({
+                ...selectedRow,
+                payment_reference: paymentReference,
+              });
+              setRows((current) =>
+                current.map((row) =>
+                  row.id === selectedRow.id
+                    ? { ...row, payment_reference: paymentReference }
+                    : row,
+                ),
+              );
+            }}
+          />
         </div>
         <Section title="بيانات العميل">
           <div className="detail-contact">
@@ -5261,6 +5347,30 @@ function LiveFinance() {
   const normalizedFinalAmount = Math.max(normalizedFinalCents, 0) / 100;
   const scheduleTotal =
     regularAmount * Math.max(scheduleCount - 1, 0) + normalizedFinalAmount;
+  const selectedReferencePayment = selected
+    ? financeTab === "sales"
+      ? selected.payments.find((payment) => payment.flow_type === "sale") ||
+        firstPayment(selected)
+      : [...selected.payments]
+          .filter((payment) => payment.flow_type === "collection")
+          .sort((a, b) =>
+            String(b.paid_at || b.created_at || "").localeCompare(
+              String(a.paid_at || a.created_at || ""),
+            ),
+          )[0] || firstPayment(selected)
+    : undefined;
+  const updatePaymentReference = (paymentId: string, paymentReference: string) => {
+    const updateOrder = (row: FinanceOrder) => ({
+      ...row,
+      payments: row.payments.map((payment) =>
+        payment.id === paymentId
+          ? { ...payment, reference: paymentReference }
+          : payment,
+      ),
+    });
+    setRows((current) => current.map((row) => updateOrder(row)));
+    setSelected((current) => (current ? updateOrder(current) : current));
+  };
   return (
     <>
       <div className="finance-tabs" role="tablist" aria-label="أقسام المالية">
@@ -5390,6 +5500,20 @@ function LiveFinance() {
                   {selected.customer_id} · {selected.program_name}
                 </p>
               </div>
+            </div>
+            <div className="finance-reference-strip">
+              <PaymentReferenceControl
+                paymentId={selectedReferencePayment?.id}
+                initialReference={selectedReferencePayment?.reference}
+                canEdit
+                onSaved={(paymentReference) =>
+                  selectedReferencePayment &&
+                  updatePaymentReference(
+                    selectedReferencePayment.id,
+                    paymentReference,
+                  )
+                }
+              />
             </div>
             {error && <div className="ops-error compact">{error}</div>}
             <div className="finance-hero">
@@ -5637,7 +5761,15 @@ function LiveFinance() {
                     </div>
                     <p>
                       {payment.method}
-                      <small>{payment.reference || "دون مرجع"}</small>
+                      {payment.reference ? (
+                        /^https?:\/\//i.test(payment.reference) ? (
+                          <a className="payment-reference-inline" href={payment.reference} target="_blank" rel="noopener noreferrer">فتح مرجع السداد</a>
+                        ) : (
+                          <small>{payment.reference}</small>
+                        )
+                      ) : (
+                        <small>دون مرجع</small>
+                      )}
                       {payment.proof_asset_key && (
                         <a
                           className="receipt-link"
