@@ -3363,6 +3363,44 @@ type OperationsCenterData = {
   exceptions: { id: string; title: string; customer_name?: string; program_name?: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string }[];
 };
 
+const DAILY_OPERATIONS_MESSAGES = [
+  "استعد لما هو قادم… واصنع الفرق اليوم",
+  "بداية جديدة… وفرصة جديدة للإنجاز",
+  "رتّب أولوياتك… واجعل كل خطوة محسوبة",
+  "إنجاز اليوم يصنع نجاح الغد",
+  "كل عميل ينتظر تجربة تستحق التميّز",
+  "ابدأ بالأهم… ودع النتائج تتحدث",
+  "يوم جديد لنحوّل الخطط إلى إنجازات",
+  "ركّز على الخطوة التالية… والباقي سيتبع",
+  "تقدّم ثابت اليوم يصنع أثرًا كبيرًا غدًا",
+  "التفاصيل الصغيرة تصنع تجربة عميل استثنائية",
+  "اجعل كل متابعة خطوة نحو الاكتمال",
+  "اليوم فرصة جديدة لتقديم الأفضل",
+  "التنظيم بداية الإنجاز… فلنبدأ",
+  "هدف واضح، متابعة دقيقة، ونتيجة مميزة",
+  "كل خطوة مكتملة تقرّبنا من الهدف",
+  "لنصنع اليوم تجربة تشغيلية أفضل",
+  "الأولويات واضحة… والإنجاز يبدأ الآن",
+  "تقدّم بثقة… فكل خطوة تصنع فرقًا",
+  "نبدأ بتركيز… وننهي اليوم بإنجاز",
+  "معًا نحو يوم أكثر تنظيمًا وإنجازًا",
+  "جودة العمل تبدأ من وضوح الخطوة التالية",
+  "اصنع أثرًا يظهر في كل تجربة عميل",
+  "تابع بذكاء… وأنجز بثقة",
+  "اليوم نرتّب، نتابع، وننجز",
+  "لأن كل عميل مهم… كل متابعة تصنع فرقًا",
+  "الإنجاز ليس صدفة… بل متابعة مستمرة",
+  "يوم منظم يعني نتائج أفضل",
+  "اجعل إنجازات اليوم تتجاوز التوقعات",
+  "خطوة واضحة الآن… نتيجة أقوى لاحقًا",
+  "لنحوّل مهام اليوم إلى نتائج نفتخر بها",
+] as const;
+
+function dailyOperationsMessage(date = new Date()) {
+  const dayNumber = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+  return DAILY_OPERATIONS_MESSAGES[dayNumber % DAILY_OPERATIONS_MESSAGES.length];
+}
+
 function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
   const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
@@ -3372,7 +3410,7 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
   return <div className="operations-center">
     <section className="operations-command">
-      <div><h2>استعد لما هو قادم… واصنع الفرق اليوم</h2></div>
+      <div><h2>{dailyOperationsMessage()}</h2></div>
       <time>آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</time>
     </section>
     <div className="operations-center-stats">
