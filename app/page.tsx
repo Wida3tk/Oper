@@ -5403,6 +5403,7 @@ function LiveFinance() {
             ),
           )[0] || firstPayment(selected)
     : undefined;
+  const selectedFirstProgramPayment=selected?firstPayment(selected):undefined;
   const updatePaymentReference = (paymentId: string, paymentReference: string) => {
     const updateOrder = (row: FinanceOrder) => ({
       ...row,
@@ -5622,7 +5623,7 @@ function LiveFinance() {
             <Section title="جدول الأقساط">
               <div className="schedule-form">
                 <label>
-                  إجمالي العقد
+                  إجمالي عقد البرنامج · دون رسوم المقعد
                   <input
                     type="number"
                     min={selected.paid}
@@ -5641,11 +5642,11 @@ function LiveFinance() {
                   />
                 </label>
                 <label>
-                  المدفوع من قيمة البرنامج
-                  <input type="text" readOnly value={sar(selected.paid)} />
+                  الدفعة الأولى من البرنامج · دون رسوم المقعد
+                  <input type="text" readOnly value={sar(Number(selectedFirstProgramPayment?.amount||0))} />
                 </label>
                 <label>
-                  المبلغ المتبقي للتقسيط
+                  المتبقي من عقد البرنامج · دون رسوم المقعد
                   <input type="text" readOnly value={sar(scheduleRemaining)} />
                 </label>
                 <label>
