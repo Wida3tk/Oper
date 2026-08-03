@@ -5195,7 +5195,9 @@ function LiveFinance() {
     [selected, setSelected] = useState<FinanceOrder | null>(null),
     [total, setTotal] = useState(""),
     [count, setCount] = useState("4"),
+    [regularAmountInput, setRegularAmountInput] = useState(""),
     [finalAmount, setFinalAmount] = useState(""),
+    [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
     [paying, setPaying] = useState<FinanceInstallment | null>(null),
     [method, setMethod] = useState("تحويل بنكي"),
@@ -5231,7 +5233,9 @@ function LiveFinance() {
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
+    setRegularAmountInput("");
     setFinalAmount("");
+    setScheduleEdit("auto");
     setPaying(null);
     setReference("");
   };
@@ -5372,15 +5376,14 @@ function LiveFinance() {
   );
   const automaticFinalCents =
     scheduleRemainingCents - automaticRegularCents * (scheduleCount - 1);
-  const requestedFinalCents = finalAmount
+  const requestedFinalCents = scheduleEdit==="final"&&finalAmount
     ? Math.round(Number(finalAmount) * 100)
     : automaticFinalCents;
-  const regularAmountCents =
-    scheduleCount > 1
-      ? Math.round(
-          (scheduleRemainingCents - requestedFinalCents) / (scheduleCount - 1),
-        )
-      : 0;
+  const regularAmountCents = scheduleCount<=1?0:scheduleEdit==="regular"&&regularAmountInput
+    ? Math.round(Number(regularAmountInput)*100)
+    : scheduleEdit==="final"
+      ? Math.round((scheduleRemainingCents-requestedFinalCents)/(scheduleCount-1))
+      : automaticRegularCents;
   const normalizedFinalCents =
     scheduleRemainingCents - regularAmountCents * (scheduleCount - 1);
   const regularAmount = Math.max(regularAmountCents, 0) / 100;
@@ -5631,15 +5634,26 @@ function LiveFinance() {
                     min="1"
                     max="36"
                     value={count}
-                    onChange={(e) => setCount(e.target.value)}
+                    onChange={(e) => {setCount(e.target.value);setRegularAmountInput("");setFinalAmount("");setScheduleEdit("auto")}}
                   />
                 </label>
                 <label>
-                  قيمة القسط الشهري · تلقائي
+                  الدفعة الأولى / المدفوع
+                  <input type="text" readOnly value={sar(selected.paid)} />
+                </label>
+                <label>
+                  المبلغ المتبقي للتقسيط
+                  <input type="text" readOnly value={sar(scheduleRemaining)} />
+                </label>
+                <label>
+                  قيمة القسط الشهري · تلقائية وقابلة للتعديل
                   <input
                     type="number"
-                    readOnly
-                    value={regularAmount.toFixed(2)}
+                    min="0.01"
+                    step="0.01"
+                    readOnly={scheduleCount===1}
+                    value={scheduleCount===1?"0.00":scheduleEdit==="regular"?regularAmountInput:regularAmount.toFixed(2)}
+                    onChange={(e)=>{setRegularAmountInput(e.target.value);setFinalAmount("");setScheduleEdit("regular")}}
                   />
                 </label>
                 <label>
@@ -5652,9 +5666,9 @@ function LiveFinance() {
                     value={
                       scheduleCount === 1
                         ? (automaticFinalCents / 100).toFixed(2)
-                        : finalAmount || (automaticFinalCents / 100).toFixed(2)
+                        : scheduleEdit==="final"?finalAmount:normalizedFinalAmount.toFixed(2)
                     }
-                    onChange={(e) => setFinalAmount(e.target.value)}
+                    onChange={(e) => {setFinalAmount(e.target.value);setRegularAmountInput("");setScheduleEdit("final")}}
                   />
                 </label>
                 <label>
@@ -5668,7 +5682,7 @@ function LiveFinance() {
                 <button
                   className="primary"
                   disabled={
-                    saving || Math.abs(scheduleTotal - scheduleRemaining) >= 0.005
+                    saving || normalizedFinalAmount<=0 || (scheduleCount>1&&regularAmount<=0) || Math.abs(scheduleTotal - scheduleRemaining) >= 0.005
                   }
                   onClick={() =>
                     post({
@@ -5691,9 +5705,7 @@ function LiveFinance() {
                 <span>المتبقي المطلوب: <b>{sar(scheduleRemaining)}</b></span>
               </div>
               <p className="finance-safety">
-                يقسم النظام المتبقي تلقائياً على عدد الأقساط. يمكن تعديل
-                الدفعة الأخيرة فقط، وسيُعاد احتساب قيمة الأقساط الشهرية
-                تلقائياً. إعادة الجدولة تعتمد المتبقي الحالي ولا تحذف أي
+                يخصم النظام الدفعة الأولى وجميع الدفعات المسجلة، ثم يقسم المتبقي تلقائياً. يمكن تعديل قيمة القسط الشهري فيعيد النظام حساب الدفعة الأخيرة، أو تعديل الدفعة الأخيرة فيعيد حساب الأقساط الشهرية. إعادة الجدولة تعتمد المتبقي الحالي ولا تحذف أي
                 دفعات أو أقساط مسددة.
               </p>
               {selected.installments.length ? (
