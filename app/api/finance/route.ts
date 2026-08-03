@@ -119,7 +119,9 @@ export async function POST(req:Request){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");
   if(!["قادم","تذكير أول","تذكير ثانٍ","تذكير ثالث","متأخر","إنذار","تطبيق السياسة"].includes(status))return Response.json({error:"حالة القسط غير صالحة"},{status:400});
-  await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});
+  const reminderCount=status==="تذكير أول"?1:status==="تذكير ثانٍ"?2:null;
+  if(reminderCount)await db.prepare("UPDATE installments SET status=?,reminder_count=MAX(COALESCE(reminder_count,0),?),first_reminder_at=CASE WHEN first_reminder_at IS NULL THEN ? ELSE first_reminder_at END,second_reminder_at=CASE WHEN ?=2 AND second_reminder_at IS NULL THEN ? ELSE second_reminder_at END,last_reminded_by_email=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,reminderCount,now,reminderCount,now,auth.email,now,installmentId,orderId).run();
+  else await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});
  }
  if(action==="note"){
   const note=String(body.note||"").trim();await db.prepare("INSERT INTO finance_notes(order_id,note,updated_by_email,updated_at) VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET note=excluded.note,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(orderId,note,auth.email,now).run();return Response.json({ok:true});

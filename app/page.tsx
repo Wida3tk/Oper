@@ -5201,9 +5201,8 @@ function LiveFinance() {
     [finalAmount, setFinalAmount] = useState(""),
     [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
-    [paying, setPaying] = useState<FinanceInstallment | null>(null),
-    [method, setMethod] = useState("تحويل بنكي"),
-    [reference, setReference] = useState(""),
+    [installmentRefs,setInstallmentRefs]=useState<Record<string,string>>({}),
+    [installmentMethods,setInstallmentMethods]=useState<Record<string,string>>({}),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
@@ -5240,8 +5239,6 @@ function LiveFinance() {
     setRegularAmountInput("");
     setFinalAmount("");
     setScheduleEdit("auto");
-    setPaying(null);
-    setReference("");
   };
   const post = async (body: Record<string, unknown>) => {
     if (!selected) return;
@@ -5253,8 +5250,6 @@ function LiveFinance() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ orderId: selected.order_id, ...body }),
       });
-      setPaying(null);
-      setReference("");
       await load(selected.order_id);
     } catch (e) {
       setError((e as Error).message);
@@ -5735,7 +5730,7 @@ function LiveFinance() {
                       </div>
                       <select
                         disabled={inst.status === "مدفوع" || saving}
-                        value={inst.display_status}
+                        value={inst.status}
                         onChange={(e) =>
                           post({
                             action: "installment_status",
@@ -5745,6 +5740,8 @@ function LiveFinance() {
                         }
                       >
                         <option>قادم</option>
+                        <option>تذكير أول</option>
+                        <option>تذكير ثانٍ</option>
                         <option>متأخر</option>
                         <option>إنذار</option>
                         <option>تطبيق السياسة</option>
@@ -5756,9 +5753,10 @@ function LiveFinance() {
                           <span>{inst.reference}</span>
                         </div>
                       ) : (
-                        <div className="installment-actions">
-                          <button disabled={saving || Number(inst.reminder_count || 0) >= 2} onClick={() => post({action:"remind_installment",installmentId:inst.id})}>{Number(inst.reminder_count || 0) === 0 ? "تسجيل التذكير الأول" : Number(inst.reminder_count || 0) === 1 ? "تسجيل التذكير الثاني" : "تم التذكيران"}</button>
-                          <button className="primary" onClick={() => setPaying(inst)}>تسجيل سداد</button>
+                        <div className="installment-quick-pay">
+                          <select value={installmentMethods[inst.id]||"تحويل بنكي"} onChange={e=>setInstallmentMethods(current=>({...current,[inst.id]:e.target.value}))}><option>تحويل بنكي</option><option>دفع إلكتروني</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option></select>
+                          <input value={installmentRefs[inst.id]||""} onChange={e=>setInstallmentRefs(current=>({...current,[inst.id]:e.target.value}))} placeholder="مرجع السداد" />
+                          <button className="installment-paid-check" title="تحديد القسط كمدفوع" disabled={saving||!String(installmentRefs[inst.id]||"").trim()} onClick={()=>post({action:"pay_installment",installmentId:inst.id,method:installmentMethods[inst.id]||"تحويل بنكي",reference:String(installmentRefs[inst.id]||"").trim()})}>✓</button>
                         </div>
                       )}
                     </article>
@@ -5768,44 +5766,6 @@ function LiveFinance() {
                 <div className="ops-empty compact">لم يُنشأ جدول أقساط بعد</div>
               )}
             </Section>
-            {paying && (
-              <Section title={`تسجيل سداد القسط ${paying.sequence}`}>
-                <div className="record-payment">
-                  <p>
-                    المبلغ الذي سيُسجل: <b>{sar(paying.amount)}</b>
-                  </p>
-                  <select
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                  >
-                    <option>تحويل بنكي</option>
-                    <option>دفع إلكتروني</option>
-                    <option>PayTabs</option>
-                    <option>تمارا</option>
-                    <option>نقدي</option>
-                  </select>
-                  <input
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                    placeholder="الرقم المرجعي *"
-                  />
-                  <button
-                    className="primary"
-                    disabled={saving || !reference}
-                    onClick={() =>
-                      post({
-                        action: "pay_installment",
-                        installmentId: paying.id,
-                        method,
-                        reference,
-                      })
-                    }
-                  >
-                    تأكيد تسجيل الدفعة
-                  </button>
-                </div>
-              </Section>
-            )}
             <Section title="سجل الدفعات">
               <div className="payment-history">
                 {selected.payments.map((payment) => (
