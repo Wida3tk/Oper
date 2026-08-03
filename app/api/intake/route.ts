@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const paymentPlan = String(body.payment || "دفع كامل");
   const baseTotal = Math.round(Number(body.baseTotal || 0) * 100) / 100;
   const discountPercent = Number(body.discountPercent || 0);
-  if(![0,5,10,15,20].includes(discountPercent))return Response.json({error:"نسبة الخصم غير صالحة"},{status:400});
+  if(![0,5,10,15,20,25,30,35,40,45,50].includes(discountPercent))return Response.json({error:"نسبة الخصم غير صالحة"},{status:400});
   const contractTotal = Math.round(baseTotal*(1-discountPercent/100)*100)/100;
   const amount = paymentPlan === "أقساط"
     ? Math.round(Number(body.amount || 0)*100)/100
