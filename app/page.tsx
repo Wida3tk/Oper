@@ -5128,18 +5128,39 @@ function LiveFinance() {
   };
   const sar = (n: number) =>
     `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
-  const financeStatus = (row: FinanceOrder) =>
-    row.finance_review_status === "pending"
-      ? "مراجعة المالية"
-      : row.remaining === 0
-        ? "مكتمل"
-        : row.installments.some((item) => item.display_status === "متأخر")
-          ? "قسط متأخر"
-          : "أقساط نشطة";
+  const financeStatus = (row: FinanceOrder) => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (row.finance_review_status === "pending") return "بانتظار المراجعة";
+    if (row.remaining === 0) return "مدفوع";
+    const openInstallments = row.installments.filter(
+      (item) => item.status !== "مدفوع",
+    );
+    if (
+      openInstallments.some(
+        (item) =>
+          item.display_status === "متأخر" ||
+          ["تذكير ثالث", "إنذار", "تطبيق السياسة"].includes(item.status),
+      )
+    )
+      return "متأخر";
+    if (openInstallments.some((item) => item.due_date === today))
+      return "مستحق اليوم";
+    if (openInstallments.length) return "أقساط نشطة";
+    if (row.paid > 0) return "دفعة جزئية";
+    return "غير مدفوع";
+  };
   const financePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
-  const financeStatuses = Array.from(new Set(rows.map(financeStatus)));
+  const financeStatuses = [
+    "بانتظار المراجعة",
+    "متأخر",
+    "مستحق اليوم",
+    "أقساط نشطة",
+    "دفعة جزئية",
+    "غير مدفوع",
+    "مدفوع",
+  ].filter((status) => rows.some((row) => financeStatus(row) === status));
   const filteredFinance = rows.filter(
     (row) =>
       (programFilter === "الكل" || row.program_name === programFilter) &&
@@ -5200,7 +5221,7 @@ function LiveFinance() {
           <div className="finance-order-list">
           {filteredFinance.map((row) => (
             <article
-              className={`finance-order-card ${row.remaining === 0 ? "settled" : row.installments.some((x) => x.display_status === "متأخر") ? "late" : ""}`}
+              className={`finance-order-card ${financeStatus(row) === "مدفوع" ? "settled" : financeStatus(row) === "متأخر" ? "late" : ""}`}
               onClick={() => open(row)}
               key={row.order_id}
             >
@@ -5215,7 +5236,7 @@ function LiveFinance() {
                 <em
                   className={`pill ${row.finance_review_status === "pending" ? "amber" : row.remaining === 0 ? "green" : "blue"}`}
                 >
-                  {row.finance_review_status === "pending" ? "مراجعة المالية" : row.remaining === 0 ? "مكتمل" : row.payment_plan}
+                  {financeStatus(row)}
                 </em>
               </div>
               <div className="finance-order-money">
@@ -5408,6 +5429,7 @@ function LiveFinance() {
                     >
                       <i>{inst.sequence}</i>
                       <div>
+                        <small>القسط {inst.sequence}</small>
                         <b>{sar(inst.amount)}</b>
                         <span>استحقاق {inst.due_date}</span>
                       </div>
