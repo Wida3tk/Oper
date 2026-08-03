@@ -3321,49 +3321,36 @@ function LiveCustomers({
   // The database contains every customer whose registration created a live
   // record. Their current operational stage must not remove them from it.
   const directoryRows = rows;
-  const categoryOrder = [
-      "شهادة تحليل السلوك",
+  const programOrder = [
+      "تحليل السلوك التطبيقي",
       "إدارة السلوك التنظيمي",
       "تقييم الكفاءة",
       "التعليم المستمر",
       "التجربة",
       "غير مصنف",
     ],
-    availableCategories = new Set(
+    availablePrograms = new Set(
       directoryRows.map((row) => customerProgramCategory(row)),
     ),
-    categories = categoryOrder.filter((category) => availableCategories.has(category)),
-    programs = [
-      "الكل",
-      ...Array.from(
-        new Set(
-          directoryRows
-            .filter(
-              (row) =>
-                categoryFilter === "الكل" ||
-                customerProgramCategory(row) === categoryFilter,
-            )
-            .map((row) => customerProgramLabel(row))
-            .filter((program) => program && program !== "—"),
-        ),
+    programs = programOrder.filter((program) => availablePrograms.has(program)),
+    classifications = Array.from(
+      new Set(
+        directoryRows
+          .filter(
+            (row) =>
+              programFilter === "الكل" ||
+              customerProgramCategory(row) === programFilter,
+          )
+          .map((row) => customerProgramLabel(row))
+          .filter((classification) => classification && classification !== "—"),
       ),
-    ];
+    );
   const filtered = directoryRows.filter(
     (row) =>
       `${row.name} ${row.id} ${row.phone} ${row.program} ${row.track} ${customerProgramLabel(row)}`.includes(query) &&
-      (programFilter === "الكل" || customerProgramLabel(row) === programFilter) &&
-      (categoryFilter === "الكل" ||
-        customerProgramCategory(row) === categoryFilter),
+      (programFilter === "الكل" || customerProgramCategory(row) === programFilter) &&
+      (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter),
   );
-  useEffect(() => {
-    if (programFilter === "الكل") return;
-    const matchingCustomer = rows.find(
-      (row) => customerProgramLabel(row) === programFilter,
-    );
-    if (!matchingCustomer) return;
-    const expectedCategory = customerProgramCategory(matchingCustomer);
-    if (categoryFilter !== expectedCategory) setCategoryFilter(expectedCategory);
-  }, [programFilter, categoryFilter, rows]);
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
   return (
@@ -3382,16 +3369,14 @@ function LiveCustomers({
           <b>
             {
               new Set(
-                directoryRows
-                  .map((row) => customerProgramLabel(row))
-                  .filter((value) => value !== "غير مصنف"),
+                directoryRows.map((row) => customerProgramCategory(row)),
               ).size
             }
           </b>
         </div>
         <div>
           <span>التصنيفات</span>
-          <b>{categories.length}</b>
+          <b>{new Set(directoryRows.map((row) => customerProgramLabel(row))).size}</b>
         </div>
       </div>
       <div className="card full customer-directory">
@@ -3402,35 +3387,25 @@ function LiveCustomers({
           </div>
         </div>
         <CustomerSmartFilters
-          programs={programs.slice(1)}
-          statuses={categories}
+          programs={programs}
+          statuses={classifications}
           program={programFilter}
           status={categoryFilter}
           total={directoryRows.length}
           visible={filtered.length}
           onProgram={(program) => {
             setProgramFilter(program);
-            if (program !== "الكل") {
-              const matchingCustomer = directoryRows.find(
-                (row) => customerProgramLabel(row) === program,
-              );
-              if (matchingCustomer)
-                setCategoryFilter(customerProgramCategory(matchingCustomer));
-            }
-          }}
-          onStatus={(category) => {
-            setCategoryFilter(category);
             if (
-              programFilter !== "الكل" &&
+              categoryFilter !== "الكل" &&
               !directoryRows.some(
                 (row) =>
-                  customerProgramLabel(row) === programFilter &&
-                  (category === "الكل" ||
-                    customerProgramCategory(row) === category),
+                  customerProgramLabel(row) === categoryFilter &&
+                  (program === "الكل" || customerProgramCategory(row) === program),
               )
             )
-              setProgramFilter("الكل");
+              setCategoryFilter("الكل");
           }}
+          onStatus={setCategoryFilter}
           title="تصنيف قاعدة العملاء"
           description="عرض العملاء حسب البرنامج أو التصنيف"
           secondaryLabel="التصنيف"
@@ -6293,7 +6268,7 @@ function customerProgramCategory(customer: (typeof initialPeople)[number]) {
     value.includes("تحليل السلوك التطبيقي") ||
     value.includes("aba")
   )
-    return "شهادة تحليل السلوك";
+    return "تحليل السلوك التطبيقي";
   return "التعليم المستمر";
 }
 
@@ -6301,7 +6276,7 @@ function customerProgramLabel(customer: (typeof initialPeople)[number]) {
   const category = customerProgramCategory(customer);
   const track = String(customer.track || "").trim();
   const hasTrack = track && track !== "—" && track !== "غير محدد";
-  if (category === "شهادة تحليل السلوك") return hasTrack ? track : "غير محدد";
+  if (category === "تحليل السلوك التطبيقي") return hasTrack ? track : "غير محدد";
   if (category === "إدارة السلوك التنظيمي") return hasTrack ? track : "غير محدد";
   if (category === "التعليم المستمر") {
     if (customer.program === "التعليم المستمر" && hasTrack) return track;
@@ -6326,6 +6301,7 @@ function CompletedCustomerTable({
           <tr>
             <th>اسم العميل</th>
             <th>البرنامج</th>
+            <th>التصنيف</th>
           </tr>
         </thead>
         <tbody>
@@ -6336,11 +6312,13 @@ function CompletedCustomerTable({
                 <small>فتح ملف العميل</small>
               </td>
               <td>
-                <b>{customerProgramLabel(customer)}</b>
+                <b>{customerProgramCategory(customer)}</b>
                 <small>
-                  {customerProgramCategory(customer)}
                   {customer.cohort !== "—" ? ` · ${customer.cohort}` : ""}
                 </small>
+              </td>
+              <td>
+                <b>{customerProgramLabel(customer)}</b>
               </td>
             </tr>
           ))}
