@@ -116,7 +116,7 @@ export async function POST(req:Request){
  if(action==="installment_status"){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");
-  if(!["ملتزم","تذكير أول","تذكير ثاني","تذكير ثالث","تذكير نهائي","موافقة تمديد","تطبيق السياسة","متأخر"].includes(status))return Response.json({error:"سلوك السداد غير صالح"},{status:400});
+  if(!["ملتزم","تذكير أول","تذكير ثاني","تذكير ثالث","تذكير نهائي","موافقة تمديد","تطبيق السياسة","متأخر"].includes(status))return Response.json({error:"حالة السداد غير صالحة"},{status:400});
   const reminderCount=status==="تذكير أول"?1:status==="تذكير ثاني"?2:status==="تذكير ثالث"?3:status==="تذكير نهائي"?4:null;
   if(reminderCount)await db.prepare("UPDATE installments SET status=?,reminder_count=MAX(COALESCE(reminder_count,0),?),first_reminder_at=CASE WHEN first_reminder_at IS NULL THEN ? ELSE first_reminder_at END,second_reminder_at=CASE WHEN ?>=2 AND second_reminder_at IS NULL THEN ? ELSE second_reminder_at END,last_reminded_by_email=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,reminderCount,now,reminderCount,now,auth.email,now,installmentId,orderId).run();
   else await db.prepare("UPDATE installments SET status=?,updated_at=? WHERE id=? AND order_id=? AND status!='مدفوع'").bind(status,now,installmentId,orderId).run();return Response.json({ok:true});

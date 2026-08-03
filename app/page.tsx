@@ -5585,7 +5585,7 @@ function LiveFinance() {
               {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
             </div>
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
-              <div><span>سلوك السداد</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
+              <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
               <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>
             </div>
             {selected.finance_review_status === "pending" && (
@@ -5625,7 +5625,7 @@ function LiveFinance() {
                 </label>
               </div>
             </Section>
-            <Section title="جدول الأقساط">
+            <Section title="حالة السداد">
               <div className="schedule-form">
                 <label>
                   إجمالي عقد البرنامج · دون رسوم المقعد
@@ -5735,7 +5735,7 @@ function LiveFinance() {
                         <span>استحقاق {inst.due_date}</span>
                         {Boolean(inst.reminder_count) && <small className="installment-reminder-meta">{inst.reminder_count} تذكير · آخر تسجيل بواسطة {inst.last_reminded_by_email}</small>}
                       </div>
-                      <label className="installment-behavior"><span>سلوك السداد</span><select
+                      <label className="installment-behavior"><span>حالة السداد</span><select
                         disabled={inst.status === "مدفوع" || saving}
                         value={inst.status==="مدفوع"?"تم السداد":inst.status}
                         onChange={(e) =>
