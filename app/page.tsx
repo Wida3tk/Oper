@@ -3355,6 +3355,13 @@ function LiveCustomers({
       (categoryFilter === "الكل" ||
         customerProgramCategory(row) === categoryFilter),
   );
+  useEffect(() => {
+    if (programFilter === "الكل") return;
+    const matchingCustomer = rows.find((row) => row.program === programFilter);
+    if (!matchingCustomer) return;
+    const expectedCategory = customerProgramCategory(matchingCustomer);
+    if (categoryFilter !== expectedCategory) setCategoryFilter(expectedCategory);
+  }, [programFilter, categoryFilter, rows]);
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
   return (
