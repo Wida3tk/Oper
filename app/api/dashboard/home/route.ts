@@ -12,7 +12,7 @@ export async function GET(req:Request){
   const taskScope=isAdmin?"":"AND assignee_email=?";
   const taskQuery=db.prepare(`SELECT id,title,department,priority,due_at FROM workflow_tasks WHERE status!='مكتملة' ${taskScope} ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at LIMIT 6`);
   const pendingQuery=db.prepare(`SELECT COUNT(DISTINCT entity_id) count FROM workflow_tasks WHERE status!='مكتملة' ${taskScope}`);
-  const [account,tasks,pendingCustomers,customers,totalCustomers,reservations,journey,activity]=await Promise.all([
+  const [account,tasks,pendingCustomers,customers,totalCustomers,reservations,journey,activity,traineeRows]=await Promise.all([
     db.prepare("SELECT display_name FROM staff_accounts WHERE email=?").bind(auth.email).first<{display_name:string}>(),
     (isAdmin?taskQuery:taskQuery.bind(auth.email)).all(),
     (isAdmin?pendingQuery:pendingQuery.bind(auth.email)).first(),
@@ -21,7 +21,16 @@ export async function GET(req:Request){
     db.prepare("SELECT COUNT(*) count FROM seat_reservations WHERE status NOT IN ('تم التحويل','تم النقل')").first(),
     db.prepare("SELECT status,COUNT(*) count FROM enrollments GROUP BY status ORDER BY MIN(created_at)").all(),
     db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.actor_email,a.created_at,s.display_name actor_name FROM audit_log a LEFT JOIN staff_accounts s ON s.email=a.actor_email ORDER BY a.created_at DESC LIMIT 10").all(),
+    db.prepare(`SELECT p.name program_name,COALESCE(NULLIF(o.track,''),'غير محدد') detail,COUNT(DISTINCT e.customer_id) count
+      FROM enrollments e JOIN programs p ON p.id=e.program_id JOIN orders o ON o.id=e.order_id
+      GROUP BY p.name,COALESCE(NULLIF(o.track,''),'غير محدد') ORDER BY count DESC,p.name`).all(),
   ]);
+  const traineeGroups=[
+    {key:"aba",label:"شهادة تحليل السلوك",match:(name:string)=>name.includes("تحليل السلوك التطبيقي")},
+    {key:"obm",label:"إدارة السلوك التنظيمي",match:(name:string)=>name.includes("إدارة السلوك التنظيمي")},
+    {key:"ca",label:"تقييم الكفاءة",match:(name:string)=>name.includes("تقييم الكفاءة")},
+    {key:"ceu",label:"التعليم المستمر",match:(name:string)=>!name.includes("تحليل السلوك التطبيقي")&&!name.includes("إدارة السلوك التنظيمي")&&!name.includes("تقييم الكفاءة")},
+  ].map(group=>{const rows=(traineeRows.results as Record<string,unknown>[]).filter(row=>group.match(String(row.program_name||"")));const details=new Map<string,number>();for(const row of rows){const program=String(row.program_name||"غير محدد"),track=String(row.detail||"غير محدد"),label=group.key==="ceu"?program:(track==="غير محدد"?program:track);details.set(label,(details.get(label)||0)+num(row.count))}return {key:group.key,label:group.label,count:rows.reduce((sum,row)=>sum+num(row.count),0),details:[...details].map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count)};});
   let finance=null;
   if(canSeeFinance){
     const [contracts,contractPayments,flows,target,review]=await Promise.all([
@@ -46,7 +55,7 @@ export async function GET(req:Request){
     canSeeFinance,canEditFinanceTarget:can(auth,"finance.total.edit"),
     operations:{pendingCustomers:num((pendingCustomers as Record<string,unknown>)?.count),customersToday:num((customers as Record<string,unknown>)?.count),totalCustomers:num((totalCustomers as Record<string,unknown>)?.count),activeReservations:num((reservations as Record<string,unknown>)?.count)},
     tasks:tasks.results.map(row=>({...row,department:row.department==="الأكاديمية"?"التشغيلية":row.department})),
-    journey:journey.results,activity:activity.results,finance,generatedAt:new Date().toISOString()
+    journey:journey.results,activity:activity.results,trainees:traineeGroups,finance,generatedAt:new Date().toISOString()
   });
 }
 
