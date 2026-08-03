@@ -3364,16 +3364,12 @@ type OperationsCenterData = {
 };
 
 function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
-  const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [eventFormOpen, setEventFormOpen] = useState(false), [savingEvent, setSavingEvent] = useState(false), [eventForm, setEventForm] = useState({ id: "", title: "", eventDate: "", eventTime: "", details: "", audience: ["all"] as string[] });
+  const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
   useEffect(() => { void load(); const refresh = () => void load(); window.addEventListener("sulukera:data-changed", refresh); return () => window.removeEventListener("sulukera:data-changed", refresh); }, []);
   if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
-  const resetEventForm = () => setEventForm({ id: "", title: "", eventDate: "", eventTime: "", details: "", audience: ["all"] });
-  const saveEvent = async () => { setSavingEvent(true); setError(""); try { await apiJson("/api/operations-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(eventForm) }); setEventFormOpen(false); resetEventForm(); await load(); } catch (e) { setError((e as Error).message); } finally { setSavingEvent(false); } };
-  const deleteEvent = async (eventId: string) => { if (!window.confirm("حذف هذا الموعد من جدول الفريق؟")) return; try { await apiJson(`/api/operations-center?id=${encodeURIComponent(eventId)}`, { method: "DELETE" }); await load(); } catch (e) { setError((e as Error).message); } };
-  const editEvent = (item: OperationsCenterData["events"][number]) => { setEventForm({ id: item.id, title: item.title, eventDate: item.event_date, eventTime: item.event_time || "", details: item.details || "", audience: String(item.audience || "all").split(",") }); setEventFormOpen(true); };
   return <div className="operations-center">
     <section className="operations-command">
       <div><span>الرؤية التشغيلية</span><h2>استعد لما هو قادم، وأنجز ما يحتاج تدخلك اليوم</h2><p>تابع مواعيد البرامج والحالات التي تحتاج تدخلاً في الوقت المناسب.</p></div>
@@ -3386,15 +3382,9 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
       <article className="violet"><CircleUserRound size={20}/><span>بيانات ناقصة</span><b>{data.stats.incomplete}</b><small>تؤثر على جاهزية العميل</small></article>
     </div>
     <section className="team-events-board">
-      <header><div><CalendarDays size={19}/><span><b>مواعيد الفريق القادمة</b><small>المواعيد المهمة التي يجب أن تبقى أمام الفريق</small></span></div>{data.canManageEvents && <button onClick={() => { resetEventForm(); setEventFormOpen(true); }}>إضافة موعد</button>}</header>
-      {data.canManageEvents && eventFormOpen && <div className="team-event-form">
-        <header><div><CalendarDays size={19}/><span><b>{eventForm.id ? "تعديل الموعد" : "إضافة موعد للفريق"}</b><small>سيظهر الموعد تلقائيًا للأقسام المحددة.</small></span></div><button onClick={() => setEventFormOpen(false)}>×</button></header>
-        <div><label>اسم الموعد<input value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} placeholder="مثال: بداية الدفعة الثانية عشرة" /></label><label>التاريخ<input type="date" value={eventForm.eventDate} onChange={e => setEventForm({ ...eventForm, eventDate: e.target.value })}/></label><label>الوقت — اختياري<input type="time" value={eventForm.eventTime} onChange={e => setEventForm({ ...eventForm, eventTime: e.target.value })}/></label><label>التفاصيل<input value={eventForm.details} onChange={e => setEventForm({ ...eventForm, details: e.target.value })} placeholder="تعليمات أو وصف مختصر" /></label></div>
-        <fieldset><legend>يظهر إلى</legend>{[["all","جميع الموظفين"],["sales","المبيعات"],["academy","التشغيلية"],["finance","المالية"]].map(([value,label]) => <label className={eventForm.audience.includes(value) ? "active" : ""} key={value}><input type="checkbox" checked={eventForm.audience.includes(value)} onChange={() => { const next = value === "all" ? ["all"] : eventForm.audience.filter(x => x !== "all"); setEventForm({ ...eventForm, audience: next.includes(value) ? next.filter(x => x !== value) : [...next, value] }); }}/>{label}</label>)}</fieldset>
-        {error && <div className="ops-error compact">{error}</div>}<button className="primary" disabled={savingEvent || !eventForm.title || !eventForm.eventDate} onClick={saveEvent}>{savingEvent ? "جارٍ الحفظ..." : "حفظ الموعد"}</button>
-      </div>}
+      <header><div><CalendarDays size={19}/><span><b>مواعيد الفريق القادمة</b><small>المواعيد المهمة التي يجب أن تبقى أمام الفريق</small></span></div></header>
       <div className="team-event-cards">{data.events.length ? data.events.map(item => <article key={item.id}>
-        <time><CalendarDays size={18}/><span><b>{dateLabel(item.event_date)}</b><small>{item.event_time || "طوال اليوم"}</small></span></time><div><b>{item.title}</b><span>{item.details || "موعد مجدول"}</span></div>{data.canManageEvents && <footer><button onClick={() => editEvent(item)}>تعديل</button><button onClick={() => deleteEvent(item.id)}>حذف</button></footer>}
+        <time><CalendarDays size={18}/><span><b>{dateLabel(item.event_date)}</b><small>{item.event_time || "طوال اليوم"}</small></span></time><div><b>{item.title}</b><span>{item.details || "موعد مجدول"}</span></div>
       </article>) : <div className="team-events-empty">لا توجد مواعيد فريق مضافة حاليًا.</div>}</div>
     </section>
     <div className="operations-center-grid">
@@ -4275,7 +4265,7 @@ type StaffRow = {
   has_password?: number;
 };
 function ControlPanel() {
-  const [section, setSection] = useState<"users" | "programs">("users");
+  const [section, setSection] = useState<"users" | "programs" | "dates">("users");
   return (
     <div className="control-panel">
       <nav className="control-panel-tabs" aria-label="أقسام لوحة التحكم">
@@ -4293,10 +4283,37 @@ function ControlPanel() {
           <FolderKanban size={18} />
           إدارة البرامج
         </button>
+        <button
+          className={section === "dates" ? "active" : ""}
+          onClick={() => setSection("dates")}
+        >
+          <CalendarDays size={18} />
+          إدارة المواعيد
+        </button>
       </nav>
-      {section === "users" ? <Users /> : <Programs />}
+      {section === "users" ? <Users /> : section === "programs" ? <Programs /> : <TeamEventsAdmin />}
     </div>
   );
+}
+
+function TeamEventsAdmin() {
+  const empty = { id: "", title: "", eventDate: "", eventTime: "", details: "", audience: ["all"] as string[] };
+  const [rows, setRows] = useState<OperationsCenterData["events"]>([]), [form, setForm] = useState(empty), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState("");
+  const load = async () => { setLoading(true); setError(""); try { const result = await apiJson("/api/operations-center"); setRows(result.events || []); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  const save = async () => { setSaving(true); setError(""); try { await apiJson("/api/operations-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) }); setForm(empty); await load(); } catch (e) { setError((e as Error).message); } finally { setSaving(false); } };
+  const edit = (item: OperationsCenterData["events"][number]) => setForm({ id: item.id, title: item.title, eventDate: item.event_date, eventTime: item.event_time || "", details: item.details || "", audience: String(item.audience || "all").split(",") });
+  const remove = async (eventId: string) => { if (!window.confirm("حذف هذا الموعد من جدول الفريق؟")) return; try { await apiJson(`/api/operations-center?id=${encodeURIComponent(eventId)}`, { method: "DELETE" }); if (form.id === eventId) setForm(empty); await load(); } catch (e) { setError((e as Error).message); } };
+  const audienceLabels: Record<string, string> = { all: "جميع الموظفين", sales: "المبيعات", academy: "التشغيلية", finance: "المالية" };
+  return <div className="team-events-admin">
+    <section className="team-event-form">
+      <header><div><CalendarDays size={19}/><span><b>{form.id ? "تعديل الموعد" : "إضافة موعد للفريق"}</b><small>يظهر الموعد تلقائيًا داخل مركز العمليات للأقسام المحددة.</small></span></div>{form.id && <button onClick={() => setForm(empty)}>×</button>}</header>
+      <div><label>اسم الموعد<input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="مثال: بداية الدفعة الثانية عشرة" /></label><label>التاريخ<input type="date" value={form.eventDate} onChange={e => setForm({ ...form, eventDate: e.target.value })}/></label><label>الوقت — اختياري<input type="time" value={form.eventTime} onChange={e => setForm({ ...form, eventTime: e.target.value })}/></label><label>التفاصيل<input value={form.details} onChange={e => setForm({ ...form, details: e.target.value })} placeholder="تعليمات أو وصف مختصر" /></label></div>
+      <fieldset><legend>يظهر إلى</legend>{Object.entries(audienceLabels).map(([value,label]) => <label className={form.audience.includes(value) ? "active" : ""} key={value}><input type="checkbox" checked={form.audience.includes(value)} onChange={() => { const next = value === "all" ? ["all"] : form.audience.filter(x => x !== "all"); setForm({ ...form, audience: next.includes(value) ? next.filter(x => x !== value) : [...next, value] }); }}/>{label}</label>)}</fieldset>
+      {error && <div className="ops-error compact">{error}</div>}<button className="primary" disabled={saving || !form.title || !form.eventDate} onClick={save}>{saving ? "جارٍ الحفظ..." : form.id ? "حفظ التعديلات" : "إضافة الموعد"}</button>
+    </section>
+    <section className="team-events-admin-list"><header><div><CalendarDays size={19}/><span><b>المواعيد الحالية</b><small>إدارة المواعيد الظاهرة في مركز العمليات</small></span></div><em>{rows.length}</em></header>{loading ? <LiveState loading error="" empty={false}/> : <div>{rows.length ? rows.map(item => <article key={item.id}><time><b>{new Date(`${item.event_date}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "short", year: "numeric" })}</b><small>{item.event_time || "طوال اليوم"}</small></time><div><b>{item.title}</b><span>{item.details || "دون تفاصيل"}</span><small>{String(item.audience || "all").split(",").map(x => audienceLabels[x] || x).join(" · ")}</small></div><footer><button onClick={() => edit(item)}>تعديل</button><button onClick={() => remove(item.id)}>حذف</button></footer></article>) : <div className="guided-empty"><CalendarDays size={25}/><b>لا توجد مواعيد مضافة</b><span>استخدم النموذج لإضافة أول موعد للفريق.</span></div>}</div>}</section>
+  </div>;
 }
 function Programs() {
   const [rows, setRows] = useState<Program[]>([]),
