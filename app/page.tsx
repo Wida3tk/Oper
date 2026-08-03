@@ -1613,6 +1613,7 @@ function Registration({ done }: { done: () => void }) {
   };
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const isAbat = selectedProgram?.name.includes("تحليل السلوك التطبيقي") && form.track.toUpperCase() === "ABAT";
+  const isObm = Boolean(selectedProgram?.name.includes("إدارة السلوك التنظيمي"));
   const directProgram = form.journey === "برنامج مباشر";
   const seatReservationEligible =
     form.delivery === "مباشر" &&
@@ -1681,7 +1682,7 @@ function Registration({ done }: { done: () => void }) {
       step === 2 &&
       (!form.programId ||
         !form.delivery ||
-        !form.language ||
+        (isObm && !form.language) ||
         (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
         (form.delivery === "مباشر" && !form.cohort) ||
         (hasSeatReservation && !(seatFee > 0)) ||
@@ -1693,8 +1694,8 @@ function Registration({ done }: { done: () => void }) {
           : reservationDatesInvalid
           ? "يلزم إدخال تاريخ بدء البرنامج وتاريخ إسناد يسبقه أو يساويه"
           : form.delivery === "مباشر"
-            ? "يلزم تحديد البرنامج والمسار واللغة واسم الدفعة"
-            : "يلزم تحديد البرنامج والمسار ونمط البرنامج واللغة",
+            ? `يلزم تحديد البرنامج والمسار${isObm ? " واللغة" : ""} واسم الدفعة`
+            : `يلزم تحديد البرنامج والمسار ونمط البرنامج${isObm ? " واللغة" : ""}`,
       );
       return;
     }
@@ -1733,7 +1734,7 @@ function Registration({ done }: { done: () => void }) {
     if (
       !form.programId ||
       !form.delivery ||
-      !form.language ||
+      (isObm && !form.language) ||
       (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
       (form.delivery === "مباشر" && !form.cohort) ||
       (hasSeatReservation && !(seatFee > 0)) ||
@@ -1862,7 +1863,7 @@ function Registration({ done }: { done: () => void }) {
             <FormHead
               n="01"
               title="بيانات العميل"
-              text="تسجيل بيانات العميل وتحديد نوع الرحلة؛ الدفع أو التجربة هما بوابة إنشاء العميل."
+              text="تسجيل بيانات العميل وتحديد نوع الاشتراك؛ الدفع أو التجربة هما بوابة إنشاء العميل."
             />
             <div className="field-grid">
               <Field label="اسم العميل الكامل *">
@@ -1904,7 +1905,7 @@ function Registration({ done }: { done: () => void }) {
             <FormHead
               n="02"
               title="البرنامج"
-              text="تصنيف الرحلة يحدد الإجراء؛ البرنامج المباشر ينتقل إلى التهيئة في تاريخ الإسناد، والتجربة لا تتطلب دفعة."
+              text="نوع الاشتراك يحدد الإجراء؛ البرنامج المباشر ينتقل إلى التهيئة في تاريخ الإسناد، والتجربة لا تتطلب دفعة."
             />
             <div className="field-grid">
               <Field label="البرنامج *">
@@ -1946,7 +1947,7 @@ function Registration({ done }: { done: () => void }) {
                   </select>
                 </Field>
               )}
-              <Field label="تصنيف الرحلة *">
+              <Field label="نوع الاشتراك *">
                 <select
                   required
                   value={form.journey}
@@ -2008,7 +2009,7 @@ function Registration({ done }: { done: () => void }) {
                   </small>
                 </Field>
               )}
-              <Field label="اللغة *">
+              {isObm && <Field label="اللغة *">
                 <select
                   required
                   value={form.language}
@@ -2017,7 +2018,7 @@ function Registration({ done }: { done: () => void }) {
                   <option>العربية</option>
                   <option>الإنجليزية</option>
                 </select>
-              </Field>
+              </Field>}
               {scheduledJourney && (
                 <Field label="اسم الدفعة *">
                   <input
@@ -2296,20 +2297,20 @@ function Registration({ done }: { done: () => void }) {
             <FormHead
               n="04"
               title="مراجعة البيانات"
-              text="مراجعة نوع الرحلة والإجراءات التي سيُنشئها النظام قبل الحفظ."
+              text="مراجعة نوع الاشتراك والإجراءات التي سيُنشئها النظام قبل الحفظ."
             />
             <div className="review-grid">
               <section>
                 <h3>ملخص الطلب</h3>
                 <Review label="العميل" value={form.name || "لم يُدخل بعد"} />
-                <Review label="نوع الرحلة" value={form.journey} />
+                <Review label="نوع الاشتراك" value={form.journey} />
                 <Review
                   label="البرنامج"
                   value={`${form.program} · ${form.track}`}
                 />
                 <Review
                   label="نمط الدراسة"
-                  value={`${isAbat ? "ABAT" : form.delivery} · ${form.language}`}
+                  value={isObm ? `${isAbat ? "ABAT" : form.delivery} · ${form.language}` : (isAbat ? "ABAT" : form.delivery)}
                 />
                 {isAbat && <Review label="تقييم الكفاءة" value={form.competencyAssessment} />}
                 {form.startDate && (

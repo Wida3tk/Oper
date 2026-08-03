@@ -70,3 +70,12 @@ test("offers competency assessment only with the ABAT track", async () => {
   assert.match(page, /مع تقييم كفاءة/);
   assert.match(page, /isAbat &&/);
 });
+
+test("limits language selection to organizational behavior management", async () => {
+  const api = await read("../app/api/intake/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(api, /isObm&&!language/);
+  assert.match(api, /orderLanguage=isObm\?language:""/);
+  assert.match(page, /isObm && <Field label="اللغة \*">/);
+  assert.match(page, /نوع الاشتراك \*/);
+});
