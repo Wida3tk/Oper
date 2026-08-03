@@ -1924,7 +1924,7 @@ function Registration({ done }: { done: () => void }) {
             <FormHead
               n="01"
               title="بيانات العميل"
-              text="تسجيل بيانات العميل وتحديد نوع الاشتراك؛ الدفع أو التجربة هما بوابة إنشاء العميل."
+              text="أدخل بيانات العميل الأساسية لبدء التسجيل والمتابعة."
             />
             <div className="field-grid">
               <Field label="اسم العميل الكامل *">
@@ -1955,9 +1955,6 @@ function Registration({ done }: { done: () => void }) {
                   placeholder="name@example.com"
                 />
               </Field>
-            </div>
-            <div className="hint">
-              لن يُنشأ العميل إلا عند تسجيل دفعة أو منحه تجربة من المبيعات.
             </div>
           </>
         )}
