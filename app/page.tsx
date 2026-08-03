@@ -1661,7 +1661,10 @@ function Registration({ done }: { done: () => void }) {
         ...f,
         programId,
         program: program.name,
-        track: program.tracks?.[0]?.name || "",
+        track:
+          program.name.includes("التعليم المستمر") && f.delivery === "مسجل"
+            ? ""
+            : program.tracks?.[0]?.name || "",
         seatReserved: "لا",
         seatFee: "",
         competencyAssessment: "لا",
@@ -1670,6 +1673,7 @@ function Registration({ done }: { done: () => void }) {
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const isAbat = selectedProgram?.name.includes("تحليل السلوك التطبيقي") && form.track.toUpperCase() === "ABAT";
   const isObm = Boolean(selectedProgram?.name.includes("إدارة السلوك التنظيمي"));
+  const isContinuingEducation = Boolean(selectedProgram?.name.includes("التعليم المستمر"));
   const isSupervision = form.journey === "إشراف";
   const directProgram = form.journey === "برنامج مباشر";
   const seatReservationEligible =
@@ -1742,7 +1746,8 @@ function Registration({ done }: { done: () => void }) {
       (!form.programId ||
         !form.delivery ||
         (isObm && !isSupervision && !form.language) ||
-        (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
+        (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !form.track) ||
+        (isContinuingEducation && form.delivery === "مباشر" && !form.track) ||
         (scheduledJourney && !form.cohort) ||
         (hasSeatReservation && !(seatFee > 0)) ||
         reservationDatesInvalid)
@@ -1794,7 +1799,8 @@ function Registration({ done }: { done: () => void }) {
       !form.programId ||
       !form.delivery ||
       (isObm && !isSupervision && !form.language) ||
-      (Boolean(selectedProgram?.tracks?.length) && !form.track) ||
+      (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !form.track) ||
+      (isContinuingEducation && form.delivery === "مباشر" && !form.track) ||
       (scheduledJourney && !form.cohort) ||
       (hasSeatReservation && !(seatFee > 0)) ||
       reservationDatesInvalid
@@ -1979,7 +1985,7 @@ function Registration({ done }: { done: () => void }) {
                   ))}
                 </select>
               </Field>
-              {Boolean(selectedProgram?.tracks?.length) && (
+              {Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && (
                 <Field label="المسار *">
                   <select
                     required
@@ -2025,6 +2031,11 @@ function Registration({ done }: { done: () => void }) {
                     setForm((current) => ({
                       ...current,
                       delivery: e.target.value,
+                      track: isContinuingEducation
+                        ? e.target.value === "مباشر"
+                          ? selectedProgram?.tracks?.[0]?.name || ""
+                          : ""
+                        : current.track,
                       seatReserved:
                         e.target.value === "مباشر"
                           ? current.seatReserved
@@ -2038,6 +2049,18 @@ function Registration({ done }: { done: () => void }) {
                   <option>مباشر</option>
                 </select>
               </Field>}
+              {isContinuingEducation && form.delivery === "مباشر" && (
+                <Field label="اسم البرنامج المباشر *">
+                  <select required value={form.track} onChange={(e) => set("track", e.target.value)}>
+                    {selectedProgram?.tracks?.map((track) => <option key={track.name}>{track.name}</option>)}
+                  </select>
+                </Field>
+              )}
+              {isContinuingEducation && form.delivery === "مسجل" && (
+                <Field label="اسم البرنامج المسجل — اختياري">
+                  <input value={form.track} onChange={(e) => set("track", e.target.value)} placeholder="اكتب اسم البرنامج عند الحاجة" />
+                </Field>
+              )}
               {seatReservationEligible && (
                 <Field label="هل تم حجز المقعد؟ *">
                   <select
@@ -2373,7 +2396,7 @@ function Registration({ done }: { done: () => void }) {
                 <Review label="نوع الاشتراك" value={form.journey} />
                 <Review
                   label="البرنامج"
-                  value={`${form.program} · ${form.track}`}
+                  value={form.track ? `${form.program} · ${form.track}` : form.program}
                 />
                 <Review
                   label="نمط الدراسة"
