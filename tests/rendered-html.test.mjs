@@ -139,3 +139,13 @@ test("allows finance to update each installment due date independently", async (
   assert.match(page, /تاريخ الاستحقاق/);
   assert.match(page, /تاريخ السداد الفعلي/);
 });
+
+test("supports an audited undo for recent financial mistakes", async () => {
+  const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(api, /action==="undo_last_finance_action"/);
+  assert.match(api, /finance_undo_log/);
+  assert.match(api, /UNDO_FINANCE_ACTION/);
+  assert.match(page, /تراجع عن آخر إجراء/);
+  assert.match(page, /سيُحفظ التراجع في سجل النظام/);
+});

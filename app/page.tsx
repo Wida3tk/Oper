@@ -2645,6 +2645,7 @@ type FinanceOrder = {
   discount_percent: number;
   payments: FinancePayment[];
   installments: FinanceInstallment[];
+  undo_available?: { id: string; action: string; label: string; created_at: string } | null;
 };
 type ProgramTrack = { id?: string; name: string; active?: number };
 type Program = {
@@ -2684,6 +2685,7 @@ async function apiJson(url: string, init?: RequestInit) {
       approve_finance_review: "تم اعتماد المراجعة المالية",
       review_legacy_installments: "تم اعتماد المراجعة المالية",
       note: "تم حفظ الملاحظة المالية",
+      undo_last_finance_action: "تم التراجع عن آخر إجراء مالي",
     };
     const message = messages[action] || (method === "DELETE" ? "تم الحذف بنجاح" : method === "PATCH" ? "تم تحديث البيانات بنجاح" : "تم تنفيذ الإجراء بنجاح");
     window.dispatchEvent(new CustomEvent("sulukera:success", { detail: { message } }));
@@ -5884,6 +5886,12 @@ function LiveFinance() {
               />
             </div>
             {error && <div className="ops-error compact">{error}</div>}
+            {selected.undo_available && (
+              <div className="finance-undo-bar">
+                <div><b>آخر إجراء قابل للتراجع</b><span>{selected.undo_available.label}</span></div>
+                <button type="button" disabled={saving} onClick={() => window.confirm(`سيتم عكس إجراء: ${selected.undo_available?.label}. سيُحفظ التراجع في سجل النظام. هل تريد المتابعة؟`) && post({action:"undo_last_finance_action"})}>تراجع عن آخر إجراء</button>
+              </div>
+            )}
             <div className="finance-hero">
               <p>
                 <span>إجمالي البرنامج بعد الخصم</span>
