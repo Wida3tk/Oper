@@ -5661,7 +5661,7 @@ function LiveFinance() {
   };
   const subscriptionMeta = (row: FinanceOrder) => {
     const items: string[] = [];
-    if (row.program_track && !["غير محدد", "—"].includes(row.program_track)) items.push(`التصنيف: ${row.program_track}`);
+    if (row.program_track && !["غير محدد", "—"].includes(row.program_track)) items.push(`المسار: ${row.program_track}`);
     if (row.program_delivery) items.push(`النمط: ${row.program_delivery}`);
     if (row.order_type === "إشراف") items.push("إشراف");
     if (Number(row.competency_assessment || 0) > 0) items.push("مع تقييم كفاءة");
@@ -6024,7 +6024,7 @@ function LiveFinance() {
                   مصدر الشراء<b>{selected.purchase_source}</b>
                 </label>
                 <label>
-                  التصنيف أو المسار<b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون تصنيف"}</b>
+                  المسار<b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</b>
                 </label>
                 <label>
                   نمط البرنامج<b>{selected.program_delivery || "غير محدد"}</b>

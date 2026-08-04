@@ -183,7 +183,7 @@ test("shows subscription classification and delivery on finance cards", async ()
   const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(api, /o\.track program_track,o\.delivery program_delivery/);
-  assert.match(page, /التصنيف:/);
+  assert.match(page, /المسار:/);
   assert.match(page, /النمط:/);
   assert.match(page, /مع تقييم كفاءة/);
 });
