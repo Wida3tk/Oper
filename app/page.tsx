@@ -5547,7 +5547,7 @@ function LiveFinance() {
     [firstPaymentAmount, setFirstPaymentAmount] = useState(""),
     [legacySeatFee, setLegacySeatFee] = useState(""),
     [finalAmount, setFinalAmount] = useState(""),
-    [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final">("auto"),
+    [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final"|"existing">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
     [installmentRefs,setInstallmentRefs]=useState<Record<string,string>>({}),
     [installmentMethods,setInstallmentMethods]=useState<Record<string,string>>({}),
@@ -5557,6 +5557,24 @@ function LiveFinance() {
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
+  const syncScheduleFromSavedTable = (row: FinanceOrder) => {
+    const openInstallments = [...row.installments]
+      .filter((item) => item.status !== "مدفوع")
+      .sort((a, b) => Number(a.sequence) - Number(b.sequence));
+    if (!openInstallments.length) {
+      setCount("4");
+      setStart(new Date().toISOString().slice(0, 10));
+      setRegularAmountInput("");
+      setFinalAmount("");
+      setScheduleEdit("auto");
+      return;
+    }
+    setCount(String(openInstallments.length));
+    setStart(String(openInstallments[0].due_date || "").slice(0, 10));
+    setRegularAmountInput(openInstallments.length > 1 ? Number(openInstallments[0].amount).toFixed(2) : "0.00");
+    setFinalAmount(Number(openInstallments[openInstallments.length - 1].amount).toFixed(2));
+    setScheduleEdit("existing");
+  };
   const load = async (keepId?: string) => {
     setLoading(true);
     setError("");
@@ -5573,6 +5591,7 @@ function LiveFinance() {
           setTotal(String(updated.total));
           setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
           setLegacySeatFee(String(updated.seat_fee || ""));
+          syncScheduleFromSavedTable(updated);
           setInstallmentDueDates(Object.fromEntries(updated.installments.map((item: FinanceInstallment) => [item.id, String(item.due_date).slice(0,10)])));
           setInstallmentPaymentDates(Object.fromEntries(updated.installments.filter((item: FinanceInstallment) => item.paid_at).map((item: FinanceInstallment) => [item.id, String(item.paid_at).slice(0,10)])));
         }
@@ -5591,11 +5610,9 @@ function LiveFinance() {
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
     setLegacySeatFee(String(row.seat_fee || ""));
+    syncScheduleFromSavedTable(row);
     setInstallmentDueDates(Object.fromEntries(row.installments.map((item) => [item.id, String(item.due_date).slice(0,10)])));
     setInstallmentPaymentDates(Object.fromEntries(row.installments.filter((item) => item.paid_at).map((item) => [item.id, String(item.paid_at).slice(0,10)])));
-    setRegularAmountInput("");
-    setFinalAmount("");
-    setScheduleEdit("auto");
   };
   const post = async (body: Record<string, unknown>) => {
     if (!selected) return;
@@ -5741,10 +5758,10 @@ function LiveFinance() {
   );
   const automaticFinalCents =
     scheduleRemainingCents - automaticRegularCents * (scheduleCount - 1);
-  const requestedFinalCents = scheduleEdit==="final"&&finalAmount
+  const requestedFinalCents = (scheduleEdit==="final"||scheduleEdit==="existing")&&finalAmount
     ? Math.round(Number(finalAmount) * 100)
     : automaticFinalCents;
-  const regularAmountCents = scheduleCount<=1?0:scheduleEdit==="regular"&&regularAmountInput
+  const regularAmountCents = scheduleCount<=1?0:(scheduleEdit==="regular"||scheduleEdit==="existing")&&regularAmountInput
     ? Math.round(Number(regularAmountInput)*100)
     : scheduleEdit==="final"
       ? Math.round((scheduleRemainingCents-requestedFinalCents)/(scheduleCount-1))
@@ -6055,7 +6072,7 @@ function LiveFinance() {
                     min="0.01"
                     step="0.01"
                     readOnly={scheduleCount===1}
-                    value={scheduleCount===1?"0.00":scheduleEdit==="regular"?regularAmountInput:regularAmount.toFixed(2)}
+                    value={scheduleCount===1?"0.00":(scheduleEdit==="regular"||scheduleEdit==="existing")?regularAmountInput:regularAmount.toFixed(2)}
                     onChange={(e)=>{setRegularAmountInput(e.target.value);setFinalAmount("");setScheduleEdit("regular")}}
                   />
                 </label>
@@ -6066,7 +6083,7 @@ function LiveFinance() {
                     min="0.01"
                     step="0.01"
                     readOnly={scheduleCount === 1}
-                    value={scheduleEdit==="final"?finalAmount:""}
+                    value={(scheduleEdit==="final"||scheduleEdit==="existing")?finalAmount:""}
                     placeholder={scheduleCount===1?normalizedFinalAmount.toFixed(2):"تُحسب تلقائياً عند تركها فارغة"}
                     onChange={(e) => {setFinalAmount(e.target.value);setRegularAmountInput("");setScheduleEdit("final")}}
                   />

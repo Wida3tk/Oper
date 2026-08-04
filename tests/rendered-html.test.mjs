@@ -158,6 +158,15 @@ test("lets finance set the visible payment date on the financial record", async 
   assert.match(page, /تاريخ السداد/);
 });
 
+test("loads the saved installment split instead of proposing a new schedule", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /syncScheduleFromSavedTable/);
+  assert.match(page, /setCount\(String\(openInstallments\.length\)\)/);
+  assert.match(page, /setRegularAmountInput/);
+  assert.match(page, /setFinalAmount/);
+  assert.match(page, /setScheduleEdit\("existing"\)/);
+});
+
 test("supports an audited undo for recent financial mistakes", async () => {
   const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
