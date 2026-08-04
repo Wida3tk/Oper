@@ -149,6 +149,15 @@ test("allows finance to update installment due dates used by forecasts", async (
   assert.match(page, /installmentDueDates/);
 });
 
+test("lets finance set the visible payment date on the financial record", async () => {
+  const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(api, /action==="update_payment_record_date"/);
+  assert.match(api, /UPDATE_PAYMENT_RECORD_DATE/);
+  assert.match(page, /finance-payment-date/);
+  assert.match(page, /تاريخ السداد/);
+});
+
 test("supports an audited undo for recent financial mistakes", async () => {
   const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");

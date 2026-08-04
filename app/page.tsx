@@ -2710,6 +2710,7 @@ async function apiJson(url: string, init?: RequestInit) {
       remind_installment: "تم تسجيل تذكير السداد",
       update_installment_due_date: "تم تحديث تاريخ الاستحقاق",
       update_payment_date: "تم تحديث تاريخ السداد الفعلي",
+      update_payment_record_date: "تم تحديث تاريخ السداد",
       approve_finance_review: "تم اعتماد المراجعة المالية",
       review_legacy_installments: "تم اعتماد المراجعة المالية",
       note: "تم حفظ الملاحظة المالية",
@@ -5552,6 +5553,7 @@ function LiveFinance() {
     [installmentMethods,setInstallmentMethods]=useState<Record<string,string>>({}),
     [installmentDueDates,setInstallmentDueDates]=useState<Record<string,string>>({}),
     [installmentPaymentDates,setInstallmentPaymentDates]=useState<Record<string,string>>({}),
+    [paymentRecordDate,setPaymentRecordDate]=useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
@@ -5766,6 +5768,9 @@ function LiveFinance() {
           )[0] || firstPayment(selected)
     : undefined;
   const selectedFirstProgramPayment=selected?firstPayment(selected):undefined;
+  useEffect(() => {
+    setPaymentRecordDate(String(selectedReferencePayment?.paid_at || selectedReferencePayment?.created_at || "").slice(0,10));
+  }, [selectedReferencePayment?.id, selectedReferencePayment?.paid_at, selectedReferencePayment?.created_at]);
   const updatePaymentReference = (paymentId: string, paymentReference: string) => {
     const updateOrder = (row: FinanceOrder) => ({
       ...row,
@@ -5927,6 +5932,7 @@ function LiveFinance() {
                   )
                 }
               />
+              {selectedReferencePayment && <label className="finance-payment-date"><span>تاريخ السداد</span><span><input type="date" value={paymentRecordDate} onChange={(e)=>setPaymentRecordDate(e.target.value)}/><button type="button" disabled={saving || !paymentRecordDate || paymentRecordDate === String(selectedReferencePayment.paid_at || selectedReferencePayment.created_at || "").slice(0,10)} onClick={()=>post({action:"update_payment_record_date",paymentId:selectedReferencePayment.id,paymentDate:paymentRecordDate})}>حفظ</button></span></label>}
             </div>
             {error && <div className="ops-error compact">{error}</div>}
             {selected.undo_available && (
