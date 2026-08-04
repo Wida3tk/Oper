@@ -3344,7 +3344,10 @@ function LiveCustomers({
     availablePrograms = new Set(
       directoryRows.map((row) => customerProgramCategory(row)),
     ),
-    programs = programOrder.filter((program) => availablePrograms.has(program)),
+    programs = programOrder.filter(
+      (program) =>
+        availablePrograms.has(program) || program === "تقييم الكفاءة",
+    ),
     classifications = Array.from(
       new Set(
         directoryRows
