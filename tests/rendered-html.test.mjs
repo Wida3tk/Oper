@@ -112,3 +112,13 @@ test("routes supervision through onboarding and collection without course activa
   assert.match(transition, /to:"مكتمل",column:"completed_at"/);
   assert.match(finance, /order\.order_type,first/);
 });
+
+test("separates legacy seat fees from both contract and first payment", async () => {
+  const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(api, /action==="separate_legacy_seat_fee"/);
+  assert.match(api, /newTotalCents=totalCents-feeCents,newFirstCents=firstCents-feeCents,newPaidCents=paidCents-feeCents/);
+  assert.match(api, /رسوم المقعد مفصولة مسبقاً/);
+  assert.match(page, /فصل رسوم حجز المقعد للملف السابق/);
+  assert.match(page, /بقاء المتبقي والأقساط كما هي/);
+});

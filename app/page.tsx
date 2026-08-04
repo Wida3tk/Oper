@@ -2602,6 +2602,7 @@ type FinanceInstallment = {
 type PaymentBehavior = { label: string; tone: string; summary: string };
 type FinanceOrder = {
   order_id: string;
+  program_id: string;
   order_type: string;
   purchase_source: string;
   payment_plan: string;
@@ -5469,6 +5470,7 @@ function LiveFinance() {
     [count, setCount] = useState("4"),
     [regularAmountInput, setRegularAmountInput] = useState(""),
     [firstPaymentAmount, setFirstPaymentAmount] = useState(""),
+    [legacySeatFee, setLegacySeatFee] = useState(""),
     [finalAmount, setFinalAmount] = useState(""),
     [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
@@ -5492,6 +5494,7 @@ function LiveFinance() {
         if (updated) {
           setTotal(String(updated.total));
           setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
+          setLegacySeatFee("");
         }
       }
     } catch (e) {
@@ -5507,6 +5510,7 @@ function LiveFinance() {
     setSelected(row);
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
+    setLegacySeatFee("");
     setRegularAmountInput("");
     setFinalAmount("");
     setScheduleEdit("auto");
@@ -5853,6 +5857,19 @@ function LiveFinance() {
               {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
               {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
             </div>
+            {Number(selected.seat_fee || 0) === 0 && (
+              <div className="legacy-seat-fee-tool">
+                <div>
+                  <b>فصل رسوم حجز المقعد للملف السابق</b>
+                  <span>تُخصم الرسوم من إجمالي البرنامج ومن أول دفعة بالقيمة نفسها؛ لذلك يبقى المتبقي وجدول الأقساط دون تغيير.</span>
+                </div>
+                <label>
+                  قيمة حجز المقعد
+                  <input type="number" min="0.01" step="0.01" value={legacySeatFee} onChange={(e) => setLegacySeatFee(e.target.value)} placeholder="مثال: 200" />
+                </label>
+                <button type="button" className="secondary" disabled={saving || !(Number(legacySeatFee) > 0)} onClick={() => window.confirm(`سيتم فصل ${sar(Number(legacySeatFee))} من إجمالي البرنامج ومن أول دفعة مع بقاء المتبقي والأقساط كما هي. هل تريد المتابعة؟`) && post({action:"separate_legacy_seat_fee",seatFee:Number(legacySeatFee)})}>إضافة وفصل الرسوم</button>
+              </div>
+            )}
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
               <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>

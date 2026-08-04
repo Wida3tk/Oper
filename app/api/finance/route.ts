@@ -19,7 +19,7 @@ export async function GET(req:Request){
  const db=operationalDb();
  await ensureFinanceClassificationSchema(db);
  const [ordersResult,paymentsResult,installmentsResult,notesResult]=await Promise.all([
-  db.prepare("SELECT o.id order_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
+  db.prepare("SELECT o.id order_id,o.program_id,o.order_type,o.purchase_source,o.payment_plan,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
   db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>()
@@ -88,6 +88,32 @@ export async function POST(req:Request){
   if(newPaidCents>cents(order.total))return Response.json({error:"إجمالي الدفعات يتجاوز عقد البرنامج"},{status:400});
   await db.batch([db.prepare("UPDATE payments SET amount=? WHERE id=?").bind(money(amountCents),first.id),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT payment_intent_id FROM (SELECT pi.id payment_intent_id FROM payment_intents pi WHERE pi.resulting_order_id=? ORDER BY pi.created_at LIMIT 1))").bind(money(amountCents),now,orderId,orderId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaidCents),newPaidCents===cents(order.total)?"مدفوع":newPaidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_FIRST_PAYMENT','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({paymentId:first.id,amount:money(amountCents)}),now)]);
   return Response.json({ok:true,paid:money(newPaidCents),remaining:money(cents(order.total)-newPaidCents)});
+ }
+ if(action==="separate_legacy_seat_fee"){
+  if(!can(auth,"finance.total.edit")||!can(auth,"finance.payments.record"))return Response.json({error:"ليس لديك صلاحية فصل رسوم المقعد"},{status:403});
+  const feeCents=cents(body.seatFee);
+  if(feeCents<1)return Response.json({error:"قيمة رسوم المقعد مطلوبة"},{status:400});
+  const details=await db.prepare("SELECT o.id,o.customer_id,o.program_id,o.total,o.seat_reservation,(SELECT COALESCE(MAX(r.fee_amount),0) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')) seat_fee FROM orders o WHERE o.id=?").bind(orderId).first<{id:string;customer_id:string;program_id:string;total:number;seat_reservation:number;seat_fee:number}>();
+  if(!details)return Response.json({error:"الطلب غير موجود"},{status:404});
+  if(cents(details.seat_fee)>0)return Response.json({error:"رسوم المقعد مفصولة مسبقاً لهذا العميل"},{status:409});
+  const first=await db.prepare("SELECT id,amount FROM payments WHERE order_id=? ORDER BY CASE WHEN flow_type='sale' THEN 0 ELSE 1 END,COALESCE(paid_at,created_at),created_at LIMIT 1").bind(orderId).first<{id:string;amount:number}>();
+  if(!first)return Response.json({error:"لا توجد دفعة يمكن فصل رسوم المقعد منها"},{status:409});
+  const totalCents=cents(details.total),firstCents=cents(first.amount);
+  if(feeCents>totalCents)return Response.json({error:"رسوم المقعد لا يمكن أن تتجاوز إجمالي عقد البرنامج الحالي"},{status:400});
+  if(feeCents>firstCents)return Response.json({error:"رسوم المقعد لا يمكن أن تتجاوز أول دفعة مسجلة"},{status:400});
+  const existingReservation=await db.prepare("SELECT id FROM seat_reservations WHERE order_id=? AND reservation_kind IN ('حجز مقعد','إشراف') ORDER BY created_at LIMIT 1").bind(orderId).first<{id:string}>();
+  const newTotalCents=totalCents-feeCents,newFirstCents=firstCents-feeCents,newPaidCents=paidCents-feeCents;
+  if(newPaidCents<0||newTotalCents<newPaidCents)return Response.json({error:"تعذر فصل الرسوم لأن البيانات المالية الحالية غير متوازنة"},{status:409});
+  const statements=[
+   db.prepare("UPDATE payments SET amount=? WHERE id=?").bind(money(newFirstCents),first.id),
+   db.prepare("UPDATE orders SET total=?,paid=?,seat_reservation=1,status=?,updated_at=? WHERE id=?").bind(money(newTotalCents),money(newPaidCents),newPaidCents===newTotalCents?"مدفوع":newPaidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId),
+   db.prepare("UPDATE payment_intents SET amount=MAX(amount-?,0),updated_at=? WHERE id=(SELECT id FROM payment_intents WHERE resulting_order_id=? ORDER BY created_at LIMIT 1)").bind(money(feeCents),now,orderId),
+   db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'SEPARATE_LEGACY_SEAT_FEE','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({seatFee:money(feeCents),previousTotal:money(totalCents),newProgramTotal:money(newTotalCents),previousFirstPayment:money(firstCents),newFirstPayment:money(newFirstCents)}),now)
+  ];
+  if(existingReservation)statements.splice(3,0,db.prepare("UPDATE seat_reservations SET fee_amount=?,status='تم التحويل',confirmed_at=COALESCE(confirmed_at,?),updated_at=? WHERE id=?").bind(money(feeCents),now,now,existingReservation.id));
+  else statements.splice(3,0,db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,status,reservation_kind,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,'تم التحويل','حجز مقعد',?,?,?)").bind(id("RSV"),details.customer_id,details.program_id,orderId,money(feeCents),now,now,now));
+  await db.batch(statements);
+  return Response.json({ok:true,seatFee:money(feeCents),total:money(newTotalCents),paid:money(newPaidCents),remaining:money(newTotalCents-newPaidCents)});
  }
  if(action==="pay_installment"){
   if(!can(auth,"finance.payments.record"))return Response.json({error:"لا تملكين صلاحية تسجيل الدفعات والمراجع"},{status:403});
