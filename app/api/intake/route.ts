@@ -21,27 +21,34 @@ export async function POST(req: Request) {
   const programId = String(body.programId || "");
   if (!name || !phone || !email || !programId) return Response.json({ error: "الاسم والجوال والبريد والبرنامج مطلوبة" }, { status: 400 });
   if(!/^00[1-9]\d{8,14}$/.test(phone))return Response.json({error:"رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"},{status:400});
-  const journey=String(body.journey||"اشتراك"),isSupervision=journey==="إشراف";
-  const track=String(body.track||"").trim(),delivery=isSupervision?"مباشر":String(body.delivery||"").trim(),language=isSupervision?"":String(body.language||"").trim(),cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim(),assignmentDate=String(body.assignmentDate||"").trim();
-  if(!delivery)return Response.json({error:"نمط البرنامج مطلوب"},{status:400});
+  const journey=String(body.journey||"اشتراك");
+  const track=String(body.track||"").trim(),requestedDelivery=String(body.delivery||"").trim(),requestedLanguage=String(body.language||"").trim(),cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim(),assignmentDate=String(body.assignmentDate||"").trim();
   const db = operationalDb();
   await ensureFinanceClassificationSchema(db);
   await ensureDirectProgramSchema(db);
   const program = await db.prepare("SELECT id,name,program_kind kind,default_trial_days trial_days FROM programs WHERE id=? AND active=1").bind(programId).first<{ id: string; name: string; kind:string; trial_days: number }>();
   if (!program) return Response.json({ error: "البرنامج غير متاح" }, { status: 404 });
+  const isSupervision=program.name.includes("الإشراف"),isCompetencyService=program.name.includes("تقييم الكفاءة"),isStandaloneService=isSupervision||isCompetencyService;
+  const delivery=isSupervision?"مباشر":isCompetencyService?"خدمة":requestedDelivery,language=isStandaloneService?"":requestedLanguage;
+  if(!isStandaloneService&&!delivery)return Response.json({error:"نمط البرنامج مطلوب"},{status:400});
+  if(isStandaloneService&&mode==="trial")return Response.json({error:"الخدمات المستقلة لا تدعم نوع التجربة"},{status:400});
+  if(!isStandaloneService&&!["اشتراك","تجربة"].includes(journey))return Response.json({error:"نوع الاشتراك غير صالح"},{status:400});
   const isObm=program.name.includes("إدارة السلوك التنظيمي");
   if(isObm&&!isSupervision&&!language)return Response.json({error:"اللغة مطلوبة لبرنامج إدارة السلوك التنظيمي"},{status:400});
   const orderLanguage=isObm?language:"";
   const isAbat=program.name.includes("تحليل السلوك التطبيقي")&&track.toUpperCase()==="ABAT";
   const competencyAssessment=body.competencyAssessment===true;
   if(competencyAssessment&&!isAbat)return Response.json({error:"إضافة تقييم الكفاءة متاحة فقط لمسار ABAT"},{status:400});
-  const source = String(body.source || "عصارة"),isAsara=source==="عصارة",autoAsara=isAsara&&!isSupervision;
-  const isDirectProgram=journey==="برنامج مباشر"||isSupervision;
-  const seatReservationEligible=isSupervision||(!isAsara&&delivery==="مباشر"&&["تحليل السلوك التطبيقي","إدارة السلوك التنظيمي"].some(name=>program.name.includes(name)));
-  const hasSeatReservation=body.seatReserved===true&&(isSupervision||!isAsara);
+  const source = String(body.source || "عصارة"),isAsara=source==="عصارة";
+  const isDirectProgram=isSupervision||(!isCompetencyService&&delivery==="مباشر");
+  const seatReservationEligible=isSupervision||(delivery==="مباشر"&&["تحليل السلوك التطبيقي","إدارة السلوك التنظيمي"].some(name=>program.name.includes(name)));
+  const hasSeatReservation=body.seatReserved===true&&seatReservationEligible;
+  const autoAsara=isAsara&&!isSupervision&&!hasSeatReservation;
   if(hasSeatReservation&&!seatReservationEligible)return Response.json({error:"حجز المقعد متاح فقط للبرامج المؤهلة بالنمط المباشر"},{status:400});
-  if((!isAsara||isSupervision)&&isDirectProgram&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة للبرنامج المباشر"},{status:400});
-  if((!isAsara||isSupervision)&&isDirectProgram&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
+  if((!isAsara&&isDirectProgram)||isSupervision||hasSeatReservation){
+   if(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة للبرنامج المباشر"},{status:400});
+   if(assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
+  }
   const now = new Date().toISOString();
   const prospectId = id("PRO");
 
@@ -89,11 +96,11 @@ export async function POST(req: Request) {
   }
   const purchaseType = String(body.purchaseType || "برنامج");
   const isReservation=purchaseType==="حجز مقعد";
-  const isScheduled=isSupervision||(!isAsara&&(isReservation||isDirectProgram||hasSeatReservation));
+  const isScheduled=isSupervision||hasSeatReservation||(!isAsara&&(isReservation||isDirectProgram));
   if(!isAsara&&isReservation&&(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"تاريخ بدء البرنامج وتاريخ الإسناد مطلوبان لحجز المقعد"},{status:400});
   if(!isAsara&&isReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
-  if((!isAsara||isSupervision)&&hasSeatReservation&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة لحجز المقعد"},{status:400});
-  if((!isAsara||isSupervision)&&hasSeatReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
+  if(hasSeatReservation&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة لحجز المقعد"},{status:400});
+  if(hasSeatReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   if (!(baseTotal > 0) || !(contractTotal > 0)) return Response.json({ error: "المبلغ الأساسي مطلوب" }, { status: 400 });
   if (!(amount > 0)) return Response.json({ error: "المبلغ المدفوع مطلوب" }, { status: 400 });
   if (paymentPlan === "أقساط" && (!(contractTotal > amount))) return Response.json({ error: "إجمالي قيمة العقد يجب أن يكون أكبر من الدفعة الأولى عند اختيار الأقساط" }, { status: 400 });

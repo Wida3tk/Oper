@@ -104,13 +104,50 @@ test("routes supervision through onboarding and collection without course activa
   const intake = await read("../app/api/intake/route.ts");
   const transition = await read("../app/api/enrollments/transition/route.ts");
   const finance = await read("../app/api/finance/route.ts");
+  const operations = await read("../app/api/_lib/operations.ts");
   const page = await read("../app/page.tsx");
-  assert.match(page, /<option>إشراف<\/option>/);
+  assert.match(page, /selectedProgram\?\.name\.includes\("الإشراف"\)/);
+  assert.match(intake, /program\.name\.includes\("الإشراف"\)/);
+  assert.match(operations, /'PRG-SUP','SUP','الإشراف'/);
   assert.match(intake, /isSupervision\?50/);
   assert.match(intake, /isSupervision\?"collection":"sale"/);
   assert.match(transition, /enrollment\.order_type==="إشراف"/);
   assert.match(transition, /to:"مكتمل",column:"completed_at"/);
   assert.match(finance, /order\.order_type,first/);
+});
+
+test("keeps subscription type to subscription and trial only", async () => {
+  const page = await read("../app/page.tsx");
+  assert.doesNotMatch(page, /<option>برنامج مباشر<\/option>/);
+  assert.doesNotMatch(page, /<option>إشراف<\/option>/);
+  assert.match(page, /<option>اشتراك<\/option>/);
+  assert.match(page, /<option>تجربة<\/option>/);
+});
+
+test("shows seat reservation for eligible live ABA and OBM programs", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(page, /form\.delivery === "مباشر"/);
+  assert.match(page, /هل تم حجز المقعد/);
+  assert.match(intake, /delivery==="مباشر"&&\["تحليل السلوك التطبيقي","إدارة السلوك التنظيمي"\]/);
+  assert.doesNotMatch(intake, /!isAsara&&delivery==="مباشر"/);
+});
+
+test("treats competency assessment as a standalone service without journey or delivery controls", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(page, /isCompetencyService/);
+  assert.match(page, /!isStandaloneService && <Field label="نوع الاشتراك/);
+  assert.match(page, /!isAbat && !isStandaloneService && <Field label="نمط البرنامج/);
+  assert.match(intake, /isCompetencyService\?"خدمة"/);
+  assert.match(intake, /الخدمات المستقلة لا تدعم نوع التجربة/);
+});
+
+test("requires a clear course name for recorded continuing education", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /<Field label="اسم الدورة \*">/);
+  assert.match(page, /placeholder="يرجى إضافة اسم الدورة"/);
+  assert.match(page, /isContinuingEducation && !form\.track\.trim\(\)/);
 });
 
 test("separates legacy seat fees from both contract and first payment", async () => {

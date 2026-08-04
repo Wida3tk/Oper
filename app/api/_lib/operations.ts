@@ -80,6 +80,7 @@ export function ensureDirectProgramSchema(db:ReturnType<typeof operationalDb>){
     try{await db.prepare("ALTER TABLE programs ADD COLUMN program_kind TEXT NOT NULL DEFAULT 'شهادة'").run();addedProgramKind=true}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
     try{await db.prepare("ALTER TABLE seat_reservations ADD COLUMN reservation_kind TEXT NOT NULL DEFAULT 'حجز مقعد'").run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}
     if(addedProgramKind)await db.prepare("UPDATE programs SET program_kind=CASE WHEN name LIKE '%تحليل السلوك التطبيقي%' THEN 'شهادة' ELSE 'برنامج مباشر' END").run();
+    await db.prepare("INSERT OR IGNORE INTO programs(id,code,name,category,program_kind,default_trial_days,seat_reservation_fee,active,created_at,updated_at) VALUES('PRG-SUP','SUP','الإشراف','خدمة','خدمة مستقلة',0,50,1,?,?)").bind(new Date().toISOString(),new Date().toISOString()).run();
   })().catch(error=>{directProgramSchemaReady=null;throw error});
   return directProgramSchemaReady;
 }

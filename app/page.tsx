@@ -1712,7 +1712,9 @@ function Registration({ done }: { done: () => void }) {
     setForm((f) => ({ ...f, [key]: value }));
   const selectProgram = (programId: string) => {
     const program = programs.find((p) => p.id === programId);
-    if (program)
+    if (program) {
+      const supervisionService = program.name.includes("الإشراف");
+      const competencyService = program.name.includes("تقييم الكفاءة");
       setForm((f) => ({
         ...f,
         programId,
@@ -1721,21 +1723,26 @@ function Registration({ done }: { done: () => void }) {
           program.name.includes("التعليم المستمر") && f.delivery === "مسجل"
             ? ""
             : program.tracks?.[0]?.name || "",
+        journey: "اشتراك",
+        delivery: supervisionService ? "مباشر" : competencyService ? "" : "مسجل",
+        language: program.name.includes("إدارة السلوك التنظيمي") ? f.language : "",
         seatReserved: "لا",
         seatFee: "",
         competencyAssessment: "لا",
       }));
+    }
   };
   const selectedProgram = programs.find((p) => p.id === form.programId);
   const isAbat = selectedProgram?.name.includes("تحليل السلوك التطبيقي") && form.track.toUpperCase() === "ABAT";
   const isObm = Boolean(selectedProgram?.name.includes("إدارة السلوك التنظيمي"));
   const isContinuingEducation = Boolean(selectedProgram?.name.includes("التعليم المستمر"));
-  const isSupervision = form.journey === "إشراف";
-  const directProgram = form.journey === "برنامج مباشر";
+  const isSupervision = Boolean(selectedProgram?.name.includes("الإشراف"));
+  const isCompetencyService = Boolean(selectedProgram?.name.includes("تقييم الكفاءة"));
+  const isStandaloneService = isSupervision || isCompetencyService;
+  const directProgram = !isStandaloneService && form.delivery === "مباشر";
   const seatReservationEligible =
     isSupervision ||
-    (form.source !== "عصارة" &&
-      form.delivery === "مباشر" &&
+    (form.delivery === "مباشر" &&
       ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي"].some((name) =>
         selectedProgram?.name.includes(name),
       ));
@@ -1743,7 +1750,7 @@ function Registration({ done }: { done: () => void }) {
     seatReservationEligible && form.seatReserved === "نعم";
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
-  const scheduledJourney = isSupervision || (!asara && (directProgram || hasSeatReservation));
+  const scheduledJourney = isSupervision || hasSeatReservation || (!asara && directProgram);
   const reservationDatesInvalid =
     scheduledJourney &&
     (!form.cohort ||
@@ -1800,10 +1807,10 @@ function Registration({ done }: { done: () => void }) {
     if (
       step === 2 &&
       (!form.programId ||
-        !form.delivery ||
+        (!isStandaloneService && !form.delivery) ||
         (isObm && !isSupervision && !form.language) ||
-        (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !form.track) ||
-        (isContinuingEducation && form.delivery === "مباشر" && !form.track) ||
+        (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !isStandaloneService && !form.track) ||
+        (isContinuingEducation && !form.track.trim()) ||
         (scheduledJourney && !form.cohort) ||
         (hasSeatReservation && !(seatFee > 0)) ||
         reservationDatesInvalid)
@@ -1815,7 +1822,9 @@ function Registration({ done }: { done: () => void }) {
           ? "يلزم إدخال تاريخ بدء البرنامج وتاريخ إسناد يسبقه أو يساويه"
           : form.delivery === "مباشر"
             ? `يلزم تحديد البرنامج والمسار${isObm ? " واللغة" : ""} واسم الدفعة`
-            : `يلزم تحديد البرنامج والمسار ونمط البرنامج${isObm ? " واللغة" : ""}`,
+            : isContinuingEducation
+              ? "يرجى إضافة اسم الدورة"
+              : `يلزم تحديد البرنامج والمسار ونمط البرنامج${isObm ? " واللغة" : ""}`,
       );
       return;
     }
@@ -1853,10 +1862,10 @@ function Registration({ done }: { done: () => void }) {
     }
     if (
       !form.programId ||
-      !form.delivery ||
+      (!isStandaloneService && !form.delivery) ||
       (isObm && !isSupervision && !form.language) ||
-      (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !form.track) ||
-      (isContinuingEducation && form.delivery === "مباشر" && !form.track) ||
+      (Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !isStandaloneService && !form.track) ||
+      (isContinuingEducation && !form.track.trim()) ||
       (scheduledJourney && !form.cohort) ||
       (hasSeatReservation && !(seatFee > 0)) ||
       reservationDatesInvalid
@@ -1903,8 +1912,8 @@ function Registration({ done }: { done: () => void }) {
         seatFee,
         proofAssetKey: proof.data,
         proofFileName: proof.name,
-        mode: form.journey === "تجربة" ? "trial" : "payment",
-        purchaseType: isSupervision ? "إشراف" : "برنامج",
+        mode: !isStandaloneService && form.journey === "تجربة" ? "trial" : "payment",
+        purchaseType: isSupervision ? "إشراف" : isCompetencyService ? "تقييم كفاءة" : "برنامج",
       };
       const r = await fetch("/api/intake", {
         method: "POST",
@@ -1936,9 +1945,7 @@ function Registration({ done }: { done: () => void }) {
         <p>
           {form.journey === "تجربة"
             ? "تم تسجيل العميل وبدء فترة التجربة."
-            : form.journey === "برنامج مباشر"
-              ? "تم تسجيل العميل وإضافته إلى البرامج المباشرة."
-              : form.journey === "إشراف"
+            : isSupervision
                 ? "تم تسجيل عميل الإشراف وجدولة انتقاله إلى التهيئة."
               : "تم تسجيل العميل بنجاح وإضافته إلى النظام."}
         </p>
@@ -2041,7 +2048,7 @@ function Registration({ done }: { done: () => void }) {
                   ))}
                 </select>
               </Field>
-              {Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && (
+              {Boolean(selectedProgram?.tracks?.length) && !isContinuingEducation && !isStandaloneService && (
                 <Field label="المسار *">
                   <select
                     required
@@ -2067,19 +2074,17 @@ function Registration({ done }: { done: () => void }) {
                   </select>
                 </Field>
               )}
-              <Field label="نوع الاشتراك *">
+              {!isStandaloneService && <Field label="نوع الاشتراك *">
                 <select
                   required
                   value={form.journey}
-                  onChange={(e) => set("journey", e.target.value)}
+                  onChange={(e) => setForm((current) => ({...current, journey:e.target.value, seatReserved:e.target.value === "تجربة" ? "لا" : current.seatReserved, seatFee:e.target.value === "تجربة" ? "" : current.seatFee}))}
                 >
                   <option>اشتراك</option>
-                  <option>برنامج مباشر</option>
-                  <option>إشراف</option>
                   <option>تجربة</option>
                 </select>
-              </Field>
-              {!isAbat && !isSupervision && <Field label="نمط البرنامج *">
+              </Field>}
+              {!isAbat && !isStandaloneService && <Field label="نمط البرنامج *">
                 <select
                   required
                   value={form.delivery}
@@ -2113,8 +2118,8 @@ function Registration({ done }: { done: () => void }) {
                 </Field>
               )}
               {isContinuingEducation && form.delivery === "مسجل" && (
-                <Field label="اسم البرنامج المسجل — اختياري">
-                  <input value={form.track} onChange={(e) => set("track", e.target.value)} placeholder="اكتب اسم البرنامج عند الحاجة" />
+                <Field label="اسم الدورة *">
+                  <input required value={form.track} onChange={(e) => set("track", e.target.value)} placeholder="يرجى إضافة اسم الدورة" />
                 </Field>
               )}
               {seatReservationEligible && (
@@ -2418,15 +2423,15 @@ function Registration({ done }: { done: () => void }) {
               <section>
                 <h3>ملخص الطلب</h3>
                 <Review label="العميل" value={form.name || "لم يُدخل بعد"} />
-                <Review label="نوع الاشتراك" value={form.journey} />
+                {!isStandaloneService && <Review label="نوع الاشتراك" value={form.journey} />}
                 <Review
                   label="البرنامج"
                   value={form.track ? `${form.program} · ${form.track}` : form.program}
                 />
-                <Review
+                {!isStandaloneService && <Review
                   label="نمط الدراسة"
                   value={isSupervision ? "إشراف" : isObm ? `${isAbat ? "ABAT" : form.delivery} · ${form.language}` : (isAbat ? "ABAT" : form.delivery)}
-                />
+                />}
                 {isAbat && <Review label="تقييم الكفاءة" value={form.competencyAssessment} />}
                 {form.startDate && (
                   <Review label="تاريخ بدء البرنامج" value={form.startDate} />
