@@ -140,6 +140,19 @@ export async function POST(req:Request){
   ]);
   return Response.json({ok:true,reminderCount:nextCount});
  }
+ if(action==="update_installment_due_date"){
+  if(!can(auth,"finance.installments.manage"))return Response.json({error:"ليس لديك صلاحية تعديل تاريخ الاستحقاق"},{status:403});
+  const installmentId=String(body.installmentId||""),dueDateValue=String(body.dueDate||"");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dueDateValue))return Response.json({error:"تاريخ الاستحقاق غير صالح"},{status:400});
+  const installment=await db.prepare("SELECT id,due_date FROM installments WHERE id=? AND order_id=?").bind(installmentId,orderId).first<{id:string;due_date:string}>();
+  if(!installment)return Response.json({error:"القسط غير موجود"},{status:404});
+  if(installment.due_date===dueDateValue)return Response.json({ok:true,unchanged:true});
+  await db.batch([
+   db.prepare("UPDATE installments SET due_date=?,updated_at=? WHERE id=? AND order_id=?").bind(dueDateValue,now,installmentId,orderId),
+   db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_INSTALLMENT_DUE_DATE','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,previousDueDate:installment.due_date,dueDate:dueDateValue}),now)
+  ]);
+  return Response.json({ok:true,dueDate:dueDateValue});
+ }
  if(action==="installment_status"){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});
   const installmentId=String(body.installmentId||""),status=String(body.status||"");

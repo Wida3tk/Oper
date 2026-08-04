@@ -2680,6 +2680,7 @@ async function apiJson(url: string, init?: RequestInit) {
       pay_installment: "تم تسجيل سداد القسط",
       installment_status: "تم تحديث حالة السداد",
       remind_installment: "تم تسجيل تذكير السداد",
+      update_installment_due_date: "تم تحديث تاريخ الاستحقاق",
       approve_finance_review: "تم اعتماد المراجعة المالية",
       review_legacy_installments: "تم اعتماد المراجعة المالية",
       note: "تم حفظ الملاحظة المالية",
@@ -5519,6 +5520,7 @@ function LiveFinance() {
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
     [installmentRefs,setInstallmentRefs]=useState<Record<string,string>>({}),
     [installmentMethods,setInstallmentMethods]=useState<Record<string,string>>({}),
+    [installmentDueDates,setInstallmentDueDates]=useState<Record<string,string>>({}),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
@@ -5538,6 +5540,7 @@ function LiveFinance() {
           setTotal(String(updated.total));
           setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
           setLegacySeatFee(String(updated.seat_fee || ""));
+          setInstallmentDueDates(Object.fromEntries(updated.installments.map((item: FinanceInstallment) => [item.id, item.due_date])));
         }
       }
     } catch (e) {
@@ -5554,6 +5557,7 @@ function LiveFinance() {
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
     setLegacySeatFee(String(row.seat_fee || ""));
+    setInstallmentDueDates(Object.fromEntries(row.installments.map((item) => [item.id, item.due_date])));
     setRegularAmountInput("");
     setFinalAmount("");
     setScheduleEdit("auto");
@@ -6059,7 +6063,7 @@ function LiveFinance() {
                       <div>
                         <small>القسط {inst.sequence}</small>
                         <b>{sar(inst.amount)}</b>
-                        <span>استحقاق {inst.due_date}</span>
+                        <label className="installment-due-editor"><span>تاريخ الاستحقاق</span><span><input type="date" value={installmentDueDates[inst.id] || inst.due_date} onChange={(e) => setInstallmentDueDates((current) => ({...current,[inst.id]:e.target.value}))}/><button type="button" disabled={saving || !installmentDueDates[inst.id] || installmentDueDates[inst.id] === inst.due_date} onClick={() => post({action:"update_installment_due_date",installmentId:inst.id,dueDate:installmentDueDates[inst.id]})}>حفظ</button></span></label>
                         {Boolean(inst.reminder_count) && <small className="installment-reminder-meta">{inst.reminder_count} تذكير · آخر تسجيل بواسطة {inst.last_reminded_by_email}</small>}
                       </div>
                       <label className="installment-behavior"><span>حالة السداد</span><select
@@ -6087,6 +6091,7 @@ function LiveFinance() {
                         <div className="paid-ref">
                           <b>تم السداد</b>
                           <span>{inst.reference}</span>
+                          {inst.paid_at && <small>تاريخ السداد الفعلي: {String(inst.paid_at).slice(0,10)}</small>}
                         </div>
                       ) : (
                         <div className="installment-quick-pay">
