@@ -188,6 +188,15 @@ test("shows subscription classification and delivery on finance cards", async ()
   assert.match(page, /مع تقييم كفاءة/);
 });
 
+test("renders the finance customer profile professionally with an LTR phone", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /finance-customer-profile/);
+  assert.match(page, /finance-profile-phone/);
+  assert.match(page, /dir="ltr">\{selected\.phone\}/);
+  assert.match(css, /unicode-bidi:embed/);
+});
+
 test("shows and edits the customer cohort from the customer card", async () => {
   const api = await readFile(new URL("../app/api/customers/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");

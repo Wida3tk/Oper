@@ -6010,15 +6010,15 @@ function LiveFinance() {
               </div>
             )}
             <Section title="بيانات العميل والطلب">
-              <div className="info customer-data">
-                <label>
-                  رقم الجوال<b>{selected.phone}</b>
+              <div className="info customer-data finance-customer-profile">
+                <label className="finance-profile-phone">
+                  رقم الجوال<b dir="ltr">{selected.phone}</b>
                 </label>
                 <label>
-                  البريد الإلكتروني<b>{selected.email}</b>
+                  البريد الإلكتروني<b dir="ltr">{selected.email}</b>
                 </label>
                 <label>
-                  رقم الطلب<b>{selected.order_id}</b>
+                  رقم الطلب<b dir="ltr">{selected.order_id}</b>
                 </label>
                 <label>
                   مصدر الشراء<b>{selected.purchase_source}</b>
