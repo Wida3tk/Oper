@@ -27,7 +27,7 @@ export async function GET(req:Request){
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
   db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>(),
-  db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.details,a.created_at FROM audit_log a LEFT JOIN finance_undo_log u ON u.target_audit_id=a.id WHERE u.target_audit_id IS NULL AND a.action IN ('UPDATE_FIRST_PAYMENT','SET_LEGACY_SEAT_FEE','PAY_INSTALLMENT','UPDATE_INSTALLMENT_DUE_DATE','UPDATE_INSTALLMENT_STATUS') ORDER BY a.created_at DESC").all<Record<string,unknown>>()
+  db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.details,a.created_at FROM audit_log a LEFT JOIN finance_undo_log u ON u.target_audit_id=a.id WHERE u.target_audit_id IS NULL AND a.action IN ('UPDATE_FIRST_PAYMENT','SET_LEGACY_SEAT_FEE','PAY_INSTALLMENT','UPDATE_INSTALLMENT_DUE_DATE','UPDATE_PAYMENT_DATE','UPDATE_INSTALLMENT_STATUS') ORDER BY a.created_at DESC").all<Record<string,unknown>>()
  ]);
  const today=new Date().toISOString().slice(0,10);
  const orders=ordersResult.results.map(order=>{
@@ -36,7 +36,7 @@ export async function GET(req:Request){
   const orderInstallments=installmentsResult.results.filter(x=>x.order_id===order.order_id).map(x=>({...x,status:x.status==="قادم"?"ملتزم":x.status,amount:money(Number(x.amount_cents)),display_status:x.status!=="مدفوع"&&String(x.due_date)<today?"متأخر":x.status==="قادم"?"ملتزم":x.status}));
   const note=notesResult.results.find(x=>x.order_id===order.order_id);
   const undo=undoResult.results.map(row=>{try{return {...row,parsed:JSON.parse(String(row.details||"{}"))}}catch{return {...row,parsed:{}}}}).find(row=>row.entity_type==="order"?row.entity_id===order.order_id:row.parsed?.orderId===order.order_id);
-  const undoLabels:Record<string,string>={UPDATE_FIRST_PAYMENT:"تعديل الدفعة الأولى",SET_LEGACY_SEAT_FEE:"تعديل رسوم المقعد",PAY_INSTALLMENT:"تسجيل سداد القسط",UPDATE_INSTALLMENT_DUE_DATE:"تعديل تاريخ الاستحقاق",UPDATE_INSTALLMENT_STATUS:"تعديل حالة السداد"};
+  const undoLabels:Record<string,string>={UPDATE_FIRST_PAYMENT:"تعديل الدفعة الأولى",SET_LEGACY_SEAT_FEE:"تعديل رسوم المقعد",PAY_INSTALLMENT:"تسجيل سداد القسط",UPDATE_INSTALLMENT_DUE_DATE:"تعديل تاريخ الاستحقاق",UPDATE_PAYMENT_DATE:"تعديل تاريخ السداد الفعلي",UPDATE_INSTALLMENT_STATUS:"تعديل حالة السداد"};
   return {...order,total:money(totalCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,payment_behavior:paymentBehavior(orderInstallments,today),finance_note:note?.note||"",undo_available:undo?{id:undo.id,action:undo.action,label:undoLabels[String(undo.action)]||"آخر تحديث مالي",created_at:undo.created_at}:null};
  });
  const totalCents=orders.reduce((s,o)=>s+cents(o.total),0),paidCents=orders.reduce((s,o)=>s+cents(o.paid),0),remainingCents=orders.reduce((s,o)=>s+cents(o.remaining),0);
@@ -58,12 +58,15 @@ export async function POST(req:Request){
  const paidRow=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=?").bind(orderId).first<{paid:number}>(),paidCents=cents(paidRow?.paid);
  if(action==="undo_last_finance_action"){
   if(!can(auth,"finance.payments.record")||!can(auth,"finance.installments.manage"))return Response.json({error:"ليس لديك صلاحية التراجع عن الإجراءات المالية"},{status:403});
-  const target=await db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.details FROM audit_log a LEFT JOIN finance_undo_log u ON u.target_audit_id=a.id WHERE u.target_audit_id IS NULL AND a.action IN ('UPDATE_FIRST_PAYMENT','SET_LEGACY_SEAT_FEE','PAY_INSTALLMENT','UPDATE_INSTALLMENT_DUE_DATE','UPDATE_INSTALLMENT_STATUS') AND ((a.entity_type='order' AND a.entity_id=?) OR json_extract(a.details,'$.orderId')=?) ORDER BY a.created_at DESC LIMIT 1").bind(orderId,orderId).first<{id:string;action:string;entity_type:string;entity_id:string;details:string}>();
+  const target=await db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.details FROM audit_log a LEFT JOIN finance_undo_log u ON u.target_audit_id=a.id WHERE u.target_audit_id IS NULL AND a.action IN ('UPDATE_FIRST_PAYMENT','SET_LEGACY_SEAT_FEE','PAY_INSTALLMENT','UPDATE_INSTALLMENT_DUE_DATE','UPDATE_PAYMENT_DATE','UPDATE_INSTALLMENT_STATUS') AND ((a.entity_type='order' AND a.entity_id=?) OR json_extract(a.details,'$.orderId')=?) ORDER BY a.created_at DESC LIMIT 1").bind(orderId,orderId).first<{id:string;action:string;entity_type:string;entity_id:string;details:string}>();
   if(!target)return Response.json({error:"لا يوجد إجراء مالي متاح للتراجع لهذا العميل"},{status:409});
   let details:Record<string,unknown>={};try{details=JSON.parse(target.details||"{}")}catch{}
   const statements=[];
   if(target.action==="UPDATE_INSTALLMENT_DUE_DATE"){
    statements.push(db.prepare("UPDATE installments SET due_date=?,updated_at=? WHERE id=? AND order_id=?").bind(String(details.previousDueDate||""),now,target.entity_id,orderId));
+  }else if(target.action==="UPDATE_PAYMENT_DATE"){
+   const paymentId=String(details.paymentId||"");if(!paymentId)return Response.json({error:"بيانات التراجع عن تاريخ السداد غير مكتملة"},{status:409});
+   statements.push(db.prepare("UPDATE payments SET paid_at=? WHERE id=? AND order_id=?").bind(details.previousPaymentPaidAt||null,paymentId,orderId),db.prepare("UPDATE installments SET paid_at=?,updated_at=? WHERE id=? AND order_id=?").bind(details.previousInstallmentPaidAt||null,now,target.entity_id,orderId));
   }else if(target.action==="UPDATE_INSTALLMENT_STATUS"){
    statements.push(db.prepare("UPDATE installments SET status=?,reminder_count=?,first_reminder_at=?,second_reminder_at=?,last_reminded_by_email=?,updated_at=? WHERE id=? AND order_id=?").bind(String(details.previousStatus||"ملتزم"),Number(details.previousReminderCount||0),details.previousFirstReminderAt||null,details.previousSecondReminderAt||null,details.previousLastRemindedByEmail||null,now,target.entity_id,orderId));
   }else if(target.action==="UPDATE_FIRST_PAYMENT"){
@@ -189,6 +192,23 @@ export async function POST(req:Request){
    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_INSTALLMENT_DUE_DATE','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,previousDueDate:installment.due_date,dueDate:dueDateValue}),now)
   ]);
   return Response.json({ok:true,dueDate:dueDateValue});
+ }
+ if(action==="update_payment_date"){
+  if(!can(auth,"finance.payments.record"))return Response.json({error:"ليس لديك صلاحية تعديل تاريخ السداد الفعلي"},{status:403});
+  const installmentId=String(body.installmentId||""),paymentDate=String(body.paymentDate||"");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate))return Response.json({error:"تاريخ السداد الفعلي غير صالح"},{status:400});
+  const installment=await db.prepare("SELECT id,paid_payment_id,paid_at,status FROM installments WHERE id=? AND order_id=?").bind(installmentId,orderId).first<{id:string;paid_payment_id:string|null;paid_at:string|null;status:string}>();
+  if(!installment||installment.status!=="مدفوع"||!installment.paid_payment_id)return Response.json({error:"لا توجد دفعة مسجلة لهذا القسط"},{status:409});
+  const payment=await db.prepare("SELECT paid_at FROM payments WHERE id=? AND order_id=?").bind(installment.paid_payment_id,orderId).first<{paid_at:string|null}>();
+  if(!payment)return Response.json({error:"سجل الدفعة غير موجود"},{status:404});
+  const paidAt=`${paymentDate}T12:00:00.000Z`;
+  if(String(payment.paid_at||"").slice(0,10)===paymentDate&&String(installment.paid_at||"").slice(0,10)===paymentDate)return Response.json({ok:true,unchanged:true});
+  await db.batch([
+   db.prepare("UPDATE payments SET paid_at=? WHERE id=? AND order_id=?").bind(paidAt,installment.paid_payment_id,orderId),
+   db.prepare("UPDATE installments SET paid_at=?,updated_at=? WHERE id=? AND order_id=?").bind(paidAt,now,installmentId,orderId),
+   db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_PAYMENT_DATE','installment',?,?,?)").bind(id("AUD"),auth.email,installmentId,JSON.stringify({orderId,paymentId:installment.paid_payment_id,previousPaymentPaidAt:payment.paid_at,previousInstallmentPaidAt:installment.paid_at,paymentDate:paidAt}),now)
+  ]);
+  return Response.json({ok:true,paymentDate:paidAt});
  }
  if(action==="installment_status"){
   if(!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية متابعة الأقساط"},{status:403});

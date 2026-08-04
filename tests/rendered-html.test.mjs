@@ -131,11 +131,11 @@ test("shows a visible confirmation after financial and operational updates", asy
   assert.match(page, /role="status" aria-live="polite"/);
 });
 
-test("allows finance to update each installment due date independently", async () => {
+test("allows finance to update the actual payment date independently", async () => {
   const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(api, /action==="update_installment_due_date"/);
-  assert.match(api, /UPDATE_INSTALLMENT_DUE_DATE/);
+  assert.match(api, /action==="update_payment_date"/);
+  assert.match(api, /UPDATE_PAYMENT_DATE/);
   assert.match(page, /تاريخ الاستحقاق/);
   assert.match(page, /تاريخ السداد الفعلي/);
 });
