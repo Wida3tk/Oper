@@ -2619,6 +2619,7 @@ type FinanceOrder = {
   finance_note: string;
   payment_behavior: PaymentBehavior;
   seat_fee: number;
+  discount_percent: number;
   payments: FinancePayment[];
   installments: FinanceInstallment[];
 };
@@ -5844,6 +5845,10 @@ function LiveFinance() {
               <p>
                 <span>المتبقي</span>
                 <b>{sar(selected.remaining)}</b>
+              </p>
+              <p className="discount-rate">
+                <span>نسبة الخصم</span>
+                <b>{Number(selected.discount_percent || 0).toLocaleString("en-US")}%</b>
               </p>
               {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
               {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
