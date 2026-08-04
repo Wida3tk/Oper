@@ -5554,6 +5554,7 @@ function LiveFinance() {
     [installmentDueDates,setInstallmentDueDates]=useState<Record<string,string>>({}),
     [installmentPaymentDates,setInstallmentPaymentDates]=useState<Record<string,string>>({}),
     [paymentRecordDate,setPaymentRecordDate]=useState(""),
+    [selectedPaymentRecordId,setSelectedPaymentRecordId]=useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [saving, setSaving] = useState(false);
@@ -5610,6 +5611,10 @@ function LiveFinance() {
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
     setLegacySeatFee(String(row.seat_fee || ""));
+    const defaultPayment = financeTab === "sales"
+      ? row.payments.find((payment) => payment.flow_type === "sale") || firstPayment(row)
+      : [...row.payments].filter((payment) => payment.flow_type === "collection").sort((a,b) => String(b.paid_at || b.created_at || "").localeCompare(String(a.paid_at || a.created_at || "")))[0] || firstPayment(row);
+    setSelectedPaymentRecordId(defaultPayment?.id || "");
     syncScheduleFromSavedTable(row);
     setInstallmentDueDates(Object.fromEntries(row.installments.map((item) => [item.id, String(item.due_date).slice(0,10)])));
     setInstallmentPaymentDates(Object.fromEntries(row.installments.filter((item) => item.paid_at).map((item) => [item.id, String(item.paid_at).slice(0,10)])));
@@ -5772,7 +5777,7 @@ function LiveFinance() {
   const normalizedFinalAmount = Math.max(normalizedFinalCents, 0) / 100;
   const scheduleTotal =
     regularAmount * Math.max(scheduleCount - 1, 0) + normalizedFinalAmount;
-  const selectedReferencePayment = selected
+  const defaultReferencePayment = selected
     ? financeTab === "sales"
       ? selected.payments.find((payment) => payment.flow_type === "sale") ||
         firstPayment(selected)
@@ -5784,6 +5789,7 @@ function LiveFinance() {
             ),
           )[0] || firstPayment(selected)
     : undefined;
+  const selectedReferencePayment = selected?.payments.find((payment) => payment.id === selectedPaymentRecordId) || defaultReferencePayment;
   const selectedFirstProgramPayment=selected?firstPayment(selected):undefined;
   useEffect(() => {
     setPaymentRecordDate(String(selectedReferencePayment?.paid_at || selectedReferencePayment?.created_at || "").slice(0,10));

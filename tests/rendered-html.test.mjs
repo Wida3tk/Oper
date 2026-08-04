@@ -156,6 +156,8 @@ test("lets finance set the visible payment date on the financial record", async 
   assert.match(api, /UPDATE_PAYMENT_RECORD_DATE/);
   assert.match(page, /finance-payment-date/);
   assert.match(page, /تاريخ السداد/);
+  assert.match(page, /selectedPaymentRecordId/);
+  assert.match(page, /payment\.id === selectedPaymentRecordId/);
 });
 
 test("loads the saved installment split instead of proposing a new schedule", async () => {
