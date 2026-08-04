@@ -2554,6 +2554,10 @@ type LiveTrial = {
   phone: string;
   email: string;
   program_name: string;
+  program_track?: string;
+  program_delivery?: string;
+  program_language?: string;
+  competency_assessment?: number;
   program_code: string;
   starts_at: string;
   ends_at: string;
@@ -5605,6 +5609,14 @@ function LiveFinance() {
     if (row.paid > 0) return "دفعة جزئية";
     return "غير مدفوع";
   };
+  const subscriptionMeta = (row: FinanceOrder) => {
+    const items: string[] = [];
+    if (row.program_track && !["غير محدد", "—"].includes(row.program_track)) items.push(`التصنيف: ${row.program_track}`);
+    if (row.program_delivery) items.push(`النمط: ${row.program_delivery}`);
+    if (row.order_type === "إشراف") items.push("إشراف");
+    if (Number(row.competency_assessment || 0) > 0) items.push("مع تقييم كفاءة");
+    return items;
+  };
   const firstPayment = (row: FinanceOrder) =>
     [...row.payments].sort((a, b) =>
       String(a.paid_at || a.created_at || "").localeCompare(
@@ -5803,7 +5815,8 @@ function LiveFinance() {
           <div className={`finance-order-list ${financeTab}`}>
           {financeTab === "sales" ? filteredSales.map(({row,payment}) => (
             <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : ""}`} onClick={() => open(row)} key={payment.id}>
-              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name} · {row.order_id}</span></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : "green"}`}>{saleStatus({row,payment})}</em></div>
+              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name}</span><small className="finance-order-number">{row.order_id}</small></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : "green"}`}>{saleStatus({row,payment})}</em></div>
+              {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
               <div className="finance-order-money sale-money"><p className="paid"><span>المدفوع من البرنامج</span><b>{sar(payment.amount)}</b></p>{row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}<p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
               <footer><span>{saleDate(payment) || "دون تاريخ"}</span><span>{payment.reference || "دون مرجع"}</span><b>فتح الملف المالي ←</b></footer>
             </article>
@@ -5818,8 +5831,9 @@ function LiveFinance() {
                 <div>
                   <b>{row.customer_name}</b>
                   <span>
-                    {row.program_name} · {row.order_id}
+                    {row.program_name}
                   </span>
+                  <small className="finance-order-number">{row.order_id}</small>
                 </div>
                 <em
                   className={`pill ${row.finance_review_status === "pending" ? "amber" : row.remaining === 0 ? "green" : "blue"}`}
@@ -5827,6 +5841,7 @@ function LiveFinance() {
                   {financeStatus(row)}
                 </em>
               </div>
+              {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
               <div className="finance-order-money">
                 <p>
                   <span>الإجمالي</span>
@@ -5870,6 +5885,7 @@ function LiveFinance() {
                 <p>
                   {selected.customer_id} · {selected.program_name}
                 </p>
+                {subscriptionMeta(selected).length>0&&<div className="drawer-subscription-meta">{subscriptionMeta(selected).map(item=><span key={item}>{item}</span>)}</div>}
               </div>
             </div>
             <div className="finance-reference-strip">
@@ -5951,6 +5967,12 @@ function LiveFinance() {
                 </label>
                 <label>
                   مصدر الشراء<b>{selected.purchase_source}</b>
+                </label>
+                <label>
+                  التصنيف أو المسار<b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون تصنيف"}</b>
+                </label>
+                <label>
+                  نمط البرنامج<b>{selected.program_delivery || "غير محدد"}</b>
                 </label>
               </div>
             </Section>
