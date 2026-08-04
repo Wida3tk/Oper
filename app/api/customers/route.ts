@@ -79,14 +79,15 @@ export async function PATCH(req: Request) {
   const phone = String(body.phone || "").replace(/\s/g, "");
   const email = String(body.email || "").trim().toLowerCase();
   const source = String(body.source || "").trim();
+  const cohort = String(body.cohort || "").trim();
   if (!customerId || !name || !phone || !email) return Response.json({ error: "الاسم والجوال والبريد مطلوبة" }, { status: 400 });
   const db = operationalDb();
-  const current = await db.prepare(`SELECT c.id,c.name,c.phone,c.email,o.id order_id,o.purchase_source source
+  const current = await db.prepare(`SELECT c.id,c.name,c.phone,c.email,o.id order_id,o.purchase_source source,o.cohort_label cohort
     FROM customers c LEFT JOIN orders o ON o.id=(SELECT id FROM orders WHERE customer_id=c.id ORDER BY created_at DESC LIMIT 1)
     WHERE c.id=? AND c.deleted_at IS NULL`).bind(customerId).first<Record<string, unknown>>();
   if (!current) return Response.json({ error: "العميل غير موجود" }, { status: 404 });
   const changes: Record<string, { from: string; to: string }> = {};
-  for (const [field, from, to] of [["name", current.name, name], ["phone", current.phone, phone], ["email", current.email, email], ["source", current.source, source]] as const) {
+  for (const [field, from, to] of [["name", current.name, name], ["phone", current.phone, phone], ["email", current.email, email], ["source", current.source, source], ["cohort", current.cohort, cohort]] as const) {
     if (String(from || "") !== to) changes[field] = { from: String(from || ""), to };
   }
   if (!Object.keys(changes).length) return Response.json({ ok: true, unchanged: true });
@@ -95,7 +96,10 @@ export async function PATCH(req: Request) {
     db.prepare("UPDATE customers SET name=?,phone=?,email=?,admitted_via=?,updated_at=? WHERE id=?").bind(name, phone, email, source, now, customerId),
     db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_CUSTOMER_DATA','customer',?,?,?)").bind(id("AUD"), auth.email, customerId, JSON.stringify({ changes }), now),
   ];
-  if (current.order_id) statements.splice(1, 0, db.prepare("UPDATE orders SET purchase_source=?,updated_at=? WHERE id=?").bind(source, now, current.order_id));
+  if (current.order_id) statements.splice(1, 0,
+    db.prepare("UPDATE orders SET purchase_source=?,cohort_label=?,updated_at=? WHERE id=?").bind(source, cohort || null, now, current.order_id),
+    db.prepare("UPDATE seat_reservations SET cohort_label=?,updated_at=? WHERE order_id=?").bind(cohort || null, now, current.order_id),
+  );
   await db.batch(statements);
-  return Response.json({ ok: true, customer: { id: customerId, name, phone, email, source }, changes });
+  return Response.json({ ok: true, customer: { id: customerId, name, phone, email, source, cohort }, changes });
 }

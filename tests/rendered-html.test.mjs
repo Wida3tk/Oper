@@ -167,3 +167,13 @@ test("shows subscription classification and delivery on finance cards", async ()
   assert.match(page, /النمط:/);
   assert.match(page, /مع تقييم كفاءة/);
 });
+
+test("shows and edits the customer cohort from the customer card", async () => {
+  const api = await readFile(new URL("../app/api/customers/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /رقم الدفعة/);
+  assert.match(page, /إضافة رقم الدفعة/);
+  assert.match(page, /CustomerCohortEditor/);
+  assert.match(api, /cohort_label=\?/);
+  assert.match(api, /UPDATE_CUSTOMER_DATA/);
+});
