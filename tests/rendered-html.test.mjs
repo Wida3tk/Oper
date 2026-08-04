@@ -197,6 +197,13 @@ test("renders the finance customer profile professionally with an LTR phone", as
   assert.match(css, /unicode-bidi:embed/);
 });
 
+test("aligns paid installment details as a compact right-side panel", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.installment-list>article>\.paid-ref\{width:min\(100%,500px\)/);
+  assert.match(css, /margin-left:auto/);
+  assert.match(css, /border-right:1px solid #c8e7d7/);
+});
+
 test("shows and edits the customer cohort from the customer card", async () => {
   const api = await readFile(new URL("../app/api/customers/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
