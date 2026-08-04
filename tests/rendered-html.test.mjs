@@ -122,3 +122,11 @@ test("separates legacy seat fees from both contract and first payment", async ()
   assert.match(page, /فصل رسوم حجز المقعد للملف السابق/);
   assert.match(page, /بقاء المتبقي والأقساط كما هي/);
 });
+
+test("shows a visible confirmation after financial and operational updates", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /sulukera:success/);
+  assert.match(page, /تم تحديث جدول الأقساط/);
+  assert.match(page, /تم تنفيذ الإجراء بنجاح/);
+  assert.match(page, /role="status" aria-live="polite"/);
+});

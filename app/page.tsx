@@ -456,12 +456,27 @@ function OperationsApp() {
     [mobileOpen, setMobileOpen] = useState(false),
     [accountOpen, setAccountOpen] = useState(false),
     [notificationsOpen, setNotificationsOpen] = useState(false),
+    [successNotice, setSuccessNotice] = useState<{ id: number; message: string } | null>(null),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
       email: "",
       roles: ["admin"] as string[],
       permissions: ["*"] as string[],
     });
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const showSuccess = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message || "تم التحديث بنجاح";
+      setSuccessNotice({ id: Date.now(), message });
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setSuccessNotice(null), 3200);
+    };
+    window.addEventListener("sulukera:success", showSuccess);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("sulukera:success", showSuccess);
+    };
+  }, []);
   useEffect(() => {
     const localizeDates = () =>
       document
@@ -643,6 +658,13 @@ function OperationsApp() {
   ].filter((item) => item.count > 0 && canOpen(item.view));
   return (
     <main className="shell" dir="rtl">
+      {successNotice && (
+        <div className="success-toast" role="status" aria-live="polite" key={successNotice.id}>
+          <ShieldCheck size={21} />
+          <div><b>{successNotice.message}</b><span>تم حفظ التغيير في النظام</span></div>
+          <button type="button" aria-label="إغلاق الإشعار" onClick={() => setSuccessNotice(null)}>×</button>
+        </div>
+      )}
       {mobileOpen && (
         <button
           className="mobile-nav-overlay"
@@ -2644,6 +2666,26 @@ async function apiJson(url: string, init?: RequestInit) {
     throw new Error(
       data.error || "تعذر تحميل البيانات. تأكد من تسجيل الدخول والصلاحية.",
     );
+  const method = String(init?.method || "GET").toUpperCase();
+  if (method !== "GET" && typeof window !== "undefined") {
+    let action = "";
+    try {
+      action = typeof init?.body === "string" ? String(JSON.parse(init.body).action || "") : "";
+    } catch {}
+    const messages: Record<string, string> = {
+      schedule: "تم تحديث جدول الأقساط",
+      update_first_payment: "تم تحديث الدفعة الأولى",
+      separate_legacy_seat_fee: "تم فصل رسوم حجز المقعد",
+      pay_installment: "تم تسجيل سداد القسط",
+      installment_status: "تم تحديث حالة السداد",
+      remind_installment: "تم تسجيل تذكير السداد",
+      approve_finance_review: "تم اعتماد المراجعة المالية",
+      review_legacy_installments: "تم اعتماد المراجعة المالية",
+      note: "تم حفظ الملاحظة المالية",
+    };
+    const message = messages[action] || (method === "DELETE" ? "تم الحذف بنجاح" : method === "PATCH" ? "تم تحديث البيانات بنجاح" : "تم تنفيذ الإجراء بنجاح");
+    window.dispatchEvent(new CustomEvent("sulukera:success", { detail: { message } }));
+  }
   return data;
 }
 function LiveState({
