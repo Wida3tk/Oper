@@ -116,10 +116,10 @@ test("routes supervision through onboarding and collection without course activa
 test("separates legacy seat fees from both contract and first payment", async () => {
   const api = await readFile(new URL("../app/api/finance/route.ts", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(api, /action==="separate_legacy_seat_fee"/);
-  assert.match(api, /newTotalCents=totalCents-feeCents,newFirstCents=firstCents-feeCents,newPaidCents=paidCents-feeCents/);
-  assert.match(api, /رسوم المقعد مفصولة مسبقاً/);
-  assert.match(page, /فصل رسوم حجز المقعد للملف السابق/);
+  assert.match(api, /"separate_legacy_seat_fee","set_legacy_seat_fee"/);
+  assert.match(api, /deltaCents=feeCents-previousFeeCents/);
+  assert.match(api, /newTotalCents=totalCents-deltaCents,newFirstCents=firstCents-deltaCents,newPaidCents=paidCents-deltaCents/);
+  assert.match(page, /حفظ تعديل الرسوم/);
   assert.match(page, /بقاء المتبقي والأقساط كما هي/);
 });
 

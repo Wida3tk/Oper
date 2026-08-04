@@ -2676,6 +2676,7 @@ async function apiJson(url: string, init?: RequestInit) {
       schedule: "تم تحديث جدول الأقساط",
       update_first_payment: "تم تحديث الدفعة الأولى",
       separate_legacy_seat_fee: "تم فصل رسوم حجز المقعد",
+      set_legacy_seat_fee: "تم تحديث رسوم حجز المقعد",
       pay_installment: "تم تسجيل سداد القسط",
       installment_status: "تم تحديث حالة السداد",
       remind_installment: "تم تسجيل تذكير السداد",
@@ -5536,7 +5537,7 @@ function LiveFinance() {
         if (updated) {
           setTotal(String(updated.total));
           setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
-          setLegacySeatFee("");
+          setLegacySeatFee(String(updated.seat_fee || ""));
         }
       }
     } catch (e) {
@@ -5552,7 +5553,7 @@ function LiveFinance() {
     setSelected(row);
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
-    setLegacySeatFee("");
+    setLegacySeatFee(String(row.seat_fee || ""));
     setRegularAmountInput("");
     setFinalAmount("");
     setScheduleEdit("auto");
@@ -5899,19 +5900,6 @@ function LiveFinance() {
               {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
               {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
             </div>
-            {Number(selected.seat_fee || 0) === 0 && (
-              <div className="legacy-seat-fee-tool">
-                <div>
-                  <b>فصل رسوم حجز المقعد للملف السابق</b>
-                  <span>تُخصم الرسوم من إجمالي البرنامج ومن أول دفعة بالقيمة نفسها؛ لذلك يبقى المتبقي وجدول الأقساط دون تغيير.</span>
-                </div>
-                <label>
-                  قيمة حجز المقعد
-                  <input type="number" min="0.01" step="0.01" value={legacySeatFee} onChange={(e) => setLegacySeatFee(e.target.value)} placeholder="مثال: 200" />
-                </label>
-                <button type="button" className="secondary" disabled={saving || !(Number(legacySeatFee) > 0)} onClick={() => window.confirm(`سيتم فصل ${sar(Number(legacySeatFee))} من إجمالي البرنامج ومن أول دفعة مع بقاء المتبقي والأقساط كما هي. هل تريد المتابعة؟`) && post({action:"separate_legacy_seat_fee",seatFee:Number(legacySeatFee)})}>إضافة وفصل الرسوم</button>
-              </div>
-            )}
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
               <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>
@@ -5954,6 +5942,17 @@ function LiveFinance() {
               </div>
             </Section>
             <Section title="حالة السداد">
+              <div className="legacy-seat-fee-tool">
+                <div>
+                  <b>رسوم حجز المقعد</b>
+                  <span>يمكن إضافة الرسوم أو تعديلها. يُطبّق الفرق على إجمالي البرنامج وأول دفعة، بينما يبقى المتبقي وجدول الأقساط ثابتين.</span>
+                </div>
+                <label>
+                  قيمة حجز المقعد
+                  <input type="number" min="0.01" step="0.01" value={legacySeatFee} onChange={(e) => setLegacySeatFee(e.target.value)} placeholder="مثال: 200" />
+                </label>
+                <button type="button" className="secondary" disabled={saving || !(Number(legacySeatFee) > 0) || Math.abs(Number(legacySeatFee) - Number(selected.seat_fee || 0)) < 0.005} onClick={() => window.confirm(`سيتم تحديث رسوم المقعد إلى ${sar(Number(legacySeatFee))} مع بقاء المتبقي والأقساط كما هي. هل تريد المتابعة؟`) && post({action:"set_legacy_seat_fee",seatFee:Number(legacySeatFee)})}>{Number(selected.seat_fee || 0) > 0 ? "حفظ تعديل الرسوم" : "إضافة وفصل الرسوم"}</button>
+              </div>
               <div className="schedule-form">
                 <label>
                   إجمالي عقد البرنامج · دون رسوم المقعد
