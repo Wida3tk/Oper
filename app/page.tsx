@@ -490,12 +490,11 @@ function OperationsApp() {
   }, []);
   useEffect(() => {
     const refresh = async () => {
-      const [tasksResult, enrollmentsResult, reservationsResult, directResult, financeResult] =
+      const [tasksResult, enrollmentsResult, reservationsResult, financeResult] =
         await Promise.allSettled([
           apiJson("/api/tasks"),
           apiJson("/api/enrollments"),
-          apiJson(`/api/reservations?kind=${encodeURIComponent("حجز مقعد")}`),
-          apiJson(`/api/reservations?kind=${encodeURIComponent("برنامج مباشر")}`),
+          apiJson("/api/reservations?kind=seat"),
           apiJson("/api/finance"),
         ]);
       if (tasksResult.status === "fulfilled") {
@@ -508,10 +507,6 @@ function OperationsApp() {
       const reservations =
         reservationsResult.status === "fulfilled"
           ? reservationsResult.value.reservations || []
-          : [];
-      const direct =
-        directResult.status === "fulfilled"
-          ? directResult.value.reservations || []
           : [];
       const finance =
         financeResult.status === "fulfilled"
