@@ -3909,13 +3909,13 @@ function TrialHandoff() {
 
 const enrollmentSteps: Record<string, [string, string]> = {
   جديد: ["contacted", "تأكيد تسليم العميل"],
-  "تم التواصل": ["registered", "تمت تهيئة العميل"],
+  "تم التواصل": ["registered", "تهيئة العميل"],
   "اكتمل التسجيل": ["activated", "تم تفعيل المقررات"],
   "تم إنشاء الحساب": ["activated", "تم تفعيل المقررات"],
 };
 const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
   row.order_type === "إشراف" && row.status === "تم التواصل"
-    ? ["registered", "تمت تهيئة العميل"]
+    ? ["registered", "تهيئة العميل"]
     : enrollmentSteps[row.status];
 function PaymentReferenceControl({
   paymentId,
