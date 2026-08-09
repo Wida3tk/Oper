@@ -423,7 +423,7 @@ function AuthGate() {
           </label>
           {error && <div className="login-error">{error}</div>}
           <button
-            className="primary"
+            className="primary login-submit"
             disabled={saving || !email || password.length < 8}
             onClick={login}
           >
@@ -431,9 +431,8 @@ function AuthGate() {
               ? "جارٍ الدخول..."
               : setup
                 ? "إنشاء الحساب والدخول"
-                : "تسجيل الدخول"}
+                : "دخول إلى النظام"}
           </button>
-          <small>للدخول يجب أن يكون بريدك مضافاً من إدارة المستخدمين.</small>
         </div>
       </section>
     </main>
