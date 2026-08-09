@@ -49,7 +49,7 @@ type View =
   | "work"
   | "customers"
   | "reservations"
-  | "direct-programs"
+  | "program-activation"
   | "contact"
   | "registration"
   | "assignment"
@@ -121,6 +121,7 @@ const navGroups: {
       ["contact", "تسليم العميل", "contact"],
       ["registration", "تهيئة العميل", "registration"],
       ["assignment", "تفعيل المقررات", "assignment"],
+      ["program-activation", "تفعيل البرامج", "programs"],
     ],
   },
   {
@@ -130,7 +131,6 @@ const navGroups: {
     collapsible: true,
     items: [
       ["customers", "قاعدة بيانات العملاء", "customers"],
-      ["direct-programs", "عملاء البرامج المباشرة", "programs"],
       ["reservations", "حجوزات المقاعد", "reservations"],
     ],
   },
@@ -292,10 +292,7 @@ const titles: Record<View, [string, string]> = {
     "حجوزات المقاعد",
     "الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل",
   ],
-  "direct-programs": [
-    "عملاء البرامج المباشرة",
-    "الدفعات المجدولة التي تنتقل إلى التهيئة في تاريخ الإسناد",
-  ],
+  "program-activation": ["تفعيل البرامج", "برامج التعليم المستمر المباشرة الجاهزة للتفعيل"],
   contact: ["تسليم العميل", "تسجيل بيانات العميل ومتابعة عملاء التجربة"],
   registration: [
     "تهيئة العميل",
@@ -531,8 +528,8 @@ function OperationsApp() {
         reservations: reservations.filter(
           (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
-        "direct-programs": direct.filter(
-          (row: LiveReservation) => row.status !== "تم التحويل",
+        "program-activation": enrollments.filter((row: LiveEnrollment) =>
+          row.program_name.includes("التعليم المستمر") && row.program_delivery === "مباشر" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
         ).length,
         finance: finance.filter(
           (row: FinanceOrder) =>
@@ -609,8 +606,8 @@ function OperationsApp() {
     ["dashboard", "work"].includes(id) ||
     (id === "customers" && has("customers.view")) ||
     (["contact", "registration"].includes(id) && has("customers.manage")) ||
-    (id === "assignment" && has("programs.activate")) ||
-    (["reservations", "direct-programs"].includes(id) &&
+    (["assignment", "program-activation"].includes(id) && has("programs.activate")) ||
+    (id === "reservations" &&
       has("reservations.manage")) ||
     (id === "finance" && has("finance.view")) ||
     (id === "reports" && has("reports.view")) ||
@@ -894,7 +891,7 @@ function OperationsApp() {
           {view === "work" && <LiveWork onNavigate={go} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
           {view === "reservations" && <Reservations />}
-          {view === "direct-programs" && <Reservations kind="برنامج مباشر" />}
+          {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
           {view === "contact" && (
             <>
               <TrialHandoff />
@@ -1688,6 +1685,7 @@ function Registration({ done }: { done: () => void }) {
     contractTotal: "",
     discount: "0",
     seatReserved: "لا",
+    seatBookingType: "حجز مع تسجيل",
     seatFee: "",
     competencyAssessment: "لا",
   });
@@ -1727,6 +1725,7 @@ function Registration({ done }: { done: () => void }) {
         delivery: supervisionService ? "مباشر" : competencyService ? "" : "مسجل",
         language: program.name.includes("إدارة السلوك التنظيمي") ? f.language : "",
         seatReserved: "لا",
+        seatBookingType: "حجز مع تسجيل",
         seatFee: "",
         competencyAssessment: "لا",
       }));
@@ -1748,6 +1747,7 @@ function Registration({ done }: { done: () => void }) {
       ));
   const hasSeatReservation =
     seatReservationEligible && form.seatReserved === "نعم";
+  const seatOnly = hasSeatReservation && form.seatBookingType === "حجز مقعد فقط";
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
   const scheduledJourney = isSupervision || hasSeatReservation || (!asara && directProgram);
@@ -1764,8 +1764,7 @@ function Registration({ done }: { done: () => void }) {
   ) / 100;
   const seatFee = hasSeatReservation ? (isSupervision ? 50 : Number(form.seatFee || 0)) : 0;
   const finalTotal = discountedTotal;
-  const payableAmount =
-    form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
+  const payableAmount = seatOnly ? seatFee : form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
   const phoneInvalid = !internationalPhonePattern.test(form.phone);
   const readProof = (file?: File) => {
     setSaveError("");
@@ -1829,12 +1828,12 @@ function Registration({ done }: { done: () => void }) {
       return;
     }
     if (step === 3 && form.journey !== "تجربة") {
-      if (!(baseTotal > 0) || !(discountedTotal > 0)) {
+      if (!seatOnly && (!(baseTotal > 0) || !(discountedTotal > 0))) {
         setSaveError("يلزم إدخال المبلغ الأساسي قبل المتابعة");
         return;
       }
       if (
-        form.payment === "أقساط" &&
+        !seatOnly && form.payment === "أقساط" &&
         (!(payableAmount > 0) || payableAmount >= finalTotal)
       ) {
         setSaveError(
@@ -1880,10 +1879,10 @@ function Registration({ done }: { done: () => void }) {
     }
     if (
       form.journey !== "تجربة" &&
-      (!(baseTotal > 0) ||
+      (!seatOnly && (!(baseTotal > 0) ||
         !(finalTotal > 0) ||
         (form.payment === "أقساط" &&
-          (!(payableAmount > 0) || payableAmount >= finalTotal)))
+          (!(payableAmount > 0) || payableAmount >= finalTotal))))
     ) {
       setSaveError("تحقق من المبلغ الأساسي والخصم والدفعة الأولى");
       setStep(3);
@@ -1909,6 +1908,7 @@ function Registration({ done }: { done: () => void }) {
         discountPercent,
         competencyAssessment: Boolean(isAbat && form.competencyAssessment === "نعم"),
         seatReserved: hasSeatReservation,
+        seatBookingType: hasSeatReservation ? form.seatBookingType : "",
         seatFee,
         proofAssetKey: proof.data,
         proofFileName: proof.name,
@@ -2138,6 +2138,15 @@ function Registration({ done }: { done: () => void }) {
                 </Field>
               )}
               {hasSeatReservation && (
+                <Field label="نوع حجز المقعد *">
+                  <select required value={form.seatBookingType} onChange={(e) => set("seatBookingType", e.target.value)}>
+                    <option>حجز مع تسجيل</option>
+                    <option>حجز مقعد فقط</option>
+                  </select>
+                  <small className="field-help">حجز المقعد فقط يبقى في قائمة الحجوزات حتى استكمال البرنامج أو الانسحاب.</small>
+                </Field>
+              )}
+              {hasSeatReservation && (
                 <Field label="مبلغ حجز المقعد *">
                   <input
                     required
@@ -2262,7 +2271,7 @@ function Registration({ done }: { done: () => void }) {
                     </select>
                   </Field>
                 )}
-                <Field label="المبلغ الأساسي *">
+                {!seatOnly && <Field label="المبلغ الأساسي *">
                   <input
                     inputMode="decimal"
                     dir="ltr"
@@ -2270,8 +2279,8 @@ function Registration({ done }: { done: () => void }) {
                     onChange={(e) => set("contractTotal", e.target.value)}
                     placeholder="0.00 ر.س"
                   />
-                </Field>
-                <Field label="قيمة الخصم">
+                </Field>}
+                {!seatOnly && <Field label="قيمة الخصم">
                   <select
                     value={form.discount}
                     onChange={(e) => set("discount", e.target.value)}
@@ -2282,8 +2291,8 @@ function Registration({ done }: { done: () => void }) {
                       </option>
                     ))}
                   </select>
-                </Field>
-                <Field label="خطة السداد">
+                </Field>}
+                {!seatOnly && <Field label="خطة السداد">
                   <select
                     value={form.payment}
                     onChange={(e) => set("payment", e.target.value)}
@@ -2292,8 +2301,8 @@ function Registration({ done }: { done: () => void }) {
                     <option>أقساط</option>
                     <option>تمارا</option>
                   </select>
-                </Field>
-                {form.payment === "أقساط" && (
+                </Field>}
+                {!seatOnly && form.payment === "أقساط" && (
                   <Field label="الدفعة الأولى *">
                     <input
                       inputMode="decimal"
@@ -2319,6 +2328,7 @@ function Registration({ done }: { done: () => void }) {
                   </Field>
                 )}
                 <div className="discount-summary">
+                  {seatOnly ? <p className="net"><span>المبلغ المدفوع</span><b>{seatFee.toLocaleString("en-US")} ر.س رسوم مقعد فقط</b></p> : <>
                   <p>
                     <span>المبلغ الأساسي</span>
                     <b>{baseTotal.toLocaleString("en-US")} ر.س</b>
@@ -2344,6 +2354,7 @@ function Registration({ done }: { done: () => void }) {
                   {form.payment === "دفع كامل" && (
                     <small>سيُسجل هذا المبلغ كاملاً كدفعة المبيعات.</small>
                   )}
+                  </>}
                 </div>
                 {directPayment && form.method === "تحويل بنكي" && (
                   <label className={`bank-proof ${proof.data ? "ready" : ""}`}>
@@ -2623,6 +2634,7 @@ type LiveReservation = {
   cohort_label?: string;
   start_date?: string;
   assignment_date?: string;
+  converted_enrollment_id?: string;
 };
 type FinancePayment = {
   id: string;
@@ -3906,8 +3918,6 @@ const enrollmentSteps: Record<string, [string, string]> = {
   "تم التواصل": ["registered", "إتمام تهيئة العميل"],
   "اكتمل التسجيل": ["assigned", "تفعيل المقررات"],
   "تم إنشاء الحساب": ["assigned", "تفعيل المقررات"],
-  "تم الإسناد": ["completed", "إكمال البرنامج"],
-  نشط: ["completed", "إكمال البرنامج"],
 };
 const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
   row.order_type === "إشراف" && row.status === "تم التواصل"
@@ -4084,7 +4094,7 @@ function OperationsCustomerCard({
               onAdvance();
             }}
           >
-            {moving ? "..." : "تنفيذ"}
+            {moving ? "..." : nextLabel}
           </button>
         )}
       </div>
@@ -4095,7 +4105,7 @@ function LiveAcademy({
   focus,
   canManagePaymentReference,
 }: {
-  focus: "contact" | "registration" | "assignment";
+  focus: "contact" | "registration" | "assignment" | "program-activation";
   canManagePaymentReference: boolean;
 }) {
   const [rows, setRows] = useState<LiveEnrollment[]>([]),
@@ -4169,15 +4179,17 @@ function LiveAcademy({
       ? ["جديد"]
       : focus === "registration"
         ? ["تم التواصل"]
-        : ["اكتمل التسجيل", "تم الإسناد", "مكتمل"];
+        : ["اكتمل التسجيل"];
   const availablePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
   const availableStatuses = Array.from(
     new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
   );
+  const isDirectContinuingEducation = (row: LiveEnrollment) => row.program_name.includes("التعليم المستمر") && row.program_delivery === "مباشر";
   const filteredRows = rows.filter(
     (row) =>
+      (focus === "program-activation" ? isDirectContinuingEducation(row) : focus === "assignment" ? !isDirectContinuingEducation(row) : true) &&
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
@@ -4381,7 +4393,7 @@ function LiveAcademy({
                   key={row.id}
                   row={row}
                   stage={stageLabel(state)}
-                  nextLabel={enrollmentStep(row)?.[1]}
+                  nextLabel={focus === "program-activation" ? "تفعيل البرنامج" : enrollmentStep(row)?.[1]}
                   moving={moving === row.id}
                   onOpen={() => setSelectedRow(row)}
                   onWhatsapp={() => whatsapp(row)}
@@ -5131,12 +5143,13 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
     [cohort, setCohort] = useState(""),
     [startDate, setStartDate] = useState(""),
     [assignmentDate, setAssignmentDate] = useState("");
+  const [completing,setCompleting]=useState(""),[completion,setCompletion]=useState({baseTotal:"",discount:"0",paymentPlan:"دفع كامل",firstPayment:"",reference:""}),[kindFilter,setKindFilter]=useState("الكل");
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const [a, b] = await Promise.all([
-        apiJson(`/api/reservations?kind=${encodeURIComponent(kind)}`),
+        apiJson(kind === "حجز مقعد" ? "/api/reservations?kind=seat" : `/api/reservations?kind=${encodeURIComponent(kind)}`),
         apiJson("/api/programs"),
       ]);
       setRows(a.reservations || []);
@@ -5210,6 +5223,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
   );
   const filteredReservations = rows.filter(
     (row) =>
+      (kindFilter === "الكل" || row.reservation_kind === kindFilter) &&
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || row.status === statusFilter),
   );
@@ -5225,6 +5239,9 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
         onProgram={setProgramFilter}
         onStatus={setStatusFilter}
       />
+      <div className="reservation-kind-filter" role="group" aria-label="تصنيف الحجوزات">
+        {["الكل","حجز مع تسجيل","حجز مقعد فقط","منسحب"].map(value=><button key={value} className={kindFilter===value?"active":""} onClick={()=>setKindFilter(value)}>{value}</button>)}
+      </div>
       <div className="reservation-flow">
         <div>
           <i>1</i>
@@ -5277,6 +5294,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
               <div>
                 <span>البرنامج</span>
                 <b>{row.program_name}</b>
+                <small className="reservation-type">{row.reservation_kind || "حجز مقعد"}</small>
               </div>
               <div>
                 <span>الدفعة</span>
@@ -5329,7 +5347,20 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
                     طلب نقل
                   </button>
                 )}
+                {row.reservation_kind === "حجز مقعد فقط" && row.status !== "منسحب" && !row.converted_enrollment_id && <>
+                  <button className="primary" onClick={()=>setCompleting(row.id)}>استكمال البرنامج</button>
+                  <button className="secondary danger" onClick={()=>{if(confirm(`تأكيد انسحاب ${row.customer_name}؟ سيبقى العميل محفوظاً في قاعدة البيانات.`))void post({action:"withdraw_seat_only",reservationId:row.id})}}>انسحاب</button>
+                </>}
               </div>
+              {completing===row.id&&<div className="reservation-completion">
+                <header><b>استكمال تسجيل البرنامج</b><span>رسوم المقعد تبقى منفصلة عن عقد البرنامج.</span></header>
+                <label>قيمة البرنامج<input dir="ltr" inputMode="decimal" value={completion.baseTotal} onChange={e=>setCompletion({...completion,baseTotal:e.target.value})}/></label>
+                <label>الخصم<select value={completion.discount} onChange={e=>setCompletion({...completion,discount:e.target.value})}>{[0,5,10,15,20,25,30,35,40,45,50].map(x=><option key={x} value={x}>{x}%</option>)}</select></label>
+                <label>خطة السداد<select value={completion.paymentPlan} onChange={e=>setCompletion({...completion,paymentPlan:e.target.value})}><option>دفع كامل</option><option>أقساط</option></select></label>
+                {completion.paymentPlan==="أقساط"&&<label>الدفعة الأولى<input dir="ltr" inputMode="decimal" value={completion.firstPayment} onChange={e=>setCompletion({...completion,firstPayment:e.target.value})}/></label>}
+                <label>مرجع السداد<input dir="ltr" value={completion.reference} onChange={e=>setCompletion({...completion,reference:e.target.value})}/></label>
+                <div><button className="primary" onClick={async()=>{await post({action:"complete_seat_only",reservationId:row.id,baseTotal:completion.baseTotal,discountPercent:completion.discount,paymentPlan:completion.paymentPlan,firstPayment:completion.firstPayment,reference:completion.reference,method:"دفع مباشر"});setCompleting("")}}>تأكيد الاستكمال</button><button className="secondary" onClick={()=>setCompleting("")}>إلغاء</button></div>
+              </div>}
               {editing === row.id && (
                 <div className="reservation-schedule">
                   <label>
