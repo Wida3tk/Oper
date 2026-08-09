@@ -6,6 +6,7 @@ const transitions:Record<string,{from:string[],to:string,column?:string,next?:st
   contacted:{from:["جديد"],to:"تم التواصل",next:"استكمال بيانات التسجيل"},
   registered:{from:["تم التواصل"],to:"اكتمل التسجيل",next:"إسناد البرنامج والمقررات"},
   account_created:{from:["اكتمل التسجيل"],to:"تم إنشاء الحساب",column:"account_created_at",next:"إسناد البرنامج والمقررات"},
+  activated:{from:["اكتمل التسجيل","تم إنشاء الحساب"],to:"مكتمل",column:"completed_at"},
   assigned:{from:["اكتمل التسجيل","تم إنشاء الحساب"],to:"تم الإسناد",column:"assigned_at",next:"متابعة إكمال البرنامج"},
   access_verified:{from:["تم الإسناد"],to:"نشط",column:"access_verified_at"},
   completed:{from:["تم الإسناد","نشط"],to:"مكتمل",column:"completed_at"},

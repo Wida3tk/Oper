@@ -3909,13 +3909,13 @@ function TrialHandoff() {
 
 const enrollmentSteps: Record<string, [string, string]> = {
   جديد: ["contacted", "تأكيد تسليم العميل"],
-  "تم التواصل": ["registered", "إتمام تهيئة العميل"],
-  "اكتمل التسجيل": ["assigned", "تفعيل المقررات"],
-  "تم إنشاء الحساب": ["assigned", "تفعيل المقررات"],
+  "تم التواصل": ["registered", "تمت تهيئة العميل"],
+  "اكتمل التسجيل": ["activated", "تم تفعيل المقررات"],
+  "تم إنشاء الحساب": ["activated", "تم تفعيل المقررات"],
 };
 const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
   row.order_type === "إشراف" && row.status === "تم التواصل"
-    ? ["registered", "إتمام تهيئة الإشراف"]
+    ? ["registered", "تمت تهيئة العميل"]
     : enrollmentSteps[row.status];
 function PaymentReferenceControl({
   paymentId,
@@ -4387,7 +4387,7 @@ function LiveAcademy({
                   key={row.id}
                   row={row}
                   stage={stageLabel(state)}
-                  nextLabel={focus === "program-activation" ? "تفعيل البرنامج" : enrollmentStep(row)?.[1]}
+                  nextLabel={focus === "program-activation" ? "تم تفعيل البرنامج" : enrollmentStep(row)?.[1]}
                   moving={moving === row.id}
                   onOpen={() => setSelectedRow(row)}
                   onWhatsapp={() => whatsapp(row)}
