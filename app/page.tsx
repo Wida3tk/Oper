@@ -4211,7 +4211,7 @@ function LiveAcademy({
         ? ["تم التواصل"]
         : ["اكتمل التسجيل"];
   const availablePrograms = Array.from(
-    new Set(rows.map((row) => row.program_name).filter(Boolean)),
+    new Set(rows.map((row) => programFamily(row.program_name)).filter(Boolean)),
   );
   const availableStatuses = Array.from(
     new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
@@ -4220,7 +4220,7 @@ function LiveAcademy({
   const filteredRows = rows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectContinuingEducation(row) : focus === "assignment" ? !isDirectContinuingEducation(row) : true) &&
-      (programFilter === "الكل" || row.program_name === programFilter) &&
+      (programFilter === "الكل" || programFamily(row.program_name) === programFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
   const attentionRows=rows.filter(row=>Boolean(row.needs_attention));
@@ -6480,6 +6480,15 @@ function CustomerTable({
   );
 }
 
+function programFamily(programName: string) {
+  const program = String(programName || "").trim(), value = program.toLowerCase();
+  if (!program || program === "—" || value.includes("لا يوجد طلب")) return "غير مصنف";
+  if (value.includes("تقييم الكفاءة") || value.includes("competency")) return "تقييم الكفاءة";
+  if (value.includes("إدارة السلوك التنظيمي") || value.includes("ادارة السلوك التنظيمي") || value.includes("obm")) return "إدارة السلوك التنظيمي";
+  if (value.includes("تحليل السلوك التطبيقي") || value.includes("aba")) return "تحليل السلوك التطبيقي";
+  return "التعليم المستمر";
+}
+
 function customerProgramCategory(customer: (typeof initialPeople)[number]) {
   const program = String(customer.program || "").trim(),
     value = program.toLowerCase();
@@ -6489,22 +6498,7 @@ function customerProgramCategory(customer: (typeof initialPeople)[number]) {
     String(customer.source).includes("تجربة")
   )
     return "التجربة";
-  if (!program || program === "—" || value.includes("لا يوجد طلب"))
-    return "غير مصنف";
-  if (value.includes("تقييم الكفاءة") || value.includes("competency"))
-    return "تقييم الكفاءة";
-  if (
-    value.includes("إدارة السلوك التنظيمي") ||
-    value.includes("ادارة السلوك التنظيمي") ||
-    value.includes("obm")
-  )
-    return "إدارة السلوك التنظيمي";
-  if (
-    value.includes("تحليل السلوك التطبيقي") ||
-    value.includes("aba")
-  )
-    return "تحليل السلوك التطبيقي";
-  return "التعليم المستمر";
+  return programFamily(program);
 }
 
 function customerProgramLabel(customer: (typeof initialPeople)[number]) {
