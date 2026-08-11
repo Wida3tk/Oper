@@ -452,6 +452,8 @@ function OperationsApp() {
     [mobileOpen, setMobileOpen] = useState(false),
     [accountOpen, setAccountOpen] = useState(false),
     [notificationsOpen, setNotificationsOpen] = useState(false),
+    [customerNotifications, setCustomerNotifications] = useState<Array<{id:string;created_at:string;actor_name:string;customer_id:string;customer_name:string;program_name?:string;order_number?:string}>>([]),
+    [notificationsReadAt, setNotificationsReadAt] = useState(""),
     [successNotice, setSuccessNotice] = useState<{ id: number; message: string } | null>(null),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
@@ -459,6 +461,21 @@ function OperationsApp() {
       roles: ["admin"] as string[],
       permissions: ["*"] as string[],
     });
+  useEffect(() => {
+    const stored = window.localStorage.getItem("sulukera_notifications_read_at") || "";
+    setNotificationsReadAt(stored);
+    const loadNotifications = async () => {
+      try {
+        const data = await apiJson("/api/notifications");
+        setCustomerNotifications(data.notifications || []);
+      } catch {}
+    };
+    void loadNotifications();
+    const interval = window.setInterval(loadNotifications, 20000);
+    const refresh = () => void loadNotifications();
+    window.addEventListener("sulukera:data-changed", refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener("sulukera:data-changed", refresh); };
+  }, []);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const showSuccess = (event: Event) => {
@@ -647,6 +664,8 @@ function OperationsApp() {
     { view: "assignment" as View, label: "بانتظار تفعيل المقررات", count: navCounts.assignment || 0 },
     { view: "finance" as View, label: "بانتظار الإجراء المالي", count: navCounts.finance || 0 },
   ].filter((item) => item.count > 0 && canOpen(item.view));
+  const unreadCustomerNotifications = customerNotifications.filter((item) => !notificationsReadAt || item.created_at > notificationsReadAt);
+  const notificationBadgeCount = unreadCustomerNotifications.length + headerNotifications.length;
   return (
     <main className="shell" dir="rtl">
       {successNotice && (
@@ -831,20 +850,30 @@ function OperationsApp() {
               onClick={() => {
                 setNotificationsOpen((value) => !value);
                 setAccountOpen(false);
+                const now = new Date().toISOString();
+                setNotificationsReadAt(now);
+                window.localStorage.setItem("sulukera_notifications_read_at", now);
               }}
             >
               <Bell size={18} />
-              {headerNotifications.length > 0 && <i>{headerNotifications.length}</i>}
+              {notificationBadgeCount > 0 && <i>{notificationBadgeCount}</i>}
             </button>
             {notificationsOpen && (
               <div className="notifications-menu">
-                <header><b>الإشعارات</b><span>{headerNotifications.length} أقسام تحتاج متابعة</span></header>
-                {headerNotifications.length ? headerNotifications.map((item) => (
+                <header><b>الإشعارات</b><span>آخر حركة للعملاء والمتابعات الحالية</span></header>
+                {customerNotifications.map((item) => (
+                  <button className="customer-created-notification" key={item.id} onClick={() => { setQuery(item.customer_name); go("customers"); setNotificationsOpen(false); }}>
+                    <span><b>أضاف {item.actor_name} عميلًا جديدًا</b><small>{item.customer_name} · {item.program_name || "دون برنامج"} · {new Date(item.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"short",timeStyle:"short"})}</small></span>
+                    <em>جديد</em>
+                  </button>
+                ))}
+                {headerNotifications.map((item) => (
                   <button key={item.view} onClick={() => { go(item.view); setNotificationsOpen(false); }}>
                     <span><b>{item.label}</b><small>انقر لفتح القائمة ومتابعتها</small></span>
                     <em>{item.count}</em>
                   </button>
-                )) : <p>لا توجد إشعارات جديدة حاليًا</p>}
+                ))}
+                {!customerNotifications.length && !headerNotifications.length && <p>لا توجد إشعارات جديدة حاليًا</p>}
               </div>
             )}
           </div>
