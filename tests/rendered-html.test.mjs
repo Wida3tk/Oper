@@ -250,3 +250,12 @@ test("shows and edits the customer cohort from the customer card", async () => {
   assert.match(api, /cohort_label=\?/);
   assert.match(api, /UPDATE_CUSTOMER_DATA/);
 });
+
+test("uses readable order numbers and hides cohorts for recorded programs", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/customers/route.ts");
+  assert.match(api, /o\.order_number/);
+  assert.match(api, /ensureOrderNumberSchema/);
+  assert.match(page, /row\.order_number \|\| row\.order_id/);
+  assert.match(page, /selectedDetails\.delivery !==/);
+});

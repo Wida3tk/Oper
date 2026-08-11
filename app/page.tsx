@@ -608,6 +608,7 @@ function OperationsApp() {
     email?: string;
     orderId?: string;
     seatFee?: number;
+    delivery?: string;
   };
   const has = (permission: string) =>
     currentUser.roles.includes("admin") ||
@@ -1002,11 +1003,11 @@ function OperationsApp() {
                 <label>
                   رقم الطلب<b>{selectedDetails.orderId || "—"}</b>
                 </label>
-                <label className="customer-cohort-field">
+                {selectedDetails.delivery !== "مسجل" && <label className="customer-cohort-field">
                   رقم الدفعة
                   <b>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}</b>
                   {has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}
-                </label>
+                </label>}
               </div>
               {has("customers.manage") && (
                 <CustomerDataEditor
@@ -3403,7 +3404,7 @@ function LiveCustomers({
             return {
               id: String(row.id),
               email: String(row.email || "محجوب حسب الصلاحية"),
-              orderId: String(row.order_id || "—"),
+              orderId: String(row.order_number || row.order_id || "—"),
               name: String(row.name || ""),
               phone: String(row.phone || "محجوب حسب الصلاحية"),
               program: String(
@@ -3434,6 +3435,7 @@ function LiveCustomers({
               paid: Number(row.paid || 0),
               total: Number(row.total || 0),
               seatFee: Number(row.seat_fee || 0),
+              delivery: String(row.delivery || ""),
               createdAt: String(row.created_at || ""),
             };
           }),

@@ -1,14 +1,15 @@
-import { authorize, can, id, operationalDb } from "../_lib/operations";
+import { authorize, can, ensureOrderNumberSchema, id, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const auth = await authorize(req, ["sales", "finance", "academy", "viewer"]);
   if (!auth.ok) return auth.response;
+  await ensureOrderNumberSchema(operationalDb());
 
   const { results } = await operationalDb().prepare(`
     SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,c.created_at,
-           o.id order_id,o.program,o.track,o.purchase_source source,o.owner,
+           o.id order_id,o.order_number,o.program,o.track,o.delivery,o.purchase_source source,o.owner,
            o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,o.scheduled_start_date,
            CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee,
            p.name program_name
