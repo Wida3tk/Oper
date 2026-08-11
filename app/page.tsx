@@ -3434,6 +3434,7 @@ function LiveCustomers({
               paid: Number(row.paid || 0),
               total: Number(row.total || 0),
               seatFee: Number(row.seat_fee || 0),
+              createdAt: String(row.created_at || ""),
             };
           }),
         ),
@@ -3477,12 +3478,18 @@ function LiveCustomers({
           .filter((classification) => classification && classification !== "—"),
       ),
     );
-  const filtered = directoryRows.filter(
-    (row) =>
-      `${row.name} ${row.id} ${row.phone} ${row.program} ${row.track} ${customerProgramLabel(row)}`.includes(query) &&
-      (programFilter === "الكل" || customerProgramCategory(row) === programFilter) &&
-      (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter),
-  );
+  const filtered = directoryRows
+    .filter(
+      (row) =>
+        `${row.name} ${row.id} ${row.phone} ${row.program} ${row.track} ${customerProgramLabel(row)}`.includes(query) &&
+        (programFilter === "الكل" || customerProgramCategory(row) === programFilter) &&
+        (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter),
+    )
+    .sort((a, b) =>
+      String((b as typeof b & { createdAt?: string }).createdAt || "").localeCompare(
+        String((a as typeof a & { createdAt?: string }).createdAt || ""),
+      ),
+    );
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
   return (
@@ -6522,6 +6529,26 @@ function CompletedCustomerTable({
   list: typeof initialPeople;
   open: (p: (typeof initialPeople)[number]) => void;
 }) {
+  const additionDate = (customer: (typeof initialPeople)[number]) => {
+    const value = (customer as typeof customer & { createdAt?: string }).createdAt;
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return {
+      date: date.toLocaleDateString("ar-SA-u-nu-latn", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Asia/Riyadh",
+      }),
+      time: date.toLocaleTimeString("ar-SA-u-nu-latn", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "Asia/Riyadh",
+      }),
+    };
+  };
   return (
     <div className="table-wrap completed-customer-table">
       <table>
@@ -6530,11 +6557,13 @@ function CompletedCustomerTable({
             <th>اسم العميل</th>
             <th>البرنامج</th>
             <th>التصنيف</th>
+            <th>تاريخ الإضافة</th>
           </tr>
         </thead>
         <tbody>
-          {list.map((customer) => (
-            <tr key={customer.id} onClick={() => open(customer)}>
+          {list.map((customer) => {
+            const added = additionDate(customer);
+            return <tr key={customer.id} onClick={() => open(customer)}>
               <td>
                 <b>{customer.name}</b>
                 <small>فتح ملف العميل</small>
@@ -6548,8 +6577,11 @@ function CompletedCustomerTable({
               <td>
                 <b>{customerProgramLabel(customer)}</b>
               </td>
-            </tr>
-          ))}
+              <td className="customer-added-at">
+                {added ? <><b dir="ltr">{added.date}</b><small dir="ltr">{added.time}</small></> : <span>—</span>}
+              </td>
+            </tr>;
+          })}
         </tbody>
       </table>
     </div>
