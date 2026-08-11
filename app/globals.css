@@ -449,6 +449,18 @@ html,body{max-width:100%;overflow-x:hidden}
   font-variant-numeric: tabular-nums;
 }
 
+.smart-customer-filters>div.has-tertiary {
+  grid-template-columns:repeat(3,minmax(160px,1fr)) auto;
+}
+
+@media(max-width:900px) {
+  .smart-customer-filters>div.has-tertiary { grid-template-columns:1fr 1fr; }
+}
+
+@media(max-width:680px) {
+  .smart-customer-filters>div.has-tertiary { grid-template-columns:1fr; }
+}
+
 .customer-added-at small {
   margin-top: 4px;
   color: #64748b;

@@ -2796,6 +2796,9 @@ function CustomerSmartFilters({
   description = "عرض القائمة حسب البرنامج أو حالة العميل",
   secondaryLabel = "حالة العميل",
   secondaryAllLabel = "كل الحالات",
+  subcategories,
+  subcategory = "الكل",
+  onSubcategory,
 }: {
   programs: string[];
   statuses: string[];
@@ -2809,8 +2812,11 @@ function CustomerSmartFilters({
   description?: string;
   secondaryLabel?: string;
   secondaryAllLabel?: string;
+  subcategories?: string[];
+  subcategory?: string;
+  onSubcategory?: (value: string) => void;
 }) {
-  const active = program !== "الكل" || status !== "الكل";
+  const active = program !== "الكل" || status !== "الكل" || subcategory !== "الكل";
   return (
     <section className="smart-customer-filters" aria-label="تصنيف العملاء">
       <header>
@@ -2822,7 +2828,7 @@ function CustomerSmartFilters({
           <strong>{visible}</strong> من {total} عميل
         </em>
       </header>
-      <div>
+      <div className={subcategories?.length ? "has-tertiary" : ""}>
         <label>
           <span>البرنامج</span>
           <select value={program} onChange={(e) => onProgram(e.target.value)}>
@@ -2841,8 +2847,15 @@ function CustomerSmartFilters({
             ))}
           </select>
         </label>
+        {!!subcategories?.length && <label>
+          <span>البرنامج الفرعي</span>
+          <select value={subcategory} onChange={(e) => onSubcategory?.(e.target.value)}>
+            <option value="الكل">كل البرامج الفرعية</option>
+            {subcategories.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>}
         {active && (
-          <button type="button" onClick={() => { onProgram("الكل"); onStatus("الكل"); }}>
+          <button type="button" onClick={() => { onProgram("الكل"); onStatus("الكل"); onSubcategory?.("الكل"); }}>
             <X size={14} />
             مسح التصنيف
           </button>
@@ -2853,6 +2866,7 @@ function CustomerSmartFilters({
           النتائج المعروضة:
           {program !== "الكل" && <mark>{program}</mark>}
           {status !== "الكل" && <mark>{status}</mark>}
+          {subcategory !== "الكل" && <mark>{subcategory}</mark>}
         </p>
       )}
     </section>
@@ -4146,6 +4160,7 @@ function LiveAcademy({
     [moving, setMoving] = useState(""),
     [copied, setCopied] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
+    [subprogramFilter, setSubprogramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [selectedRow, setSelectedRow] = useState<LiveEnrollment | null>(null);
   const load = async () => {
@@ -4218,11 +4233,21 @@ function LiveAcademy({
   const availableStatuses = Array.from(
     new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
   );
+  const continuingEducationLabel = (row: LiveEnrollment) => {
+    const track = String(row.program_track || "").trim();
+    return row.program_name === "التعليم المستمر" && track && track !== "غير محدد"
+      ? track
+      : row.program_name;
+  };
+  const availableSubprograms = programFilter === "التعليم المستمر"
+    ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === "التعليم المستمر").map(continuingEducationLabel).filter(Boolean)))
+    : [];
   const isDirectContinuingEducation = (row: LiveEnrollment) => row.program_name.includes("التعليم المستمر") && row.program_delivery === "مباشر";
   const filteredRows = rows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectContinuingEducation(row) : focus === "assignment" ? !isDirectContinuingEducation(row) : true) &&
       (programFilter === "الكل" || programFamily(row.program_name) === programFilter) &&
+      (subprogramFilter === "الكل" || continuingEducationLabel(row) === subprogramFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
   const attentionRows=rows.filter(row=>Boolean(row.needs_attention));
@@ -4463,8 +4488,11 @@ function LiveAcademy({
           status={statusFilter}
           total={rows.length}
           visible={filteredRows.length}
-          onProgram={setProgramFilter}
+          onProgram={(value) => { setProgramFilter(value); setSubprogramFilter("الكل"); }}
           onStatus={setStatusFilter}
+          subcategories={availableSubprograms}
+          subcategory={subprogramFilter}
+          onSubcategory={setSubprogramFilter}
         />
         {board}
         {detailPanel}
@@ -4480,8 +4508,11 @@ function LiveAcademy({
         status={statusFilter}
         total={rows.length}
         visible={filteredRows.length}
-        onProgram={setProgramFilter}
+        onProgram={(value) => { setProgramFilter(value); setSubprogramFilter("الكل"); }}
         onStatus={setStatusFilter}
+        subcategories={availableSubprograms}
+        subcategory={subprogramFilter}
+        onSubcategory={setSubprogramFilter}
       />
       <div className="assignment-workspace">
         <div className="assignment-banner">
