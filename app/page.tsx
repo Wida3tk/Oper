@@ -5792,7 +5792,17 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     .map((row) => {
       const payment =
         row.payments.find((item) => item.flow_type === "sale") ||
-        firstPayment(row);
+        firstPayment(row) ||
+        (row.finance_review_status === "pending" && row.payment_plan === "أقساط"
+          ? {
+              id: `pending-${row.order_id}`,
+              amount: 0,
+              paid_at: "",
+              method: row.purchase_source || "أقساط",
+              status: "بانتظار المراجعة",
+              classification_status: "pending",
+            }
+          : undefined);
       return payment ? { row, payment } : null;
     })
     .filter(
@@ -6003,8 +6013,8 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
           />
           <div className={`finance-order-list ${financeTab}`}>
           {financeTab === "sales" ? filteredSales.map(({row,payment}) => (
-            <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : ""}`} onClick={() => open(row)} key={payment.id}>
-              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name}</span><small className="finance-order-number">{row.order_id}</small></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : "green"}`}>{saleStatus({row,payment})}</em></div>
+            <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : saleStatus({row,payment}) === "منسحب" ? "withdrawn" : ""}`} onClick={() => open(row)} key={payment.id}>
+              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name}</span><small className="finance-order-number">{row.order_id}</small></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : ["منسحب","مرفوض"].includes(saleStatus({row,payment})) ? "red" : "green"}`}>{saleStatus({row,payment})}</em></div>
               {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
               <div className="finance-order-money sale-money"><p className="paid"><span>المدفوع من البرنامج</span><b>{sar(payment.amount)}</b></p>{row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}<p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
               <footer><span>{saleDate(payment) || "دون تاريخ"}</span><span>{payment.reference || "دون مرجع"}</span><b>فتح الملف المالي ←</b></footer>

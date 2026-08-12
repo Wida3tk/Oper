@@ -348,7 +348,7 @@ html,body{max-width:100%;overflow-x:hidden}
 .finance-tabs>button span b,.finance-tabs>button span small{display:block}.finance-tabs>button span b{font-size:14px}.finance-tabs>button span small{margin-top:5px;font-size:10px;color:#8994a6}
 .finance-tabs>button em{min-width:30px;height:30px;padding:0 8px;display:grid;place-items:center;border-radius:15px;background:#fff;font-style:normal;font-size:11px;font-weight:800}
 .finance-tabs>button.active{border-color:#cdd9ff;background:#fff;color:#244fdc;box-shadow:0 7px 20px #315efb12}.finance-tabs>button.active>svg{background:#315efb;color:#fff}.finance-tabs>button.active em{background:#edf2ff;color:#315efb}
-.finance-order-list.sales{grid-template-columns:repeat(2,minmax(0,1fr))}.sale-card{border-right-color:#21a36a}.sale-card .finance-order-head>i{background:#eaf8f1;color:#16865a}.sale-money p:nth-child(2) b,.sale-money p:nth-child(3) b{font-size:11px;color:#334058}
+.finance-order-list.sales{grid-template-columns:repeat(2,minmax(0,1fr))}.sale-card{border-right-color:#21a36a}.sale-card.withdrawn{border-right-color:#dc4f5d;background:#fff8f8}.sale-card.withdrawn .finance-order-head>i{background:#ffecef;color:#c43e4c}.sale-card .finance-order-head>i{background:#eaf8f1;color:#16865a}.sale-money p:nth-child(2) b,.sale-money p:nth-child(3) b{font-size:11px;color:#334058}
 @media(max-width:760px){.finance-tabs{grid-template-columns:1fr}.finance-tabs>button{min-height:66px}.finance-order-list.sales{grid-template-columns:1fr}}
 
 /* Payment reference link shared by sales and finance. */
