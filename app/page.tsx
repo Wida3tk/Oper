@@ -5990,7 +5990,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
-          {financeTab === "sales" && <div className="finance-review-filter"><span>تصفية العمليات</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);setStatusFilter("الكل")}}><b>{reviewTypeCount(key)}</b>{label}</button>)}</div>}
+          {financeTab === "sales" && <div className="finance-review-filter"><span>تصفية العمليات</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","دفع مكتمل"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);setStatusFilter("الكل")}}><b>{reviewTypeCount(key)}</b>{label}</button>)}</div>}
           <CustomerSmartFilters
             programs={financePrograms}
             statuses={activeStatuses}
