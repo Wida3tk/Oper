@@ -455,6 +455,7 @@ function OperationsApp() {
     [customerNotifications, setCustomerNotifications] = useState<Array<{id:string;created_at:string;actor_name:string;customer_id:string;customer_name:string;program_name?:string;order_number?:string}>>([]),
     [notificationsReadAt, setNotificationsReadAt] = useState(""),
     [successNotice, setSuccessNotice] = useState<{ id: number; message: string } | null>(null),
+    [financeReviewFilter, setFinanceReviewFilter] = useState("الكل"),
     [currentUser, setCurrentUser] = useState({
       name: "الإدارة",
       email: "",
@@ -633,6 +634,7 @@ function OperationsApp() {
     }))
     .filter((group) => group.items.length);
   const go = (id: View) => {
+    if (id === "finance") setFinanceReviewFilter("الكل");
     setView(id);
     setMobileOpen(false);
   };
@@ -909,7 +911,7 @@ function OperationsApp() {
           <div className="page-date">اليوم · {todayLabel}</div>
           {view === "dashboard" && (
             <>
-              <HomeDashboard onOpenTasks={() => setView("work")} />
+              <HomeDashboard onOpenTasks={() => setView("work")} onOpenFinanceReview={(kind) => { setFinanceReviewFilter(kind); setView("finance"); }} />
             </>
           )}
           {view === "work" && <LiveWork onNavigate={go} />}
@@ -927,7 +929,7 @@ function OperationsApp() {
           {view === "finance" && (
             <>
               <TransferReviews />
-              <LiveFinance />
+              <LiveFinance initialReviewFilter={financeReviewFilter} />
             </>
           )}
           {view === "programs" && <Programs />}
@@ -2932,7 +2934,7 @@ const activitySentence=(item:HomeData["activity"][number])=>{
  const actor=item.actor_name||"أحد الموظفين";
  return (activityVerbs[item.action]||((name:string)=>`نفّذ ${name} تحديثًا في النظام`))(actor);
 };
-function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
+function HomeDashboard({onOpenTasks,onOpenFinanceReview}:{onOpenTasks:()=>void;onOpenFinanceReview:(kind:string)=>void}){
  const now=new Date(),[month,setMonth]=useState(now.toISOString().slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[openTraineeGroup,setOpenTraineeGroup]=useState("aba");
  const load=async()=>{setLoading(true);setError("");try{const result=await apiJson(`/api/dashboard/home?month=${month}`);setData(result);setTarget(String(result.finance?.target||""))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[month]);
@@ -2949,7 +2951,7 @@ function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
    <HomeMetric icon={ClipboardCheck} label="إجمالي العملاء" value={data.operations.totalCustomers} note="ملفات العملاء في النظام" tone="amber"/>
    <HomeMetric icon={Armchair} label="حجز مقعد" value={data.operations.activeReservations} note="حجوزات نشطة ومجدولة" tone="green"/>
   </div></section>
-  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<em key={key}><b>{f.reviewBreakdown[key]}</b> {label}</em>)}</section>}</header><div className="home-metrics finance">
+  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<button type="button" key={key} onClick={()=>onOpenFinanceReview(key)}><b>{f.reviewBreakdown[key]}</b> {label}</button>)}</section>}</header><div className="home-metrics finance">
    <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>
    <HomeMetric icon={BadgeDollarSign} label="مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note="دفعات سجلها فريق المبيعات" tone="violet"/>
    <HomeMetric icon={WalletCards} label="تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note="أقساط سجلتها المالية" tone="green"/>
@@ -5628,7 +5630,7 @@ function TransferReviews() {
   );
 }
 
-function LiveFinance() {
+function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter?: string }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
     [summary, setSummary] = useState({
@@ -5656,7 +5658,9 @@ function LiveFinance() {
     [selectedPaymentRecordId,setSelectedPaymentRecordId]=useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
+    [reviewTypeFilter, setReviewTypeFilter] = useState(initialReviewFilter),
     [saving, setSaving] = useState(false);
+  useEffect(() => { setReviewTypeFilter(initialReviewFilter); if (initialReviewFilter !== "الكل") { setFinanceTab("sales"); setStatusFilter("بانتظار المراجعة"); } }, [initialReviewFilter]);
   const syncScheduleFromSavedTable = (row: FinanceOrder) => {
     const openInstallments = [...row.installments]
       .filter((item) => item.status !== "مدفوع")
@@ -5793,6 +5797,14 @@ function LiveFinance() {
       return "مرفوض";
     return "مكتملة";
   };
+  const reviewType = ({ row, payment }: (typeof salesEntries)[number]) => {
+    if (row.order_type === "إشراف") return "supervision";
+    if (row.payment_plan === "أقساط") return "installments";
+    const method = String(payment.method || "").toLowerCase();
+    if (method.includes("paytabs")) return "paytabs";
+    if (method.includes("تحويل بنكي")) return "bank";
+    return "other";
+  };
   const todayKey = new Date().toISOString().slice(0, 10);
   const monthKey = todayKey.slice(0, 7);
   const saleDate = (payment: FinancePayment) =>
@@ -5849,6 +5861,7 @@ function LiveFinance() {
   const filteredSales = salesEntries.filter(
     ({ row, payment }) =>
       (programFilter === "الكل" || row.program_name === programFilter) &&
+      (reviewTypeFilter === "الكل" || reviewType({ row, payment }) === reviewTypeFilter) &&
       (statusFilter === "الكل" ||
         saleStatus({ row, payment }) === statusFilter),
   );
@@ -5955,6 +5968,7 @@ function LiveFinance() {
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
+          {financeTab === "sales" && <div className="finance-review-filter"><span>نوع المراجعة</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);if(key!=="الكل")setStatusFilter("بانتظار المراجعة")}}>{label}</button>)}</div>}
           <CustomerSmartFilters
             programs={financePrograms}
             statuses={activeStatuses}

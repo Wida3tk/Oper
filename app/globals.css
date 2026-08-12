@@ -462,25 +462,33 @@ html,body{max-width:100%;overflow-x:hidden}
   gap:6px;
 }
 
-.finance-review-breakdown em {
+.finance-review-breakdown button {
   padding:6px 9px;
   border:1px solid #f1d6a8;
   border-radius:18px;
   background:#fff7e9;
   color:#946018;
   font-size:9px;
-  font-style:normal;
+  font-family:inherit;
   font-weight:700;
   white-space:nowrap;
+  cursor:pointer;
 }
 
-.finance-review-breakdown em b {
+.finance-review-breakdown button:hover { border-color:#e4ae57; background:#ffefd3; }
+
+.finance-review-breakdown button b {
   display:inline;
   margin-left:3px;
   color:#c87508;
   font-size:11px;
   font-variant-numeric:tabular-nums;
 }
+
+.finance-review-filter { display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 12px;padding:10px 12px;border:1px solid #e2e8f2;border-radius:12px;background:#fff; }
+.finance-review-filter>span { margin-left:5px;color:#64748b;font-size:9px;font-weight:750; }
+.finance-review-filter>button { height:32px;padding:0 11px;border:1px solid #dce4ef;border-radius:16px;background:#f8fafc;color:#5f6d82;font:700 9px inherit;cursor:pointer; }
+.finance-review-filter>button.active { border-color:#315efb;background:#315efb;color:#fff;box-shadow:0 4px 10px #315efb25; }
 
 @media(max-width:700px) {
   .finance-review-breakdown { margin:8px 0 0; justify-content:flex-start; }

@@ -269,4 +269,8 @@ test("separates pending finance reviews by transaction type", async () => {
   assert.match(dashboard, /THEN 'paytabs'/);
   assert.match(dashboard, /THEN 'supervision'/);
   assert.match(page, /finance-review-breakdown/);
+  assert.match(page, /onOpenFinanceReview/);
+  assert.match(page, /financeReviewFilter/);
+  assert.match(page, /finance-review-filter/);
+  assert.match(page, /reviewTypeFilter/);
 });
