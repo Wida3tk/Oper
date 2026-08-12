@@ -1,11 +1,15 @@
 import { authorize, can, id, operationalDb, promoteDueReservations } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
+async function ensureWithdrawalSchema(db: ReturnType<typeof operationalDb>) {
+  await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
+}
 
 export async function GET(req: Request) {
   const auth = await authorize(req, ["sales", "finance", "academy", "viewer"]);
   if (!auth.ok) return auth.response;
   const db = operationalDb();
+  await ensureWithdrawalSchema(db);
   await promoteDueReservations(db, auth.email);
   const canSeeFinance = auth.roles.includes("admin") || auth.roles.includes("finance") || can(auth, "finance.view");
   const canTakeAttentionAction = auth.roles.includes("academy");
@@ -24,18 +28,21 @@ export async function GET(req: Request) {
            WHEN t.entity_type='payment' THEN (SELECT c.name FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END customer_name
       FROM workflow_tasks t WHERE t.status!='مكتملة' AND t.due_at IS NOT NULL AND date(t.due_at)<date('now','+3 hours') ${financeFilter}
       ORDER BY t.due_at LIMIT 50`).all(),
-    db.prepare(`SELECT 'policy-'||o.id id,o.id order_id,c.name customer_name,p.name program_name,'تطبيق السياسة' title,'المالية' department,NULL due_at,'policy' entity_type,
-      COALESCE(f.state,'needs_operations') attention_state,f.first_action_by_email,f.first_action_at,f.finance_action_by_email,f.finance_action_at
+    db.prepare(`SELECT CASE WHEN w.id IS NOT NULL THEN 'withdrawal-' ELSE 'policy-' END||o.id id,o.id order_id,c.name customer_name,p.name program_name,
+      CASE WHEN w.id IS NOT NULL THEN 'العميل منسحب' ELSE 'تطبيق السياسة' END title,'المالية' department,NULL due_at,
+      CASE WHEN w.id IS NOT NULL THEN 'withdrawal' ELSE 'policy' END entity_type,
+      COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END) attention_state,f.first_action_by_email,f.first_action_at,f.finance_action_by_email,f.finance_action_at
       FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id LEFT JOIN attention_followups f ON f.order_id=o.id
-      WHERE (EXISTS(SELECT 1 FROM installments i WHERE i.order_id=o.id AND i.status='تطبيق السياسة') OR f.state IN ('needs_operations','waiting_finance','finance_resolved'))
-      AND COALESCE(f.state,'needs_operations')!='closed' ORDER BY c.name LIMIT 50`).all(),
+      LEFT JOIN withdrawals w ON w.order_id=o.id AND w.status='مكتمل'
+      WHERE (w.id IS NOT NULL OR EXISTS(SELECT 1 FROM installments i WHERE i.order_id=o.id AND i.status='تطبيق السياسة') OR f.state IN ('needs_operations','waiting_finance','finance_resolved'))
+      AND COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END)!='closed' ORDER BY c.name LIMIT 50`).all(),
     db.prepare(`SELECT 'data-'||e.id id,c.name customer_name,p.name program_name,'بيانات العميل غير مكتملة' title,'التشغيلية' department,NULL due_at,'enrollment' entity_type
       FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id
       WHERE e.status!='مكتمل' AND (trim(COALESCE(c.phone,''))='' OR trim(COALESCE(c.email,''))='') ORDER BY e.updated_at LIMIT 50`).all(),
   ]);
   const exceptions = [
     ...overdue.results.map((row) => ({ ...row, kind: "overdue", severity: "red" })),
-    ...attention.results.map((row) => ({ ...row, kind: "policy", severity: row.attention_state === "finance_resolved" ? "green" : "red" })),
+    ...attention.results.map((row) => ({ ...row, kind: row.entity_type === "withdrawal" ? "withdrawal" : "policy", severity: row.entity_type === "withdrawal" ? "red" : row.attention_state === "finance_resolved" ? "green" : "red" })),
     ...incomplete.results.map((row) => ({ ...row, kind: "data", severity: "amber" })),
   ];
   const visibleEvents = events.results.filter((row) => {
@@ -65,10 +72,12 @@ export async function POST(req: Request) {
   if (String(body.action || "") === "take_attention_action") {
     if (!auth.roles.includes("academy")) return Response.json({ error: "تسجيل الإجراء متاح لفريق التشغيل فقط" }, { status: 403 });
     const orderId = String(body.orderId || ""), db = operationalDb(), now = new Date().toISOString();
+    await ensureWithdrawalSchema(db);
     if (!orderId) return Response.json({ error: "ملف العميل غير محدد" }, { status: 400 });
     const followup = await db.prepare("SELECT state FROM attention_followups WHERE order_id=?").bind(orderId).first<{ state: string }>();
     const hasPolicy = await db.prepare("SELECT 1 found FROM installments WHERE order_id=? AND status='تطبيق السياسة' LIMIT 1").bind(orderId).first();
-    const state = followup?.state || (hasPolicy ? "needs_operations" : "");
+    const hasWithdrawal = await db.prepare("SELECT 1 found FROM withdrawals WHERE order_id=? AND status='مكتمل' LIMIT 1").bind(orderId).first();
+    const state = followup?.state || (hasWithdrawal ? "finance_resolved" : hasPolicy ? "needs_operations" : "");
     if (state === "needs_operations") {
       await db.batch([
         db.prepare("INSERT INTO attention_followups(order_id,state,first_action_by_email,first_action_at,updated_at) VALUES(?,'waiting_finance',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='waiting_finance',first_action_by_email=excluded.first_action_by_email,first_action_at=excluded.first_action_at,updated_at=excluded.updated_at").bind(orderId, auth.email, now, now),

@@ -75,6 +75,7 @@ export async function POST(req:Request){
    db.prepare("UPDATE orders SET paid=?,status='منسحب',academy_status='منسحب',updated_at=? WHERE id=?").bind(netPaid,now,orderId),
    db.prepare("UPDATE enrollments SET status='منسحب',updated_at=? WHERE order_id=?").bind(now,orderId),
    db.prepare("UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE entity_id IN (SELECT id FROM enrollments WHERE order_id=?) AND status!='مكتملة'").bind(now,orderId),
+   db.prepare("INSERT INTO attention_followups(order_id,state,finance_action_by_email,finance_action_at,updated_at) VALUES(?,'finance_resolved',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='finance_resolved',finance_action_by_email=excluded.finance_action_by_email,finance_action_at=excluded.finance_action_at,final_action_by_email=NULL,final_action_at=NULL,updated_at=excluded.updated_at").bind(orderId,auth.email,now,now),
    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'REGISTER_WITHDRAWAL','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({withdrawalId,reason,withdrawnAt,grossPaid,nonRefundableAmount,refundAmount,refundSource,refundMethod,reference}),now)
   ]);
   return Response.json({ok:true,withdrawalId,status:"منسحب",refundAmount,netPaid});
