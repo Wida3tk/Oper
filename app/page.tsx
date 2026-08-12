@@ -2951,7 +2951,7 @@ function HomeDashboard({onOpenTasks,onOpenFinanceReview}:{onOpenTasks:()=>void;o
    <HomeMetric icon={ClipboardCheck} label="إجمالي العملاء" value={data.operations.totalCustomers} note="ملفات العملاء في النظام" tone="amber"/>
    <HomeMetric icon={Armchair} label="حجز مقعد" value={data.operations.activeReservations} note="حجوزات نشطة ومجدولة" tone="green"/>
   </div></section>
-  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<button type="button" key={key} onClick={()=>onOpenFinanceReview(key)}><b>{f.reviewBreakdown[key]}</b> {label}</button>)}</section>}</header><div className="home-metrics finance">
+  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<button type="button" key={key} onClick={()=>onOpenFinanceReview(key)}><b>{f.reviewBreakdown[key]}</b> {label}</button>)}</section>}</header><div className="home-metrics finance">
    <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>
    <HomeMetric icon={BadgeDollarSign} label="مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note="دفعات سجلها فريق المبيعات" tone="violet"/>
    <HomeMetric icon={WalletCards} label="تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note="أقساط سجلتها المالية" tone="green"/>
@@ -5802,6 +5802,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     if (row.payment_plan === "أقساط") return "installments";
     const method = String(payment.method || "").toLowerCase();
     if (method.includes("paytabs")) return "paytabs";
+    if (method.includes("تمارا")) return "tamara";
     if (method.includes("تحويل بنكي")) return "bank";
     return "other";
   };
@@ -5968,7 +5969,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
-          {financeTab === "sales" && <div className="finance-review-filter"><span>نوع المراجعة</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);if(key!=="الكل")setStatusFilter("بانتظار المراجعة")}}>{label}</button>)}</div>}
+          {financeTab === "sales" && <div className="finance-review-filter"><span>نوع المراجعة</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);if(key!=="الكل")setStatusFilter("بانتظار المراجعة")}}>{label}</button>)}</div>}
           <CustomerSmartFilters
             programs={financePrograms}
             statuses={activeStatuses}

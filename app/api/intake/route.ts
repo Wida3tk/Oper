@@ -108,7 +108,7 @@ export async function POST(req: Request) {
   if (!seatOnly&&paymentPlan === "أقساط" && (!(contractTotal > amount))) return Response.json({ error: "إجمالي قيمة العقد يجب أن يكون أكبر من الدفعة الأولى عند اختيار الأقساط" }, { status: 400 });
   const needsFinanceReview =
     isSupervision || (!seatOnly&&paymentPlan === "أقساط") ||
-    (source === "دفع مباشر" && ["تحويل بنكي", "Paytabs"].includes(method));
+    (source === "دفع مباشر" && ["تحويل بنكي", "Paytabs", "تمارا"].includes(method));
   const financeReviewStatus = needsFinanceReview ? "pending" : "approved";
   const classificationStatus = needsFinanceReview ? "pending" : "confirmed";
   const paymentIntentStatus = needsFinanceReview ? "بانتظار مراجعة المالية" : "مكتملة";
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,reference,proofAssetKey,seatOnly?"seat_fee":isSupervision?"collection":"sale",classificationStatus,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );
-  if(needsFinanceReview)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),paymentId,isSupervision?"اعتماد طلب الإشراف للتحصيل":paymentPlan==="أقساط"?"اعتماد وتنظيم طلب أقساط":method==="Paytabs"?"مراجعة رابط مرجع Paytabs":"مراجعة واعتماد التحويل البنكي",auth.email,now));
+  if(needsFinanceReview)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),paymentId,isSupervision?"اعتماد طلب الإشراف للتحصيل":paymentPlan==="أقساط"?"اعتماد وتنظيم طلب أقساط":method==="Paytabs"?"مراجعة رابط مرجع Paytabs":method==="تمارا"?"مراجعة عملية تمارا":"مراجعة واعتماد التحويل البنكي",auth.email,now));
   if(hasSeatReservation)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,reservation_kind,status,cohort_label,start_date,assignment_date,converted_enrollment_id,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(reservationId,customerId,programId,orderId,seatFee,seatOnly?"حجز مقعد فقط":"حجز مع تسجيل",seatOnly?"حجز فقط":"مسجل",cohort||null,startDate,assignmentDate,enrollmentId,now,now,now));
   if(seatOnly)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,due_at,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات','متابعة حجز المقعد فقط','مفتوحة','عادية',?,?,?)").bind(id("TSK"),reservationId,assignmentDate,auth.email,now));
   else if(autoAsara)statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,completed_at,created_at,updated_at) VALUES(?,?,?,?,'مكتمل',?,?,?)").bind(enrollmentId,customerId,programId,orderId,now,now,now));

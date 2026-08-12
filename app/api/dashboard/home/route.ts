@@ -61,6 +61,7 @@ export async function GET(req:Request){
         WHEN o.order_type='إشراف' THEN 'supervision'
         WHEN o.payment_plan='أقساط' THEN 'installments'
         WHEN lower(COALESCE((SELECT pay.method FROM payments pay WHERE pay.order_id=o.id ORDER BY pay.created_at LIMIT 1),'')) LIKE '%paytabs%' THEN 'paytabs'
+        WHEN COALESCE((SELECT pay.method FROM payments pay WHERE pay.order_id=o.id ORDER BY pay.created_at LIMIT 1),'') LIKE '%تمارا%' THEN 'tamara'
         WHEN COALESCE((SELECT pay.method FROM payments pay WHERE pay.order_id=o.id ORDER BY pay.created_at LIMIT 1),'') LIKE '%تحويل بنكي%' THEN 'bank'
         ELSE 'other' END kind,COUNT(*) count
         FROM orders o JOIN customers c ON c.id=o.customer_id

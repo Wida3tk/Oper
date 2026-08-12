@@ -267,10 +267,18 @@ test("separates pending finance reviews by transaction type", async () => {
   assert.match(dashboard, /THEN 'installments'/);
   assert.match(dashboard, /THEN 'bank'/);
   assert.match(dashboard, /THEN 'paytabs'/);
+  assert.match(dashboard, /THEN 'tamara'/);
   assert.match(dashboard, /THEN 'supervision'/);
   assert.match(page, /finance-review-breakdown/);
   assert.match(page, /onOpenFinanceReview/);
   assert.match(page, /financeReviewFilter/);
   assert.match(page, /finance-review-filter/);
   assert.match(page, /reviewTypeFilter/);
+  assert.match(page, /\["tamara","تمارا"\]/);
+});
+
+test("routes Tamara payments to finance review", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  assert.match(intake, /\["تحويل بنكي", "Paytabs", "تمارا"\]\.includes\(method\)/);
+  assert.match(intake, /مراجعة عملية تمارا/);
 });
