@@ -5811,14 +5811,22 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     return "مكتملة";
   };
   const reviewType = ({ row, payment }: (typeof salesEntries)[number]) => {
-    if (row.order_type === "إشراف") return "supervision";
-    if (row.payment_plan === "أقساط") return "installments";
     const method = String(payment.method || "").toLowerCase();
-    if (method.includes("paytabs")) return "paytabs";
+    if (method.includes("paytabs") || method.includes("paytaps")) return "paytabs";
     if (method.includes("تمارا")) return "tamara";
     if (method.includes("تحويل بنكي")) return "bank";
+    if (row.order_type === "إشراف") return "supervision";
+    if (row.payment_plan === "أقساط") return "installments";
     return "other";
   };
+  const matchesReviewType = (entry: (typeof salesEntries)[number], type: string) => {
+    if (type === "الكل") return true;
+    if (type === "installments") return entry.row.payment_plan === "أقساط";
+    if (type === "supervision") return entry.row.order_type === "إشراف";
+    return reviewType(entry) === type;
+  };
+  const reviewTypeCount = (type: string) =>
+    salesEntries.filter((entry) => matchesReviewType(entry, type)).length;
   const todayKey = new Date().toISOString().slice(0, 10);
   const monthKey = todayKey.slice(0, 7);
   const saleDate = (payment: FinancePayment) =>
@@ -5875,7 +5883,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
   const filteredSales = salesEntries.filter(
     ({ row, payment }) =>
       (programFilter === "الكل" || row.program_name === programFilter) &&
-      (reviewTypeFilter === "الكل" || reviewType({ row, payment }) === reviewTypeFilter) &&
+      matchesReviewType({ row, payment }, reviewTypeFilter) &&
       (statusFilter === "الكل" ||
         saleStatus({ row, payment }) === statusFilter),
   );
@@ -5982,7 +5990,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
-          {financeTab === "sales" && <div className="finance-review-filter"><span>نوع المراجعة</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);if(key!=="الكل")setStatusFilter("بانتظار المراجعة")}}>{label}</button>)}</div>}
+          {financeTab === "sales" && <div className="finance-review-filter"><span>تصفية العمليات</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","أخرى"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);setStatusFilter("الكل")}}><b>{reviewTypeCount(key)}</b>{label}</button>)}</div>}
           <CustomerSmartFilters
             programs={financePrograms}
             statuses={activeStatuses}
