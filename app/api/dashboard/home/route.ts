@@ -6,6 +6,7 @@ const num=(value:unknown)=>Number(value||0);
 export async function GET(req:Request){
   const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;
   const db=operationalDb();await ensureFinanceClassificationSchema(db);
+  await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
   const requested=new URL(req.url).searchParams.get("month")||new Date().toISOString().slice(0,7);
   const month=/^\d{4}-\d{2}$/.test(requested)?requested:new Date().toISOString().slice(0,7);
   const today=new Date().toISOString().slice(0,10),canSeeFinance=auth.roles.includes("admin")||auth.roles.includes("finance")||can(auth,"finance.view"),isAdmin=auth.roles.includes("admin");
@@ -45,11 +46,11 @@ export async function GET(req:Request){
   ].map(group=>{const rows=(traineeRows.results as Record<string,unknown>[]).filter(row=>group.match(String(row.program_name||"")));const details=new Map<string,number>();for(const row of rows){const program=String(row.program_name||"غير محدد"),track=String(row.detail||"غير محدد"),label=group.key==="ceu"?program:(track==="غير محدد"?program:track);details.set(label,(details.get(label)||0)+num(row.count))}return {key:group.key,label:group.label,count:rows.reduce((sum,row)=>sum+num(row.count),0),details:[...details].map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count)};});
   let finance=null;
   if(canSeeFinance){
-    const [contracts,contractPayments,flows,target,review]=await Promise.all([
-      db.prepare("SELECT COUNT(*) orders,COALESCE(SUM(o.total),0) value FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND substr(o.created_at,1,7)=?").bind(month).first(),
+    const [contracts,contractPayments,flows,target,review,refunds]=await Promise.all([
+      db.prepare("SELECT COUNT(*) orders,COALESCE(SUM(o.total),0) value FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND o.status!='منسحب' AND substr(o.created_at,1,7)=?").bind(month).first(),
       db.prepare(`SELECT COALESCE(SUM(p.amount),0) paid
         FROM payments p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id
-        WHERE c.deleted_at IS NULL AND substr(o.created_at,1,7)=? AND p.classification_status='confirmed'`).bind(month).first(),
+        WHERE c.deleted_at IS NULL AND o.status!='منسحب' AND substr(o.created_at,1,7)=? AND p.classification_status='confirmed'`).bind(month).first(),
       db.prepare(`SELECT substr(COALESCE(p.paid_at,p.created_at),1,10) day,
         COALESCE(SUM(CASE WHEN p.flow_type='sale' THEN p.amount ELSE 0 END),0) sales,
         COALESCE(SUM(CASE WHEN p.flow_type='collection' THEN p.amount ELSE 0 END),0) collections
@@ -67,12 +68,13 @@ export async function GET(req:Request){
         FROM orders o JOIN customers c ON c.id=o.customer_id
         WHERE c.deleted_at IS NULL AND o.finance_review_status='pending'
         GROUP BY kind`).all(),
+      db.prepare("SELECT withdrawn_at day,COALESCE(SUM(CASE WHEN refund_source='sale' THEN refund_amount ELSE 0 END),0) sales_refunds,COALESCE(SUM(CASE WHEN refund_source='collection' THEN refund_amount ELSE 0 END),0) collection_refunds FROM withdrawals WHERE status='مكتمل' AND substr(withdrawn_at,1,7)=? GROUP BY withdrawn_at ORDER BY withdrawn_at").bind(month).all(),
     ]);
-    const daily=flows.results.map(row=>({day:String(row.day),sales:num(row.sales),collections:num(row.collections)}));
-    const sales=daily.reduce((sum,row)=>sum+row.sales,0),collections=daily.reduce((sum,row)=>sum+row.collections,0),contractValue=num((contracts as Record<string,unknown>)?.value);
+    const dailyMap=new Map<string,{day:string;sales:number;collections:number}>();for(const row of flows.results)dailyMap.set(String(row.day),{day:String(row.day),sales:num(row.sales),collections:num(row.collections)});for(const row of refunds.results){const day=String(row.day),entry=dailyMap.get(day)||{day,sales:0,collections:0};entry.sales-=num(row.sales_refunds);entry.collections-=num(row.collection_refunds);dailyMap.set(day,entry)}const daily=[...dailyMap.values()].sort((a,b)=>a.day.localeCompare(b.day));
+    const grossSales=flows.results.reduce((sum,row)=>sum+num(row.sales),0),grossCollections=flows.results.reduce((sum,row)=>sum+num(row.collections),0),salesRefunds=refunds.results.reduce((sum,row)=>sum+num(row.sales_refunds),0),collectionRefunds=refunds.results.reduce((sum,row)=>sum+num(row.collection_refunds),0),sales=grossSales-salesRefunds,collections=grossCollections-collectionRefunds,contractValue=num((contracts as Record<string,unknown>)?.value);
     const reviewBreakdown=Object.fromEntries(review.results.map(row=>[String(row.kind),num(row.count)]));
     const reviewCount=Object.values(reviewBreakdown).reduce((sum,count)=>sum+Number(count||0),0);
-    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),reviewCount,reviewBreakdown,daily};
+    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,grossSales,grossCollections,salesRefunds,collectionRefunds,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),reviewCount,reviewBreakdown,daily};
   }
   return Response.json({
     user:{email:auth.email,name:account?.display_name||auth.email.split("@")[0],roles:auth.roles},

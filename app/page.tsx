@@ -2707,6 +2707,8 @@ type FinanceOrder = {
   program_name: string;
   total: number;
   paid: number;
+  gross_paid?: number;
+  refunded?: number;
   remaining: number;
   overpayment: number;
   finance_note: string;
@@ -2715,6 +2717,7 @@ type FinanceOrder = {
   discount_percent: number;
   payments: FinancePayment[];
   installments: FinanceInstallment[];
+  withdrawal?: { id:string;reason:string;withdrawn_at:string;gross_paid:number;non_refundable_amount:number;refund_amount:number;refund_source:string;refund_method:string;reference:string;status:string;created_by_email:string;created_at:string } | null;
   undo_available?: { id: string; action: string; label: string; created_at: string } | null;
 };
 type ProgramTrack = { id?: string; name: string; active?: number };
@@ -2904,7 +2907,7 @@ type HomeData={
  tasks:LiveTask[];journey:{status:string;count:number}[];
  trainees:{key:string;label:string;count:number;details:{label:string;count:number}[]}[];
  activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;subject_name?:string;created_at:string}[];
- finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;reviewBreakdown:Record<string,number>;daily:{day:string;sales:number;collections:number}[]}|null;
+ finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;grossSales:number;grossCollections:number;salesRefunds:number;collectionRefunds:number;cash:number;remaining:number;target:number;reviewCount:number;reviewBreakdown:Record<string,number>;daily:{day:string;sales:number;collections:number}[]}|null;
 };
 const activityVerbs:Record<string,(actor:string)=>string>={
  RECORD_PAYMENT_AND_ADMIT:actor=>`أضاف ${actor} عميلًا جديدًا`,
@@ -2953,8 +2956,8 @@ function HomeDashboard({onOpenTasks,onOpenFinanceReview}:{onOpenTasks:()=>void;o
   </div></section>
   {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<button type="button" key={key} onClick={()=>onOpenFinanceReview(key)}><b>{f.reviewBreakdown[key]}</b> {label}</button>)}</section>}</header><div className="home-metrics finance">
    <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>
-   <HomeMetric icon={BadgeDollarSign} label="مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note="دفعات سجلها فريق المبيعات" tone="violet"/>
-   <HomeMetric icon={WalletCards} label="تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note="أقساط سجلتها المالية" tone="green"/>
+   <HomeMetric icon={BadgeDollarSign} label="صافي مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note={f.salesRefunds?`بعد خصم ${money(f.salesRefunds)} ر.س استردادات`:"دون استردادات"} tone="violet"/>
+   <HomeMetric icon={WalletCards} label="صافي تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note={f.collectionRefunds?`بعد خصم ${money(f.collectionRefunds)} ر.س استردادات`:"دون استردادات"} tone="green"/>
    <HomeMetric icon={CircleDollarSign} label="إجمالي المقبوض" value={money(f.cash)} suffix="ر.س" note={`المتبقي ${money(f.remaining)} ر.س`} tone="amber"/>
   </div></section>}
   {f&&<section className="sales-performance"><header><div><span>الأداء المالي</span><h3>المبيعات والتحصيل خلال الشهر</h3><p>الأزرق للمبيعات المسجلة عند إنشاء العميل، والأخضر لتحصيل الأقساط.</p></div><div className="chart-controls"><button className={mode==="daily"?"active":""} onClick={()=>setMode("daily")}>يومي</button><button className={mode==="cumulative"?"active":""} onClick={()=>setMode("cumulative")}>تراكمي</button></div></header><div className="performance-body"><div className="sales-chart" role="img" aria-label={`رسم المبيعات والتحصيل لشهر ${month}`}><div className="chart-summary"><div className="chart-legend"><span><i className="sales"/>المبيعات</span><span><i className="collection"/>التحصيل</span></div><div><span><b>{activeDays}</b> أيام فيها حركة</span><span><b>{compactMoney(peak.sales+peak.collections)}</b> أعلى يوم</span></div></div><div className="chart-area"><div className="chart-scale">{chartTicks.map((tick,index)=><span key={index}>{compactMoney(tick)}</span>)}</div><div className="chart-bars">{chart.map((row,index)=><div className="day-bars" key={row.day} title={`${row.day} — المبيعات ${money(row.sales)} ر.س، التحصيل ${money(row.collections)} ر.س`}><div><i className="sales" style={{height:`${row.sales/chartMax*100}%`}}/><i className="collection" style={{height:`${row.collections/chartMax*100}%`}}/></div>{(index===0||(index+1)%5===0||index===chart.length-1)&&<span>{index+1}</span>}</div>)}</div></div></div><aside className="month-target"><Target size={22}/><span>هدف مبيعات الشهر</span><b>{money(f.target)} <small>ر.س</small></b><div><i style={{width:`${targetRatio}%`}}/></div><p>تحقق {targetRatio}% من الهدف</p>{data.canEditFinanceTarget&&(editingTarget?<section><input inputMode="decimal" value={target} onChange={e=>setTarget(e.target.value)}/><button onClick={saveTarget}>حفظ</button><button onClick={()=>setEditingTarget(false)}>إلغاء</button></section>:<button onClick={()=>setEditingTarget(true)}>تعديل الهدف</button>)}</aside></div></section>}
@@ -5656,6 +5659,13 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     [installmentPaymentDates,setInstallmentPaymentDates]=useState<Record<string,string>>({}),
     [paymentRecordDate,setPaymentRecordDate]=useState(""),
     [selectedPaymentRecordId,setSelectedPaymentRecordId]=useState(""),
+    [withdrawalReason,setWithdrawalReason]=useState(""),
+    [withdrawalDate,setWithdrawalDate]=useState(new Date().toISOString().slice(0,10)),
+    [withdrawalRefund,setWithdrawalRefund]=useState(""),
+    [withdrawalNonRefundable,setWithdrawalNonRefundable]=useState("0"),
+    [withdrawalSource,setWithdrawalSource]=useState("sale"),
+    [withdrawalMethod,setWithdrawalMethod]=useState("تحويل بنكي"),
+    [withdrawalReference,setWithdrawalReference]=useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [reviewTypeFilter, setReviewTypeFilter] = useState(initialReviewFilter),
@@ -5721,6 +5731,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     syncScheduleFromSavedTable(row);
     setInstallmentDueDates(Object.fromEntries(row.installments.map((item) => [item.id, String(item.due_date).slice(0,10)])));
     setInstallmentPaymentDates(Object.fromEntries(row.installments.filter((item) => item.paid_at).map((item) => [item.id, String(item.paid_at).slice(0,10)])));
+    setWithdrawalReason("");setWithdrawalDate(new Date().toISOString().slice(0,10));setWithdrawalRefund("");setWithdrawalNonRefundable("0");setWithdrawalSource("sale");setWithdrawalMethod("تحويل بنكي");setWithdrawalReference("");
   };
   const post = async (body: Record<string, unknown>) => {
     if (!selected) return;
@@ -5743,6 +5754,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
   const financeStatus = (row: FinanceOrder) => {
     const today = new Date().toISOString().slice(0, 10);
+    if (row.order_status === "منسحب" || row.withdrawal) return "منسحب";
     if (row.finance_review_status === "pending") return "بانتظار المراجعة";
     if (row.remaining === 0) return "مدفوع";
     const openInstallments = row.installments.filter(
@@ -5788,6 +5800,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
         Boolean(entry),
     );
   const saleStatus = ({ row, payment }: (typeof salesEntries)[number]) => {
+    if (row.order_status === "منسحب" || row.withdrawal) return "منسحب";
     if (
       row.finance_review_status === "pending" ||
       payment.classification_status === "pending"
@@ -5849,7 +5862,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     "غير مدفوع",
     "مدفوع",
   ].filter((status) => collectionRows.some((row) => financeStatus(row) === status));
-  const salesStatuses = ["بانتظار المراجعة", "مكتملة", "مرفوض"].filter(
+  const salesStatuses = ["بانتظار المراجعة", "مكتملة", "مرفوض", "منسحب"].filter(
     (status) => salesEntries.some((entry) => saleStatus(entry) === status),
   );
   const activeStatuses =
@@ -6097,7 +6110,9 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
               </p>
               {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
               {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
+              {Number(selected.refunded||0)>0&&<p className="refund-total"><span>المبلغ المسترد</span><b>- {sar(Number(selected.refunded))}</b></p>}
             </div>
+            {selected.withdrawal ? <div className="withdrawal-summary"><header><div><b>العميل منسحب</b><span>{selected.withdrawal.withdrawn_at} · {selected.withdrawal.reason}</span></div><em>{selected.withdrawal.status}</em></header><div><p><span>إجمالي المدفوع قبل الاسترداد</span><b>{sar(selected.withdrawal.gross_paid)}</b></p><p><span>المبلغ المسترد</span><b>{sar(selected.withdrawal.refund_amount)}</b></p><p><span>غير قابل للاسترداد</span><b>{sar(selected.withdrawal.non_refundable_amount)}</b></p><p><span>مصدر الخصم</span><b>{selected.withdrawal.refund_source==="sale"?"المبيعات":"التحصيل"}</b></p></div><footer>{selected.withdrawal.refund_method} · المرجع: {selected.withdrawal.reference} · بواسطة {selected.withdrawal.created_by_email}</footer></div> : <details className="withdrawal-tool"><summary>تسجيل انسحاب واسترداد مبلغ</summary><div className="withdrawal-form"><label>سبب الانسحاب<textarea value={withdrawalReason} onChange={e=>setWithdrawalReason(e.target.value)} placeholder="اكتب سبب الانسحاب"/></label><label>تاريخ الانسحاب<input type="date" value={withdrawalDate} onChange={e=>setWithdrawalDate(e.target.value)}/></label><label>المبلغ المسترد<input type="number" min="0" max={selected.gross_paid||selected.paid} step="0.01" value={withdrawalRefund} onChange={e=>setWithdrawalRefund(e.target.value)}/></label><label>المبلغ غير القابل للاسترداد<input type="number" min="0" step="0.01" value={withdrawalNonRefundable} onChange={e=>setWithdrawalNonRefundable(e.target.value)}/></label><label>يُخصم الاسترداد من<select value={withdrawalSource} onChange={e=>setWithdrawalSource(e.target.value)}><option value="sale">المبيعات</option><option value="collection">التحصيل</option></select></label><label>طريقة الاسترداد<select value={withdrawalMethod} onChange={e=>setWithdrawalMethod(e.target.value)}><option>تحويل بنكي</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option><option>أخرى</option></select></label><label>مرجع الاسترداد<input value={withdrawalReference} onChange={e=>setWithdrawalReference(e.target.value)} placeholder="رقم أو رابط المرجع"/></label><button type="button" className="danger" disabled={saving||!withdrawalReason.trim()||!withdrawalDate||!withdrawalReference.trim()||Number(withdrawalRefund)<0||Number(withdrawalRefund)+Number(withdrawalNonRefundable)>Number(selected.gross_paid||selected.paid)} onClick={()=>window.confirm(`سيتم تسجيل انسحاب العميل واسترداد ${sar(Number(withdrawalRefund||0))} وإيقاف الأقساط المستقبلية. هل تريد المتابعة؟`)&&post({action:"register_withdrawal",reason:withdrawalReason,withdrawnAt:withdrawalDate,refundAmount:Number(withdrawalRefund||0),nonRefundableAmount:Number(withdrawalNonRefundable||0),refundSource:withdrawalSource,refundMethod:withdrawalMethod,reference:withdrawalReference})}>اعتماد الانسحاب والاسترداد</button></div></details>}
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
               <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>

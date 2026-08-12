@@ -5,7 +5,7 @@ export const dynamic="force-dynamic";
 
 const groups:Record<string,string[]>={
   customers:["customers","prospects"],
-  sales:["orders","payments","payment_intents","payment_reviews","installments","finance_notes"],
+  sales:["orders","payments","payment_intents","payment_reviews","installments","finance_notes","withdrawals"],
   programs:["programs","program_tracks","program_trials","enrollments","seat_reservations","reservation_transfers"],
   operations:["workflow_tasks","tasks","audit_log"],
   users:["staff_roles","staff_accounts"],
@@ -13,7 +13,7 @@ const groups:Record<string,string[]>={
 const labels:Record<string,string>={
   customers:"العملاء",prospects:"الطلبات الأولية",orders:"الطلبات",payments:"الدفعات",
   payment_intents:"نوايا الدفع",payment_reviews:"مراجعات الدفع",installments:"الأقساط",
-  finance_notes:"الملاحظات المالية",
+  finance_notes:"الملاحظات المالية",withdrawals:"الانسحابات والاستردادات",
   programs:"البرامج",program_tracks:"مسارات البرامج",program_trials:"عملاء التجربة",
   enrollments:"التسجيلات",seat_reservations:"الحجوزات والمباشر",reservation_transfers:"نقل الحجوزات",
   workflow_tasks:"المهام التشغيلية",tasks:"المهام العامة",audit_log:"سجل الإجراءات",staff_roles:"صلاحيات المستخدمين",
@@ -27,6 +27,7 @@ export async function GET(req:Request){
   if(category!=="all"&&!groups[category])return Response.json({error:"تصنيف التصدير غير صالح"},{status:400});
   const tables=category==="all"?Array.from(new Set(Object.values(groups).flat())):groups[category];
   const db=operationalDb(),workbook=XLSX.utils.book_new();
+  await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
   for(const table of tables){
     const query=table==="staff_accounts"
       ?"SELECT email,display_name,permissions,active,created_at,updated_at FROM staff_accounts ORDER BY created_at"

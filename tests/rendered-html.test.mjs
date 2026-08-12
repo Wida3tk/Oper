@@ -282,3 +282,20 @@ test("routes Tamara payments to finance review", async () => {
   assert.match(intake, /\["تحويل بنكي", "Paytabs", "تمارا"\]\.includes\(method\)/);
   assert.match(intake, /مراجعة عملية تمارا/);
 });
+
+test("records withdrawals as audited refunds without deleting payments", async () => {
+  const finance = await read("../app/api/finance/route.ts");
+  const dashboard = await read("../app/api/dashboard/home/route.ts");
+  const reports = await read("../app/api/reports/export/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(finance, /CREATE TABLE IF NOT EXISTS withdrawals/);
+  assert.match(finance, /action==="register_withdrawal"/);
+  assert.match(finance, /UPDATE installments SET status='ملغي'/);
+  assert.match(finance, /UPDATE orders SET paid=\?,status='منسحب'/);
+  assert.match(finance, /REGISTER_WITHDRAWAL/);
+  assert.doesNotMatch(finance, /register_withdrawal[\s\S]{0,3000}DELETE FROM payments/);
+  assert.match(dashboard, /salesRefunds/);
+  assert.match(dashboard, /collectionRefunds/);
+  assert.match(reports, /withdrawals/);
+  assert.match(page, /اعتماد الانسحاب والاسترداد/);
+});
