@@ -57,11 +57,21 @@ export async function GET(req:Request){
         WHERE c.deleted_at IS NULL AND p.classification_status='confirmed' AND p.flow_type IN ('sale','collection') AND substr(COALESCE(p.paid_at,p.created_at),1,7)=?
         GROUP BY day ORDER BY day`).bind(month).all(),
       db.prepare("SELECT target_amount FROM monthly_sales_targets WHERE month_key=?").bind(month).first(),
-      db.prepare("SELECT COUNT(*) count FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND o.finance_review_status='pending'").first(),
+      db.prepare(`SELECT CASE
+        WHEN o.order_type='إشراف' THEN 'supervision'
+        WHEN o.payment_plan='أقساط' THEN 'installments'
+        WHEN lower(COALESCE((SELECT pay.method FROM payments pay WHERE pay.order_id=o.id ORDER BY pay.created_at LIMIT 1),'')) LIKE '%paytabs%' THEN 'paytabs'
+        WHEN COALESCE((SELECT pay.method FROM payments pay WHERE pay.order_id=o.id ORDER BY pay.created_at LIMIT 1),'') LIKE '%تحويل بنكي%' THEN 'bank'
+        ELSE 'other' END kind,COUNT(*) count
+        FROM orders o JOIN customers c ON c.id=o.customer_id
+        WHERE c.deleted_at IS NULL AND o.finance_review_status='pending'
+        GROUP BY kind`).all(),
     ]);
     const daily=flows.results.map(row=>({day:String(row.day),sales:num(row.sales),collections:num(row.collections)}));
     const sales=daily.reduce((sum,row)=>sum+row.sales,0),collections=daily.reduce((sum,row)=>sum+row.collections,0),contractValue=num((contracts as Record<string,unknown>)?.value);
-    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),reviewCount:num((review as Record<string,unknown>)?.count),daily};
+    const reviewBreakdown=Object.fromEntries(review.results.map(row=>[String(row.kind),num(row.count)]));
+    const reviewCount=Object.values(reviewBreakdown).reduce((sum,count)=>sum+Number(count||0),0);
+    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),reviewCount,reviewBreakdown,daily};
   }
   return Response.json({
     user:{email:auth.email,name:account?.display_name||auth.email.split("@")[0],roles:auth.roles},

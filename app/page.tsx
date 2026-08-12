@@ -2902,7 +2902,7 @@ type HomeData={
  tasks:LiveTask[];journey:{status:string;count:number}[];
  trainees:{key:string;label:string;count:number;details:{label:string;count:number}[]}[];
  activity:{id:string;action:string;entity_type:string;entity_id:string;actor_email:string;actor_name?:string;subject_name?:string;created_at:string}[];
- finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;daily:{day:string;sales:number;collections:number}[]}|null;
+ finance?:{month:string;orders:number;contractValue:number;sales:number;collections:number;cash:number;remaining:number;target:number;reviewCount:number;reviewBreakdown:Record<string,number>;daily:{day:string;sales:number;collections:number}[]}|null;
 };
 const activityVerbs:Record<string,(actor:string)=>string>={
  RECORD_PAYMENT_AND_ADMIT:actor=>`أضاف ${actor} عميلًا جديدًا`,
@@ -2949,7 +2949,7 @@ function HomeDashboard({onOpenTasks}:{onOpenTasks:()=>void}){
    <HomeMetric icon={ClipboardCheck} label="إجمالي العملاء" value={data.operations.totalCustomers} note="ملفات العملاء في النظام" tone="amber"/>
    <HomeMetric icon={Armchair} label="حجز مقعد" value={data.operations.activeReservations} note="حجوزات نشطة ومجدولة" tone="green"/>
   </div></section>
-  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<em>{f.reviewCount} طلب أقساط بانتظار المراجعة</em>}</header><div className="home-metrics finance">
+  {f&&<section className="metric-zone finance-zone"><header><div><CircleDollarSign size={19}/><span><b>المؤشرات المالية</b><small>المبيعات والتحصيل لهذا الشهر</small></span></div>{f.reviewCount>0&&<section className="finance-review-breakdown">{[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["supervision","إشراف"],["other","أخرى"]].map(([key,label])=>Number(f.reviewBreakdown?.[key]||0)>0&&<em key={key}><b>{f.reviewBreakdown[key]}</b> {label}</em>)}</section>}</header><div className="home-metrics finance">
    <HomeMetric icon={ReceiptText} label="قيمة عقود الشهر" value={money(f.contractValue)} suffix="ر.س" note={`${f.orders} طلب جديد`} tone="blue"/>
    <HomeMetric icon={BadgeDollarSign} label="مبيعات الشهر" value={money(f.sales)} suffix="ر.س" note="دفعات سجلها فريق المبيعات" tone="violet"/>
    <HomeMetric icon={WalletCards} label="تحصيل الشهر" value={money(f.collections)} suffix="ر.س" note="أقساط سجلتها المالية" tone="green"/>

@@ -259,3 +259,14 @@ test("uses readable order numbers and hides cohorts for recorded programs", asyn
   assert.match(page, /row\.order_number \|\| row\.order_id/);
   assert.match(page, /selectedDetails\.delivery !==/);
 });
+
+test("separates pending finance reviews by transaction type", async () => {
+  const dashboard = await read("../app/api/dashboard/home/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(dashboard, /reviewBreakdown/);
+  assert.match(dashboard, /THEN 'installments'/);
+  assert.match(dashboard, /THEN 'bank'/);
+  assert.match(dashboard, /THEN 'paytabs'/);
+  assert.match(dashboard, /THEN 'supervision'/);
+  assert.match(page, /finance-review-breakdown/);
+});
