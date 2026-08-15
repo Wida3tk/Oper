@@ -4,6 +4,7 @@ import {
   Activity,
   Armchair,
   BadgeDollarSign,
+  BriefcaseBusiness,
   Bell,
   BookOpenCheck,
   ChartNoAxesCombined,
@@ -19,6 +20,7 @@ import {
   FileChartColumn,
   FolderKanban,
   HandCoins,
+  Handshake,
   House,
   LayoutDashboard,
   Landmark,
@@ -58,6 +60,8 @@ type View =
   | "users"
   | "programs"
   | "control"
+  | "b2b-business"
+  | "b2b-partnerships"
   | "new";
 type NavIcon =
   | "dashboard"
@@ -70,6 +74,8 @@ type NavIcon =
   | "finance"
   | "users"
   | "programs"
+  | "b2b"
+  | "partnerships"
   | "reports";
 type NavItem = [View, string, NavIcon, number?];
 const navIcons: Record<NavIcon, LucideIcon> = {
@@ -83,6 +89,8 @@ const navIcons: Record<NavIcon, LucideIcon> = {
   finance: HandCoins,
   users: Settings2,
   programs: FolderKanban,
+  b2b: BriefcaseBusiness,
+  partnerships: Handshake,
   reports: FileChartColumn,
 };
 function BrandMark({ withText = true }: { withText?: boolean }) {
@@ -132,6 +140,16 @@ const navGroups: {
     items: [
       ["customers", "قاعدة بيانات العملاء", "customers"],
       ["reservations", "حجوزات المقاعد", "reservations"],
+    ],
+  },
+  {
+    id: "b2b",
+    label: "قطاع الأعمال B2B",
+    icon: BriefcaseBusiness,
+    collapsible: true,
+    items: [
+      ["b2b-business", "الأعمال", "b2b"],
+      ["b2b-partnerships", "الشراكات", "partnerships"],
     ],
   },
   {
@@ -313,6 +331,8 @@ const titles: Record<View, [string, string]> = {
     "لوحة التحكم",
     "إدارة المستخدمين والصلاحيات وبرامج النظام من مكان واحد",
   ],
+  "b2b-business": ["الأعمال", "إدارة الجهات والفرص حتى توقيع الاتفاقية"],
+  "b2b-partnerships": ["الشراكات", "متابعة الاتفاقيات والشركاء بعد التوقيع"],
   new: [
     "تسجيل عميل جديد",
     "تسجيل الطلب مرة واحدة يُنشئ إجراءات الأقسام تلقائياً",
@@ -623,6 +643,7 @@ function OperationsApp() {
     (id === "reservations" &&
       has("reservations.manage")) ||
     (id === "finance" && has("finance.view")) ||
+    (["b2b-business", "b2b-partnerships"].includes(id) && has("b2b.view")) ||
     (id === "reports" && has("reports.view")) ||
     (id === "users" && has("users.manage")) ||
     (id === "programs" && currentUser.roles.includes("admin")) ||
@@ -932,6 +953,8 @@ function OperationsApp() {
               <LiveFinance initialReviewFilter={financeReviewFilter} />
             </>
           )}
+          {view === "b2b-business" && <B2BWorkspace section="business" canManage={has("b2b.manage")} canConvert={has("b2b.partnerships.manage")} />}
+          {view === "b2b-partnerships" && <B2BWorkspace section="partnerships" canManage={has("b2b.manage")} canConvert={has("b2b.partnerships.manage")} />}
           {view === "programs" && <Programs />}
           {view === "reports" && (
             <>
@@ -4882,6 +4905,7 @@ const roleNames: Record<string, string> = {
   sales: "المبيعات",
   finance: "المالية",
   academy: "التشغيلية",
+  b2b: "قطاع الأعمال B2B",
   viewer: "مشاهدة فقط",
 };
 function Users() {
@@ -4896,6 +4920,9 @@ function Users() {
     "finance.payments.record": "تسجيل الدفعات ومراجعها",
     "reports.view": "عرض التقارير",
     "users.manage": "إدارة المستخدمين",
+    "b2b.view": "عرض الأعمال والشراكات",
+    "b2b.manage": "إدارة الجهات وفرص الأعمال",
+    "b2b.partnerships.manage": "اعتماد ومتابعة الشراكات",
   };
   const [staff, setStaff] = useState<StaffRow[]>([]),
     [name, setName] = useState(""),
@@ -6456,6 +6483,50 @@ function Kpi({
     </article>
   );
 }
+type B2BRow = Record<string, string | number | null>;
+const b2bStageColors: Record<string,string> = {
+  "جهة جديدة":"blue","تواصل أولي":"blue","تأهيل الاحتياج":"violet","اجتماع أو عرض تعريفي":"violet",
+  "إعداد العرض":"amber","عرض مرسل":"amber","تفاوض":"orange","بانتظار التوقيع":"orange","تم التوقيع":"green","مغلقة":"gray",
+};
+function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partnerships";canManage:boolean;canConvert:boolean}) {
+  const [rows,setRows]=useState<B2BRow[]>([]),[options,setOptions]=useState<string[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[showForm,setShowForm]=useState(false),[selected,setSelected]=useState<B2BRow|null>(null),[saving,setSaving]=useState(false);
+  const [form,setForm]=useState<Record<string,string>>({name:"",type:"مركز",contactName:"",jobTitle:"",phone:"",email:"",region:"",city:"",activity:"",source:"",priority:"متوسطة",expectedValue:"",expectedCloseDate:"",nextFollowUp:"",recommendedServices:""});
+  const [agreement,setAgreement]=useState<Record<string,string>>({agreementNumber:"",signedAt:"",startDate:"",endDate:"",value:"",paymentTerms:"",scope:"",services:"",renewalTerms:"",documentUrl:""});
+  const load=async()=>{setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[])}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
+  useEffect(()=>{void load()},[section]);
+  const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
+  const totalValue=rows.reduce((sum,row)=>sum+Number(row.expected_value||row.value||0),0),followUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<=new Date().toISOString().slice(0,10)).length;
+  const days=(value:unknown)=>value?Math.ceil((new Date(String(value)).getTime()-Date.now())/86400000):null;
+  return <div className="b2b-workspace">
+    <section className="b2b-hero"><div><span>قطاع الأعمال B2B</span><h2>{section==="business"?"من أول تواصل إلى توقيع الاتفاقية":"من الاتفاقية إلى شراكة مستدامة"}</h2><p>{section==="business"?"مسار موحد للجهات والفرص والاجتماعات والعروض والتفاوض.":"متابعة المسؤولين والمدة والتفعيل والتجديد في مكان واحد."}</p></div>{section==="business"&&canManage&&<button onClick={()=>setShowForm(true)}><UserPlus size={17}/> إضافة جهة</button>}</section>
+    <div className="b2b-kpis">
+      <article><span>{section==="business"?"الفرص الحالية":"إجمالي الشراكات"}</span><b>{rows.length}</b></article>
+      <article><span>{section==="business"?"تحتاج متابعة":"شراكات نشطة"}</span><b>{section==="business"?followUps:rows.filter(x=>x.status==="نشطة").length}</b></article>
+      <article><span>{section==="business"?"بانتظار التوقيع":"تجديد خلال 60 يومًا"}</span><b>{section==="business"?rows.filter(x=>x.stage==="بانتظار التوقيع").length:rows.filter(x=>{const d=days(x.end_date);return d!==null&&d>=0&&d<=60}).length}</b></article>
+      <article><span>{section==="business"?"القيمة المتوقعة":"قيمة الاتفاقيات"}</span><b>{totalValue.toLocaleString("en-US")} <small>ر.س</small></b></article>
+    </div>
+    {error&&<p className="error">{error}</p>}
+    {showForm&&<section className="b2b-form-card"><header><div><b>إضافة فرصة أعمال</b><span>بيانات الجهة والشخص المسؤول والمتابعة الأولى</span></div><button onClick={()=>setShowForm(false)}>×</button></header><div className="b2b-form-grid">
+      {[['name','اسم الجهة *'],['contactName','الشخص المسؤول *'],['jobTitle','المسمى الوظيفي'],['phone','رقم الجوال'],['email','البريد الإلكتروني'],['region','المنطقة'],['city','المدينة'],['activity','نشاط الجهة'],['source','مصدر الفرصة'],['expectedValue','القيمة المتوقعة'],['expectedCloseDate','تاريخ الإغلاق المتوقع'],['nextFollowUp','المتابعة القادمة'],['recommendedServices','الخدمات المقترحة']].map(([key,label])=><label key={key}><span>{label}</span><input type={key.includes('Date')||key==='nextFollowUp'?'date':key==='expectedValue'?'number':'text'} value={form[key]||""} onChange={e=>setForm({...form,[key]:e.target.value})}/></label>)}
+      <label><span>نوع الجهة</span><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{["شركة","مركز","جمعية","جهة حكومية","جامعة","أخرى"].map(x=><option key={x}>{x}</option>)}</select></label><label><span>الأولوية</span><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>{["عالية","متوسطة","منخفضة"].map(x=><option key={x}>{x}</option>)}</select></label>
+    </div><footer><button disabled={saving} onClick={()=>void save({action:"create_business",...form})}>حفظ فرصة الأعمال</button></footer></section>}
+    <section className="b2b-list"><header><div><b>{section==="business"?"مسار فرص الأعمال":"سجل الشراكات"}</b><span>{rows.length} جهة</span></div></header>
+      {loading?<LiveState loading error="" empty={false}/>:rows.length===0?<LiveState loading={false} error="" empty/>:rows.map(row=>{const remaining=days(row.end_date);return <article className="b2b-row" key={String(row.id)} onClick={()=>setSelected(row)}>
+        <div className="b2b-identity"><i>{String(row.account_name||"ج").slice(0,2)}</i><div><b>{row.account_name}</b><span>{row.account_type}{row.city?` · ${row.city}`:""}</span></div></div>
+        <div><span>الشخص المسؤول</span><b>{row.contact_name||"غير محدد"}</b><small>{row.contact_title||row.contact_phone||"—"}</small></div>
+        {section==="business"?<><div><span>المرحلة</span><em className={`b2b-status ${b2bStageColors[String(row.stage)]||"gray"}`}>{row.stage}</em></div><div><span>المتابعة القادمة</span><b>{row.next_follow_up||"غير محددة"}</b></div><div><span>القيمة المتوقعة</span><b>{Number(row.expected_value||0).toLocaleString("en-US")} ر.س</b></div></>:<><div><span>حالة الشراكة</span><em className={`b2b-status ${row.status==="نشطة"?"green":remaining!==null&&remaining<=60?"orange":"blue"}`}>{row.status}</em></div><div><span>مدة الاتفاقية</span><b>{row.start_date} — {row.end_date}</b><small>{remaining===null?"":remaining<0?"منتهية":`${remaining} يوم متبقٍ`}</small></div><div><span>قيمة الاتفاقية</span><b>{Number(row.value||0).toLocaleString("en-US")} ر.س</b></div></>}
+        <button type="button">عرض التفاصيل</button>
+      </article>})}
+    </section>
+    {selected&&<><button className="b2b-overlay" aria-label="إغلاق" onClick={()=>setSelected(null)}/><aside className="b2b-drawer"><header><button onClick={()=>setSelected(null)}>×</button><span>{section==="business"?"ملف فرصة الأعمال":"ملف الشراكة"}</span><h2>{selected.account_name}</h2><p>{selected.account_type} · {selected.region||selected.city||"الموقع غير محدد"}</p></header><div className="b2b-drawer-body">
+      <section><h3>جهة الاتصال</h3><dl><div><dt>الاسم</dt><dd>{selected.contact_name||"غير محدد"}</dd></div><div><dt>المسمى</dt><dd>{selected.contact_title||"—"}</dd></div><div><dt>الجوال</dt><dd dir="ltr">{selected.contact_phone||"—"}</dd></div><div><dt>البريد</dt><dd>{selected.contact_email||"—"}</dd></div></dl></section>
+      {section==="business"&&canManage&&<section><h3>تحديث مسار الفرصة</h3><label><span>المرحلة الحالية</span><select value={String(selected.stage)} onChange={e=>void save({action:"update_stage",opportunityId:selected.id,stage:e.target.value})}>{options.map(x=><option key={x}>{x}</option>)}</select></label></section>}
+      {section==="business"&&canConvert&&<details className="b2b-convert"><summary>اعتماد التوقيع وتحويلها إلى شراكة</summary><div>{[['agreementNumber','رقم الاتفاقية'],['signedAt','تاريخ التوقيع *'],['startDate','بداية الاتفاقية *'],['endDate','نهاية الاتفاقية *'],['value','قيمة الاتفاقية'],['paymentTerms','شروط الدفع'],['scope','نطاق الاتفاقية'],['services','الخدمات المتفق عليها'],['renewalTerms','شروط التجديد'],['documentUrl','رابط مستند الاتفاقية']].map(([key,label])=><label key={key}><span>{label}</span><input type={key.endsWith('At')||key.endsWith('Date')?'date':key==='value'?'number':'text'} value={agreement[key]||""} onChange={e=>setAgreement({...agreement,[key]:e.target.value})}/></label>)}</div><button disabled={saving} onClick={()=>void save({action:"convert_to_partnership",opportunityId:selected.id,...agreement})}>تأكيد التوقيع وإنشاء الشراكة</button></details>}
+      {section==="partnerships"&&canConvert&&<section><h3>متابعة الشراكة</h3><label><span>الحالة</span><select value={String(selected.status)} onChange={e=>void save({action:"update_partnership",partnershipId:selected.id,status:e.target.value})}>{options.map(x=><option key={x}>{x}</option>)}</select></label></section>}
+    </div></aside></>}
+  </div>;
+}
+
 function Card({
   title,
   action,

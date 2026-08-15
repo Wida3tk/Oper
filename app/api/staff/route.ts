@@ -1,7 +1,7 @@
 import { authorize, id, operationalDb } from "../_lib/operations";
 
 export const dynamic="force-dynamic";
-const validRoles=["admin","sales","finance","academy","viewer"],validPermissions=["customers.view","customers.manage","reservations.manage","programs.activate","finance.view","finance.total.edit","finance.installments.manage","finance.payments.record","reports.view","users.manage"];
+const validRoles=["admin","sales","finance","academy","b2b","viewer"],validPermissions=["customers.view","customers.manage","reservations.manage","programs.activate","finance.view","finance.total.edit","finance.installments.manage","finance.payments.record","reports.view","users.manage","b2b.view","b2b.manage","b2b.partnerships.manage"];
 const enc=new TextEncoder(),hex=(b:ArrayBuffer)=>Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("");
 async function hashPassword(password:string,salt:string){const key=await crypto.subtle.importKey("raw",enc.encode(password),"PBKDF2",false,["deriveBits"]);return hex(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:enc.encode(salt),iterations:25000},key,256))}
 const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x.toString(16).padStart(2,"0")).join("");

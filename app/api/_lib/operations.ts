@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-export type StaffRole = "admin" | "sales" | "finance" | "academy" | "viewer";
+export type StaffRole = "admin" | "sales" | "finance" | "academy" | "b2b" | "viewer";
 
 export const bootstrapAdmins = new Set(["ro7e.entaa@gmail.com"]);
 
