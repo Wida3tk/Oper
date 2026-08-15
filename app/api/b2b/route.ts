@@ -21,7 +21,12 @@ export async function GET(req: Request) {
   const auth = await authorize(req,["b2b"]); if(!auth.ok) return auth.response;
   if(!can(auth,"b2b.view")) return Response.json({error:"ليس لديك صلاحية عرض قطاع الأعمال"},{status:403});
   const db=operationalDb(); await ensureSchema(db);
-  const section=new URL(req.url).searchParams.get("section")||"business";
+  const params=new URL(req.url).searchParams,accountId=params.get("accountId")||"";
+  if(accountId){
+    const {results}=await db.prepare("SELECT id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at FROM b2b_activities WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all();
+    return Response.json({activities:results});
+  }
+  const section=params.get("section")||"business";
   if(section==="partnerships"){
     const {results}=await db.prepare(`SELECT p.*,a.name account_name,a.type account_type,a.region,a.city,
       c.name contact_name,c.job_title contact_title,c.phone contact_phone,c.email contact_email,
