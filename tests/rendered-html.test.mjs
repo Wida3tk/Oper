@@ -322,6 +322,21 @@ test("scopes B2B organizations to the assigned employee and exposes dashboard pr
   assert.match(page, /b2b-inline-stage/);
 });
 
+test("requires B2B employee submissions to be approved and restricts direct partnership creation", async () => {
+  const b2b = await read("../app/api/b2b/route.ts");
+  const staff = await read("../app/api/staff/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(b2b, /approval_status TEXT NOT NULL DEFAULT 'approved'/);
+  assert.match(b2b, /action==="review_business"/);
+  assert.match(b2b, /autoApprove=isAdmin\(auth\)\|\|can\(auth,"b2b.review"\)/);
+  assert.match(b2b, /action==="create_partnership"/);
+  assert.match(b2b, /b2b.partnerships.create/);
+  assert.match(staff, /b2b.review/);
+  assert.match(staff, /b2b.partnerships.create/);
+  assert.match(page, /إرسال الجهة للاعتماد/);
+  assert.match(page, /بانتظار الاعتماد/);
+});
+
 test("lets finance apply a custom discount and rebalance open installments", async () => {
   const finance = await read("../app/api/finance/route.ts");
   const page = await read("../app/page.tsx");

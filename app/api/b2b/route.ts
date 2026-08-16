@@ -23,6 +23,9 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   ]);
   await addColumn(db,"ALTER TABLE b2b_accounts ADD COLUMN path TEXT NOT NULL DEFAULT 'ABA'");
   await addColumn(db,"ALTER TABLE b2b_accounts ADD COLUMN team_id TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN approved_by_email TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN approved_at TEXT");
   await db.batch([
     db.prepare("UPDATE b2b_opportunities SET stage='جهة مسندة' WHERE stage='جهة جديدة'"),
     db.prepare("UPDATE b2b_opportunities SET stage='تم التواصل' WHERE stage='تواصل أولي'"),
@@ -56,17 +59,18 @@ export async function GET(req: Request) {
       FROM b2b_partnerships p JOIN b2b_accounts a ON a.id=p.account_id
       LEFT JOIN b2b_contacts c ON c.id=p.primary_contact_id WHERE 1=1${scope.sql}
       ORDER BY CASE p.status WHEN 'تجديد قريب' THEN 0 WHEN 'تحتاج متابعة' THEN 1 WHEN 'نشطة' THEN 2 ELSE 3 END,p.end_date`).bind(...scope.bind).all();
-    return Response.json({partnerships:results,statuses:partnershipStatuses,scope:isAdmin(auth)?"all":"assigned",viewerEmail:auth.email});
+    return Response.json({partnerships:results,statuses:partnershipStatuses,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),viewerEmail:auth.email});
   }
+  const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,a.priority,a.path,a.team_id,
     c.id contact_id,c.name contact_name,c.job_title contact_title,c.phone contact_phone,c.email contact_email,c.contact_role,c.preferred_channel,
     (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
     (SELECT MAX(x.created_at) FROM b2b_activities x WHERE x.opportunity_id=o.id AND x.activity_type IN ('تم التواصل','تواصل أولي','اتصال','واتساب','بريد إلكتروني')) last_contact_at
     FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id
     LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
-    WHERE NOT EXISTS(SELECT 1 FROM b2b_partnerships p WHERE p.opportunity_id=o.id)${scope.sql}
-    ORDER BY CASE o.stage WHEN 'بانتظار التوقيع' THEN 0 WHEN 'أُرسل العرض' THEN 1 WHEN 'تم الاجتماع' THEN 2 ELSE 3 END,o.updated_at DESC`).bind(...scope.bind).all();
-  return Response.json({opportunities:results,stages:businessStages,paths,scope:isAdmin(auth)?"all":"assigned",viewerEmail:auth.email});
+    WHERE NOT EXISTS(SELECT 1 FROM b2b_partnerships p WHERE p.opportunity_id=o.id)${businessScope.sql}
+    ORDER BY CASE o.approval_status WHEN 'pending' THEN 0 ELSE 1 END,CASE o.stage WHEN 'بانتظار التوقيع' THEN 0 WHEN 'أُرسل العرض' THEN 1 WHEN 'تم الاجتماع' THEN 2 ELSE 3 END,o.updated_at DESC`).bind(...businessScope.bind).all();
+  return Response.json({opportunities:results,stages:businessStages,paths,scope:isAdmin(auth)?"all":"assigned",canReview:reviewAccess||isAdmin(auth),canCreatePartnership:can(auth,"b2b.partnerships.create"),viewerEmail:auth.email});
 }
 
 export async function POST(req:Request){
@@ -77,19 +81,39 @@ export async function POST(req:Request){
   if(action==="create_business"){
     const name=String(body.name||"").trim(),type=String(body.type||"مركز"),contactName=String(body.contactName||"").trim(),phone=String(body.phone||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"ABA";
     if(!name||!contactName)return Response.json({error:"اسم الجهة واسم الشخص المسؤول مطلوبان"},{status:400});
-    const accountId=id("B2BA"),contactId=id("B2BC"),opportunityId=id("B2BO"),stage=businessStages.includes(String(body.stage))?String(body.stage):"جهة مسندة",ownerEmail=String(body.ownerEmail||auth.email).trim().toLowerCase();
+    const accountId=id("B2BA"),contactId=id("B2BC"),opportunityId=id("B2BO"),stage=businessStages.includes(String(body.stage))?String(body.stage):"جهة مسندة",autoApprove=isAdmin(auth)||can(auth,"b2b.review"),ownerEmail=autoApprove?String(body.ownerEmail||auth.email).trim().toLowerCase():auth.email,approvalStatus=autoApprove?"approved":"pending";
     await db.batch([
       db.prepare("INSERT INTO b2b_accounts(id,name,type,region,city,activity,employee_count,source,owner_email,priority,status,created_by_email,created_at,updated_at,path,team_id) VALUES(?,?,?,?,?,?,?,?,?,?,'نشطة',?,?,?,?,?)").bind(accountId,name,type,String(body.region||""),String(body.city||""),String(body.activity||""),Number(body.employeeCount||0)||null,String(body.source||""),ownerEmail,String(body.priority||"متوسطة"),auth.email,now,now,path,String(body.teamId||"")||null),
       db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,1,?,?)").bind(contactId,accountId,contactName,String(body.jobTitle||""),phone,email,String(body.contactRole||"صاحب قرار"),String(body.preferredChannel||"واتساب"),now,now),
-      db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,expected_value,expected_close_date,recommended_services,next_follow_up,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(opportunityId,accountId,stage,Number(body.expectedValue||0),String(body.expectedCloseDate||"")||null,String(body.recommendedServices||""),String(body.nextFollowUp||"")||null,auth.email,now,now),
+      db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,expected_value,expected_close_date,recommended_services,next_follow_up,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(opportunityId,accountId,stage,Number(body.expectedValue||0),String(body.expectedCloseDate||"")||null,String(body.recommendedServices||""),String(body.nextFollowUp||"")||null,auth.email,now,now,approvalStatus,autoApprove?auth.email:null,autoApprove?now:null),
       db.prepare("INSERT OR IGNORE INTO b2b_assignments(account_id,email,team_id,assigned_by_email,created_at) VALUES(?,?,?,?,?)").bind(accountId,ownerEmail,String(body.teamId||"")||null,auth.email,now),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'إسناد الجهة','تم إنشاء الجهة وإسنادها',?,?)").bind(id("B2BX"),accountId,opportunityId,auth.email,now),
       db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'CREATE_B2B_OPPORTUNITY','b2b_opportunity',?,?,?)").bind(id("AUD"),auth.email,opportunityId,JSON.stringify({accountId,name,stage,path,ownerEmail}),now),
-    ]);return Response.json({ok:true,id:opportunityId});
+    ]);return Response.json({ok:true,id:opportunityId,approvalStatus});
+  }
+  if(action==="review_business"){
+    if(!isAdmin(auth)&&!can(auth,"b2b.review"))return Response.json({error:"ليس لديك صلاحية اعتماد الجهات"},{status:403});
+    const opportunityId=String(body.opportunityId||""),decision=String(body.decision||"");if(!opportunityId||!["approved","rejected"].includes(decision))return Response.json({error:"قرار الاعتماد غير صحيح"},{status:400});
+    const row=await db.prepare("SELECT account_id,approval_status FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string;approval_status:string}>();if(!row)return Response.json({error:"الجهة غير موجودة"},{status:404});
+    await db.batch([db.prepare("UPDATE b2b_opportunities SET approval_status=?,approved_by_email=?,approved_at=?,updated_at=? WHERE id=?").bind(decision,auth.email,now,now,opportunityId),db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'اعتماد الجهة',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,decision==="approved"?"تم اعتماد الجهة":"تم رفض الجهة",auth.email,now)]);return Response.json({ok:true});
+  }
+  if(action==="create_partnership"){
+    if(!isAdmin(auth)&&!can(auth,"b2b.partnerships.create"))return Response.json({error:"ليس لديك صلاحية إضافة جهة إلى الشراكات"},{status:403});
+    const name=String(body.name||"").trim(),contactName=String(body.contactName||"").trim(),signedAt=String(body.signedAt||""),startDate=String(body.startDate||""),endDate=String(body.endDate||""),path=paths.includes(String(body.path))?String(body.path):"ABA";
+    if(!name||!contactName||![signedAt,startDate,endDate].every(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))return Response.json({error:"اسم الجهة والمسؤول وتواريخ الاتفاقية مطلوبة"},{status:400});
+    const accountId=id("B2BA"),contactId=id("B2BC"),opportunityId=id("B2BO"),partnershipId=id("B2BP");
+    await db.batch([
+      db.prepare("INSERT INTO b2b_accounts(id,name,type,region,city,activity,source,owner_email,priority,status,created_by_email,created_at,updated_at,path) VALUES(?,?,?,?,?,?,?,?,'متوسطة','نشطة',?,?,?,?)").bind(accountId,name,String(body.type||"مركز"),String(body.region||""),String(body.city||""),String(body.activity||""),String(body.source||""),String(body.ownerEmail||auth.email),auth.email,now,now,path),
+      db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'واتساب',1,?,?)").bind(contactId,accountId,contactName,String(body.jobTitle||""),String(body.phone||""),String(body.email||""),"مسؤول الجهة",now,now),
+      db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at,signed_at) VALUES(?,?,'تم التوقيع',?,?,?,'approved',?,?,?)").bind(opportunityId,accountId,auth.email,now,now,auth.email,now,signedAt),
+      db.prepare("INSERT INTO b2b_partnerships(id,account_id,opportunity_id,agreement_number,signed_at,start_date,end_date,value,scope,services,status,internal_owner_email,primary_contact_id,document_url,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'بانتظار التفعيل',?,?,?,?,?,?)").bind(partnershipId,accountId,opportunityId,String(body.agreementNumber||""),signedAt,startDate,endDate,Number(body.value||0),String(body.scope||""),String(body.services||""),String(body.ownerEmail||auth.email),contactId,String(body.documentUrl||""),auth.email,now,now),
+      db.prepare("INSERT OR IGNORE INTO b2b_assignments(account_id,email,assigned_by_email,created_at) VALUES(?,?,?,?)").bind(accountId,String(body.ownerEmail||auth.email),auth.email,now),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'إضافة شراكة','تمت إضافة الجهة مباشرة إلى سجل الشراكات',?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,auth.email,now),
+    ]);return Response.json({ok:true,id:partnershipId});
   }
   if(action==="update_stage"){
     const opportunityId=String(body.opportunityId||""),stage=String(body.stage||"");if(!opportunityId||!businessStages.includes(stage))return Response.json({error:"الفرصة أو المرحلة غير صحيحة"},{status:400});
-    const row=await db.prepare("SELECT o.account_id,o.stage FROM b2b_opportunities o WHERE o.id=?").bind(opportunityId).first<{account_id:string;stage:string}>();if(!row)return Response.json({error:"الفرصة غير موجودة"},{status:404});if(!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const row=await db.prepare("SELECT o.account_id,o.stage,o.approval_status FROM b2b_opportunities o WHERE o.id=?").bind(opportunityId).first<{account_id:string;stage:string;approval_status:string}>();if(!row)return Response.json({error:"الفرصة غير موجودة"},{status:404});if(row.approval_status!=="approved")return Response.json({error:"يجب اعتماد الجهة قبل تحديث مسارها"},{status:409});if(!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     await db.batch([db.prepare("UPDATE b2b_opportunities SET stage=?,next_follow_up=COALESCE(?,next_follow_up),updated_at=? WHERE id=?").bind(stage,String(body.nextFollowUp||"")||null,now,opportunityId),db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'تحديث المرحلة',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,`${row.stage} ← ${stage}`,auth.email,now)]);return Response.json({ok:true});
   }
   if(action==="log_activity"){
