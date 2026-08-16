@@ -317,7 +317,7 @@ test("scopes B2B organizations to the assigned employee and exposes dashboard pr
   assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_assignments/);
   assert.match(b2b, /owner_email=\? OR EXISTS\(SELECT 1 FROM b2b_assignments/);
   assert.match(b2b, /الجهة غير متاحة ضمن نطاق عملك/);
-  assert.match(page, /تقدم الجهات/);
+  assert.match(page, /تقدم فرص الشراكة/);
   assert.match(page, /تم التواصل اليوم/);
   assert.match(page, /b2b-inline-stage/);
 });
@@ -335,6 +335,19 @@ test("requires B2B employee submissions to be approved and restricts direct part
   assert.match(staff, /b2b.partnerships.create/);
   assert.match(page, /إرسال الجهة للاعتماد/);
   assert.match(page, /بانتظار الاعتماد/);
+});
+
+test("tracks direct corporate training requests without converting them to partnerships", async () => {
+  const b2b = await read("../app/api/b2b/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(b2b, /opportunity_kind TEXT NOT NULL DEFAULT 'partnership'/);
+  assert.match(b2b, /trainee_count INTEGER/);
+  assert.match(b2b, /requested_program TEXT/);
+  assert.match(b2b, /trainingStages/);
+  assert.match(b2b, /طلبات التدريب المؤسسي تُغلق بالتنفيذ ولا تتحول إلى شراكات/);
+  assert.match(page, /طلب تدريب مؤسسي/);
+  assert.match(page, /عدد المتدربين/);
+  assert.match(page, /طلبات الجهات/);
 });
 
 test("lets finance apply a custom discount and rebalance open installments", async () => {
