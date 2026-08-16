@@ -310,6 +310,18 @@ test("keeps B2B commercial values outside core sales and collection ledgers", as
   assert.doesNotMatch(finance, /b2b_partnerships|b2b_opportunities/);
 });
 
+test("scopes B2B organizations to the assigned employee and exposes dashboard progress", async () => {
+  const b2b = await read("../app/api/b2b/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_teams/);
+  assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_assignments/);
+  assert.match(b2b, /owner_email=\? OR EXISTS\(SELECT 1 FROM b2b_assignments/);
+  assert.match(b2b, /الجهة غير متاحة ضمن نطاق عملك/);
+  assert.match(page, /تقدم الجهات/);
+  assert.match(page, /تم التواصل اليوم/);
+  assert.match(page, /b2b-inline-stage/);
+});
+
 test("lets finance apply a custom discount and rebalance open installments", async () => {
   const finance = await read("../app/api/finance/route.ts");
   const page = await read("../app/page.tsx");
