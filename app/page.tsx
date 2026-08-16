@@ -2786,6 +2786,7 @@ async function apiJson(url: string, init?: RequestInit) {
       review_legacy_installments: "تم اعتماد المراجعة المالية",
       note: "تم حفظ الملاحظة المالية",
       undo_last_finance_action: "تم التراجع عن آخر إجراء مالي",
+      update_discount_percent: "تم تحديث نسبة الخصم وإعادة موازنة العقد",
     };
     const message = messages[action] || (method === "DELETE" ? "تم الحذف بنجاح" : method === "PATCH" ? "تم تحديث البيانات بنجاح" : "تم تنفيذ الإجراء بنجاح");
     window.dispatchEvent(new CustomEvent("sulukera:success", { detail: { message } }));
@@ -5679,6 +5680,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     [regularAmountInput, setRegularAmountInput] = useState(""),
     [firstPaymentAmount, setFirstPaymentAmount] = useState(""),
     [legacySeatFee, setLegacySeatFee] = useState(""),
+    [customDiscount, setCustomDiscount] = useState("0"),
     [finalAmount, setFinalAmount] = useState(""),
     [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final"|"existing">("auto"),
     [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
@@ -5734,6 +5736,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
           setTotal(String(updated.total));
           setFirstPaymentAmount(String(firstPayment(updated)?.amount||0));
           setLegacySeatFee(String(updated.seat_fee || ""));
+          setCustomDiscount(String(updated.discount_percent || 0));
           syncScheduleFromSavedTable(updated);
           setInstallmentDueDates(Object.fromEntries(updated.installments.map((item: FinanceInstallment) => [item.id, String(item.due_date).slice(0,10)])));
           setInstallmentPaymentDates(Object.fromEntries(updated.installments.filter((item: FinanceInstallment) => item.paid_at).map((item: FinanceInstallment) => [item.id, String(item.paid_at).slice(0,10)])));
@@ -5753,6 +5756,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     setTotal(String(row.total));
     setFirstPaymentAmount(String(firstPayment(row)?.amount||0));
     setLegacySeatFee(String(row.seat_fee || ""));
+    setCustomDiscount(String(row.discount_percent || 0));
     const defaultPayment = financeTab === "sales"
       ? row.payments.find((payment) => payment.flow_type === "sale") || firstPayment(row)
       : [...row.payments].filter((payment) => payment.flow_type === "collection").sort((a,b) => String(b.paid_at || b.created_at || "").localeCompare(String(a.paid_at || a.created_at || "")))[0] || firstPayment(row);
@@ -6160,6 +6164,11 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
               {Number(selected.refunded||0)>0&&<p className="refund-total"><span>المبلغ المسترد</span><b>- {sar(Number(selected.refunded))}</b></p>}
             </div>
             {selected.withdrawal ? <div className="withdrawal-summary"><header><div><b>العميل منسحب</b><span>{selected.withdrawal.withdrawn_at} · {selected.withdrawal.reason}</span></div><em>{selected.withdrawal.status}</em></header><div><p><span>إجمالي المدفوع قبل الاسترداد</span><b>{sar(selected.withdrawal.gross_paid)}</b></p><p><span>المبلغ المسترد</span><b>{sar(selected.withdrawal.refund_amount)}</b></p><p><span>غير قابل للاسترداد</span><b>{sar(selected.withdrawal.non_refundable_amount)}</b></p><p><span>مصدر الخصم</span><b>{selected.withdrawal.refund_source==="sale"?"المبيعات":"التحصيل"}</b></p></div><footer>{selected.withdrawal.refund_method} · المرجع: {selected.withdrawal.reference} · بواسطة {selected.withdrawal.created_by_email}</footer></div> : <details className="withdrawal-tool"><summary>تسجيل انسحاب واسترداد مبلغ</summary><div className="withdrawal-form"><label>سبب الانسحاب<textarea value={withdrawalReason} onChange={e=>setWithdrawalReason(e.target.value)} placeholder="اكتب سبب الانسحاب"/></label><label>تاريخ الانسحاب<input type="date" value={withdrawalDate} onChange={e=>setWithdrawalDate(e.target.value)}/></label><label>المبلغ المسترد<input type="number" min="0" max={selected.gross_paid||selected.paid} step="0.01" value={withdrawalRefund} onChange={e=>setWithdrawalRefund(e.target.value)}/></label><label>المبلغ غير القابل للاسترداد<input type="number" min="0" step="0.01" value={withdrawalNonRefundable} onChange={e=>setWithdrawalNonRefundable(e.target.value)}/></label><label>يُخصم الاسترداد من<select value={withdrawalSource} onChange={e=>setWithdrawalSource(e.target.value)}><option value="sale">المبيعات</option><option value="collection">التحصيل</option></select></label><label>طريقة الاسترداد<select value={withdrawalMethod} onChange={e=>setWithdrawalMethod(e.target.value)}><option>تحويل بنكي</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option><option>أخرى</option></select></label><label>مرجع الاسترداد<input value={withdrawalReference} onChange={e=>setWithdrawalReference(e.target.value)} placeholder="رقم أو رابط المرجع"/></label><button type="button" className="danger" disabled={saving||!withdrawalReason.trim()||!withdrawalDate||!withdrawalReference.trim()||Number(withdrawalRefund)<0||Number(withdrawalRefund)+Number(withdrawalNonRefundable)>Number(selected.gross_paid||selected.paid)} onClick={()=>window.confirm(`سيتم تسجيل انسحاب العميل واسترداد ${sar(Number(withdrawalRefund||0))} وإيقاف الأقساط المستقبلية. هل تريد المتابعة؟`)&&post({action:"register_withdrawal",reason:withdrawalReason,withdrawnAt:withdrawalDate,refundAmount:Number(withdrawalRefund||0),nonRefundableAmount:Number(withdrawalNonRefundable||0),refundSource:withdrawalSource,refundMethod:withdrawalMethod,reference:withdrawalReference})}>اعتماد الانسحاب والاسترداد</button></div></details>}
+            <div className="finance-discount-editor">
+              <div><b>تعديل نسبة الخصم</b><span>قيمة مخصصة وليست مقيدة بالقائمة. يُعاد احتساب العقد والمتبقي والأقساط غير المسددة تلقائيًا.</span></div>
+              <label><input type="number" min="0" max="100" step="0.01" value={customDiscount} onChange={e=>setCustomDiscount(e.target.value)}/><span>%</span></label>
+              <button type="button" disabled={saving||!Number.isFinite(Number(customDiscount))||Number(customDiscount)<0||Number(customDiscount)>100||Math.abs(Number(customDiscount)-Number(selected.discount_percent||0))<0.0001} onClick={()=>window.confirm(`سيتم تعديل الخصم إلى ${Number(customDiscount).toLocaleString("en-US")}% وإعادة موازنة المتبقي والأقساط غير المسددة. هل تريد المتابعة؟`)&&post({action:"update_discount_percent",discountPercent:Number(customDiscount)})}>حفظ الخصم</button>
+            </div>
             <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
               <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
               <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>

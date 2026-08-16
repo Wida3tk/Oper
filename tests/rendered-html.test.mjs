@@ -299,3 +299,24 @@ test("records withdrawals as audited refunds without deleting payments", async (
   assert.match(reports, /withdrawals/);
   assert.match(page, /اعتماد الانسحاب والاسترداد/);
 });
+
+test("keeps B2B commercial values outside core sales and collection ledgers", async () => {
+  const b2b = await read("../app/api/b2b/route.ts");
+  const finance = await read("../app/api/finance/route.ts");
+  assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_partnerships/);
+  assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_opportunities/);
+  assert.doesNotMatch(b2b, /INSERT INTO payments/);
+  assert.doesNotMatch(b2b, /INSERT INTO orders/);
+  assert.doesNotMatch(finance, /b2b_partnerships|b2b_opportunities/);
+});
+
+test("lets finance apply a custom discount and rebalance open installments", async () => {
+  const finance = await read("../app/api/finance/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(finance, /action==="update_discount_percent"/);
+  assert.match(finance, /discountPercent<0\|\|discountPercent>100/);
+  assert.match(finance, /UPDATE installments SET amount_cents/);
+  assert.match(finance, /UPDATE_DISCOUNT_PERCENT/);
+  assert.match(page, /finance-discount-editor/);
+  assert.match(page, /step="0\.01" value=\{customDiscount\}/);
+});

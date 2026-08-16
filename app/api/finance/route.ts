@@ -27,7 +27,7 @@ export async function GET(req:Request){
  await ensureFinanceUndoSchema(db);
  await ensureWithdrawalSchema(db);
  const [ordersResult,paymentsResult,installmentsResult,notesResult,undoResult,withdrawalsResult]=await Promise.all([
-  db.prepare("SELECT o.id order_id,o.program_id,o.order_type,o.track program_track,o.delivery program_delivery,o.language program_language,o.competency_assessment,o.purchase_source,o.payment_plan,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
+  db.prepare("SELECT o.id order_id,o.program_id,o.order_type,o.track program_track,o.delivery program_delivery,o.language program_language,o.competency_assessment,o.purchase_source,o.payment_plan,o.base_total,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
   db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>(),
@@ -57,7 +57,7 @@ export async function POST(req:Request){
  const auth=await authorize(req,["finance"]);if(!auth.ok)return auth.response;
  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),orderId=String(body.orderId||"");
  if(!orderId)return Response.json({error:"رقم الطلب مطلوب"},{status:400});
- const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,order_type FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;order_type:string}>();
+ const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string}>();
  await ensureFinanceUndoSchema(db);
  await ensureWithdrawalSchema(db);
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
@@ -129,6 +129,20 @@ export async function POST(req:Request){
    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'APPROVE_LEGACY_INSTALLMENTS','order',?,'{}',?)").bind(id("AUD"),auth.email,orderId,now)
   ]);
   return Response.json({ok:true});
+ }
+ if(action==="update_discount_percent"){
+  if(!can(auth,"finance.total.edit"))return Response.json({error:"ليس لديك صلاحية تعديل نسبة الخصم"},{status:403});
+  const discountPercent=Number(body.discountPercent);
+  if(!Number.isFinite(discountPercent)||discountPercent<0||discountPercent>100)return Response.json({error:"نسبة الخصم يجب أن تكون بين 0 و100"},{status:400});
+  const previousPercent=Number(order.discount_percent||0),storedBaseCents=cents(order.base_total),derivedBaseCents=previousPercent<100?Math.round(cents(order.total)/(1-previousPercent/100)):cents(order.total),baseCents=storedBaseCents>0?storedBaseCents:derivedBaseCents,newTotalCents=Math.round(baseCents*(1-discountPercent/100));
+  if(newTotalCents<paidCents)return Response.json({error:`بعد الخصم يصبح إجمالي العقد أقل من المبلغ المدفوع (${money(paidCents).toFixed(2)} ر.س)`},{status:400});
+  const open=await db.prepare("SELECT id,sequence FROM installments WHERE order_id=? AND status!='مدفوع' ORDER BY sequence").bind(orderId).all<{id:string;sequence:number}>(),remainingCents=newTotalCents-paidCents,statements=[];
+  if(open.results.length){
+   if(remainingCents===0)statements.push(db.prepare("DELETE FROM installments WHERE order_id=? AND status!='مدفوع'").bind(orderId));
+   else{const regular=Math.floor(remainingCents/open.results.length);for(let index=0;index<open.results.length;index++){const amount=index===open.results.length-1?remainingCents-regular*(open.results.length-1):regular;statements.push(db.prepare("UPDATE installments SET amount_cents=?,updated_at=? WHERE id=? AND order_id=?").bind(amount,now,open.results[index].id,orderId))}}
+  }
+  statements.push(db.prepare("UPDATE orders SET base_total=?,discount_percent=?,total=?,paid=?,status=?,updated_at=? WHERE id=?").bind(money(baseCents),discountPercent,money(newTotalCents),money(paidCents),newTotalCents===paidCents?"مدفوع":paidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId),db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_DISCOUNT_PERCENT','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({orderId,previousPercent,discountPercent,baseTotal:money(baseCents),previousTotal:Number(order.total||0),total:money(newTotalCents),remaining:money(remainingCents),rebalancedInstallments:open.results.length}),now));
+  await db.batch(statements);return Response.json({ok:true,discountPercent,total:money(newTotalCents),paid:money(paidCents),remaining:money(remainingCents)});
  }
  if(action==="schedule"){
   if(!can(auth,"finance.total.edit")||!can(auth,"finance.installments.manage"))return Response.json({error:"لا تملكين صلاحية تعديل الإجمالي والأقساط"},{status:403});
