@@ -65,7 +65,7 @@ export async function GET(req: Request) {
       FROM b2b_partnerships p JOIN b2b_accounts a ON a.id=p.account_id
       LEFT JOIN b2b_contacts c ON c.id=p.primary_contact_id WHERE 1=1${scope.sql}
       ORDER BY CASE p.status WHEN 'تجديد قريب' THEN 0 WHEN 'تحتاج متابعة' THEN 1 WHEN 'نشطة' THEN 2 ELSE 3 END,p.end_date`).bind(...scope.bind).all();
-    return Response.json({partnerships:results,statuses:partnershipStatuses,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),viewerEmail:auth.email});
+    return Response.json({partnerships:results,statuses:partnershipStatuses,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),viewerEmail:auth.email});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,a.priority,a.path,a.team_id,
@@ -76,7 +76,25 @@ export async function GET(req: Request) {
     LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
     WHERE NOT EXISTS(SELECT 1 FROM b2b_partnerships p WHERE p.opportunity_id=o.id)${businessScope.sql}
     ORDER BY CASE o.approval_status WHEN 'pending' THEN 0 ELSE 1 END,CASE o.stage WHEN 'بانتظار التوقيع' THEN 0 WHEN 'أُرسل العرض' THEN 1 WHEN 'تم الاجتماع' THEN 2 ELSE 3 END,o.updated_at DESC`).bind(...businessScope.bind).all();
-  return Response.json({opportunities:results,stages:businessStages,partnershipStages,trainingStages,paths,scope:isAdmin(auth)?"all":"assigned",canReview:reviewAccess||isAdmin(auth),canCreatePartnership:can(auth,"b2b.partnerships.create"),viewerEmail:auth.email});
+  return Response.json({opportunities:results,stages:businessStages,partnershipStages,trainingStages,paths,scope:isAdmin(auth)?"all":"assigned",canReview:reviewAccess||isAdmin(auth),canCreatePartnership:can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),viewerEmail:auth.email});
+}
+
+export async function DELETE(req:Request){
+  const auth=await authorize(req,["b2b"]);if(!auth.ok)return auth.response;
+  if(!isAdmin(auth))return Response.json({error:"حذف الجهات متاح لحساب الإدارة فقط"},{status:403});
+  const body=await req.json() as Record<string,unknown>,accountId=String(body.accountId||"");if(!accountId)return Response.json({error:"معرّف الجهة مطلوب"},{status:400});
+  const db=operationalDb();await ensureSchema(db);const account=await db.prepare("SELECT id,name,type,path,owner_email FROM b2b_accounts WHERE id=?").bind(accountId).first<Record<string,unknown>>();if(!account)return Response.json({error:"الجهة غير موجودة"},{status:404});const now=new Date().toISOString();
+  const counts=await db.prepare(`SELECT (SELECT COUNT(*) FROM b2b_opportunities WHERE account_id=?) opportunities,(SELECT COUNT(*) FROM b2b_partnerships WHERE account_id=?) partnerships,(SELECT COUNT(*) FROM b2b_activities WHERE account_id=?) activities`).bind(accountId,accountId,accountId).first();
+  await db.batch([
+    db.prepare("DELETE FROM b2b_activities WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_partnerships WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_opportunities WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_contacts WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_assignments WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_accounts WHERE id=?").bind(accountId),
+    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'DELETE_B2B_ACCOUNT','b2b_account',?,?,?)").bind(id("AUD"),auth.email,accountId,JSON.stringify({account,counts}),now),
+  ]);
+  return Response.json({ok:true,deleted:accountId});
 }
 
 export async function POST(req:Request){

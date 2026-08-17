@@ -350,6 +350,19 @@ test("tracks direct corporate training requests without converting them to partn
   assert.match(page, /طلبات الجهات/);
 });
 
+test("allows only admins to cascade-delete a B2B organization with an audit record", async () => {
+  const b2b = await read("../app/api/b2b/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(b2b, /export async function DELETE/);
+  assert.match(b2b, /if\(!isAdmin\(auth\)\)/);
+  assert.match(b2b, /DELETE FROM b2b_activities WHERE account_id/);
+  assert.match(b2b, /DELETE FROM b2b_partnerships WHERE account_id/);
+  assert.match(b2b, /DELETE FROM b2b_opportunities WHERE account_id/);
+  assert.match(b2b, /DELETE_B2B_ACCOUNT/);
+  assert.match(page, /حذف الجهة نهائيًا/);
+  assert.match(page, /window\.confirm/);
+});
+
 test("lets finance apply a custom discount and rebalance open installments", async () => {
   const finance = await read("../app/api/finance/route.ts");
   const page = await read("../app/page.tsx");
