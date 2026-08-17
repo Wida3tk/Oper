@@ -26,6 +26,11 @@ export async function POST(req: Request) {
   const db = operationalDb();
   await ensureFinanceClassificationSchema(db);
   await ensureDirectProgramSchema(db);
+  await db.prepare("CREATE TABLE IF NOT EXISTS intake_submissions(submission_key TEXT PRIMARY KEY,actor_email TEXT NOT NULL,resulting_customer_id TEXT,resulting_order_id TEXT,status TEXT NOT NULL DEFAULT 'processing',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+  const submissionKey=String(body.submissionKey||"").trim();
+  if(!submissionKey||submissionKey.length>100)return Response.json({error:"تعذر التحقق من عملية التسجيل. حدّث الصفحة وأعد المحاولة"},{status:400});
+  const previous=await db.prepare("SELECT resulting_customer_id customer_id,resulting_order_id order_id,status FROM intake_submissions WHERE submission_key=?").bind(submissionKey).first<{customer_id:string;order_id:string;status:string}>();
+  if(previous)return Response.json({ok:true,duplicatePrevented:true,customerId:previous.customer_id,orderId:previous.order_id,status:"تم تسجيل الطلب مسبقًا"},{status:200});
   const program = await db.prepare("SELECT id,name,program_kind kind,default_trial_days trial_days FROM programs WHERE id=? AND active=1").bind(programId).first<{ id: string; name: string; kind:string; trial_days: number }>();
   if (!program) return Response.json({ error: "البرنامج غير متاح" }, { status: 404 });
   const isSupervision=program.name.includes("الإشراف"),isCompetencyService=program.name.includes("تقييم الكفاءة"),isStandaloneService=isSupervision||isCompetencyService;
@@ -58,9 +63,11 @@ export async function POST(req: Request) {
     if (program.trial_days < 1) return Response.json({ error: "يجب تحديد مدة تجربة لهذا البرنامج أولاً" }, { status: 409 });
     const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone, email).first<{ id: string }>();
     const customerId = existing?.id || id("CUS");
+    if(existing){const recentTrial=await db.prepare("SELECT id FROM program_trials WHERE customer_id=? AND program_id=? AND created_at>=datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(customerId,programId).first<{id:string}>();if(recentTrial)return Response.json({error:"تم تسجيل تجربة لهذا العميل في البرنامج قبل قليل"},{status:409})}
     const trialId = id("TRY");
     const endsAt = new Date(Date.now() + program.trial_days * 86400000).toISOString();
     const statements = [
+      db.prepare("INSERT INTO intake_submissions(submission_key,actor_email,resulting_customer_id,status,created_at,updated_at) VALUES(?,?,?,'completed',?,?)").bind(submissionKey,auth.email,customerId,now,now),
       db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى تجربة',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now),
       db.prepare("INSERT INTO program_trials(id,customer_id,program_id,status,starts_at,ends_at,granted_by_sales_email,created_at,updated_at) VALUES(?,?,?,'فعالة',?,?,?,?,?)").bind(trialId,customerId,programId,now,endsAt,auth.email,now,now),
       db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,assignee_email,due_at,created_by_email,created_at) VALUES(?,'trial',?,'المبيعات','متابعة التجربة قبل انتهائها','مفتوحة','عالية',?,?,?,?)").bind(id("TSK"),trialId,auth.email,endsAt,auth.email,now),
@@ -115,7 +122,9 @@ export async function POST(req: Request) {
   const intentId = id("PAYI");
   const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
   const customerId=existing?.id||id("CUS"),orderId=id("ORD"),orderNumber=await nextOrderNumber(db,program.name),paymentId=id("PAY"),reservationId=hasSeatReservation?id("RSV"):null,enrollmentId=seatOnly?null:id("ENR");
+  if(existing){const recent=await db.prepare("SELECT id,order_number FROM orders WHERE customer_id=? AND program_id=? AND created_at>=datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(customerId,programId).first<{id:string;order_number:string}>();if(recent)return Response.json({error:`تم تسجيل هذا العميل في البرنامج قبل قليل (${recent.order_number||recent.id})`},{status:409})}
   const statements=[];
+  statements.push(db.prepare("INSERT INTO intake_submissions(submission_key,actor_email,resulting_customer_id,resulting_order_id,status,created_at,updated_at) VALUES(?,?,?,?,'completed',?,?)").bind(submissionKey,auth.email,customerId,orderId,now,now));
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,seatOnly?"حجز مقعد فقط":isSupervision?"إشراف":autoAsara?"مكتمل":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(

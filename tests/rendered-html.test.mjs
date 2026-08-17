@@ -373,3 +373,27 @@ test("lets finance apply a custom discount and rebalance open installments", asy
   assert.match(page, /finance-discount-editor/);
   assert.match(page, /step="0\.01" value=\{customDiscount\}/);
 });
+
+test("prevents duplicate intake submissions and recent repeated registrations", async () => {
+  const intake = await read("../app/api/intake/route.ts");
+  const page = await read("../app/page.tsx");
+  assert.match(intake, /CREATE TABLE IF NOT EXISTS intake_submissions/);
+  assert.match(intake, /submission_key TEXT PRIMARY KEY/);
+  assert.match(intake, /created_at>=datetime\('now','-10 minutes'\)/);
+  assert.match(page, /submissionKey: currentSubmissionKey/);
+  assert.match(page, /crypto\.randomUUID\(\)/);
+});
+
+test("routes every eligible direct program to program activation", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /const isDirectProgram = \(row: LiveEnrollment\) => row\.program_delivery === "مباشر"/);
+  assert.match(page, /focus === "program-activation" \? isDirectProgram\(row\)/);
+  assert.match(page, /row\.order_type !== "إشراف"/);
+});
+
+test("offers track filtering for ABA and OBM operational lists", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /const pathFilterPrograms = \["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي", "التعليم المستمر"\]/);
+  assert.match(page, /tertiaryLabel=\{programFilter === "التعليم المستمر" \? "البرنامج الفرعي" : "المسار"\}/);
+  assert.match(page, /programPathLabel\(row\) === subprogramFilter/);
+});

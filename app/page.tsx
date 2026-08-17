@@ -563,7 +563,7 @@ function OperationsApp() {
           (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
         "program-activation": enrollments.filter((row: LiveEnrollment) =>
-          row.program_name.includes("التعليم المستمر") && row.program_delivery === "مباشر" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
+          row.program_delivery === "مباشر" && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
         ).length,
         finance: finance.filter(
           (row: FinanceOrder) =>
@@ -1714,6 +1714,7 @@ function Registration({ done }: { done: () => void }) {
     [saved, setSaved] = useState(false),
     [saving, setSaving] = useState(false),
     [saveError, setSaveError] = useState("");
+  const [submissionKey, setSubmissionKey] = useState("");
   const [programs, setPrograms] = useState<Program[]>([]);
   const [form, setForm] = useState({
     name: "",
@@ -1951,8 +1952,11 @@ function Registration({ done }: { done: () => void }) {
     }
     setSaving(true);
     try {
+      const currentSubmissionKey = submissionKey || crypto.randomUUID();
+      if (!submissionKey) setSubmissionKey(currentSubmissionKey);
       const payload = {
         ...form,
+        submissionKey: currentSubmissionKey,
         amount: payableAmount,
         contractTotal: finalTotal,
         baseTotal,
@@ -2001,7 +2005,7 @@ function Registration({ done }: { done: () => void }) {
               : "تم تسجيل العميل بنجاح وإضافته إلى النظام."}
         </p>
         <div>
-          <button className="secondary" onClick={() => setSaved(false)}>
+          <button className="secondary" onClick={() => { setSaved(false); setSubmissionKey(crypto.randomUUID()); }}>
             تسجيل عميل آخر
           </button>
           <button className="primary" onClick={done}>
@@ -2830,6 +2834,7 @@ function CustomerSmartFilters({
   subcategories,
   subcategory = "الكل",
   onSubcategory,
+  tertiaryLabel = "البرنامج الفرعي",
 }: {
   programs: string[];
   statuses: string[];
@@ -2846,6 +2851,7 @@ function CustomerSmartFilters({
   subcategories?: string[];
   subcategory?: string;
   onSubcategory?: (value: string) => void;
+  tertiaryLabel?: string;
 }) {
   const active = program !== "الكل" || status !== "الكل" || subcategory !== "الكل";
   return (
@@ -2879,9 +2885,9 @@ function CustomerSmartFilters({
           </select>
         </label>
         {!!subcategories?.length && <label>
-          <span>البرنامج الفرعي</span>
+          <span>{tertiaryLabel}</span>
           <select value={subcategory} onChange={(e) => onSubcategory?.(e.target.value)}>
-            <option value="الكل">كل البرامج الفرعية</option>
+            <option value="الكل">كل {tertiaryLabel === "المسار" ? "المسارات" : "البرامج الفرعية"}</option>
             {subcategories.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>}
@@ -4264,21 +4270,22 @@ function LiveAcademy({
   const availableStatuses = Array.from(
     new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
   );
-  const continuingEducationLabel = (row: LiveEnrollment) => {
+  const programPathLabel = (row: LiveEnrollment) => {
     const track = String(row.program_track || "").trim();
-    return row.program_name === "التعليم المستمر" && track && track !== "غير محدد"
+    return track && track !== "غير محدد"
       ? track
       : row.program_name;
   };
-  const availableSubprograms = programFilter === "التعليم المستمر"
-    ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === "التعليم المستمر").map(continuingEducationLabel).filter(Boolean)))
+  const pathFilterPrograms = ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي", "التعليم المستمر"];
+  const availableSubprograms = pathFilterPrograms.includes(programFilter)
+    ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === programFilter).map(programPathLabel).filter(Boolean)))
     : [];
-  const isDirectContinuingEducation = (row: LiveEnrollment) => row.program_name.includes("التعليم المستمر") && row.program_delivery === "مباشر";
+  const isDirectProgram = (row: LiveEnrollment) => row.program_delivery === "مباشر" && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف");
   const filteredRows = rows.filter(
     (row) =>
-      (focus === "program-activation" ? isDirectContinuingEducation(row) : focus === "assignment" ? !isDirectContinuingEducation(row) : true) &&
+      (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
       (programFilter === "الكل" || programFamily(row.program_name) === programFilter) &&
-      (subprogramFilter === "الكل" || continuingEducationLabel(row) === subprogramFilter) &&
+      (subprogramFilter === "الكل" || programPathLabel(row) === subprogramFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
   const attentionRows=rows.filter(row=>Boolean(row.needs_attention));
@@ -4524,6 +4531,7 @@ function LiveAcademy({
           subcategories={availableSubprograms}
           subcategory={subprogramFilter}
           onSubcategory={setSubprogramFilter}
+          tertiaryLabel={programFilter === "التعليم المستمر" ? "البرنامج الفرعي" : "المسار"}
         />
         {board}
         {detailPanel}
@@ -4544,6 +4552,7 @@ function LiveAcademy({
         subcategories={availableSubprograms}
         subcategory={subprogramFilter}
         onSubcategory={setSubprogramFilter}
+        tertiaryLabel={programFilter === "التعليم المستمر" ? "البرنامج الفرعي" : "المسار"}
       />
       <div className="assignment-workspace">
         <div className="assignment-banner">
