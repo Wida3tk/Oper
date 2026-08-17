@@ -563,7 +563,7 @@ function OperationsApp() {
           (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
         "program-activation": enrollments.filter((row: LiveEnrollment) =>
-          (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status),
+          (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
         ).length,
         finance: finance.filter(
           (row: FinanceOrder) =>
@@ -4215,7 +4215,7 @@ function LiveAcademy({
     void load();
   }, []);
   const advance = async (row: LiveEnrollment) => {
-    const step = focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status)
+    const step = focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status)
       ? ["activated", "تفعيل البرنامج"] as [string, string]
       : enrollmentStep(row);
     if (!step) return;
@@ -4257,8 +4257,6 @@ function LiveAcademy({
   const displayState = (status: string) =>
     status === "تم إنشاء الحساب"
       ? "اكتمل التسجيل"
-      : focus === "program-activation" && status === "تم الإسناد"
-        ? "اكتمل التسجيل"
       : status === "نشط"
         ? "تم الإسناد"
         : status;
@@ -4503,7 +4501,7 @@ function LiveAcademy({
                     window.location.href = `mailto:${row.email}`;
                   }}
                   onAdvance={
-                    (focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status)) || enrollmentStep(row)
+                    (focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status)) || enrollmentStep(row)
                       ? () => void advance(row)
                       : undefined
                   }

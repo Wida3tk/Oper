@@ -391,8 +391,8 @@ test("routes every eligible direct program to program activation", async () => {
   assert.match(page, /focus === "program-activation" \? isDirectProgram\(row\)/);
   assert.match(page, /row\.order_type !== "إشراف"/);
   assert.match(page, /\["الاقتصاد السلوكي", "انتقائية الطعام"\]\.includes\(row\.program_name\)/);
-  assert.match(page, /focus === "program-activation" && status === "تم الإسناد"/);
-  assert.match(transition, /activated:\{from:\["اكتمل التسجيل","تم إنشاء الحساب","تم الإسناد"\]/);
+  assert.doesNotMatch(page, /focus === "program-activation" && status === "تم الإسناد"/);
+  assert.match(transition, /activated:\{from:\["اكتمل التسجيل","تم إنشاء الحساب"\]/);
 });
 
 test("offers track filtering for ABA and OBM operational lists", async () => {
