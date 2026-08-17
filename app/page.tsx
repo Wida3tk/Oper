@@ -563,7 +563,7 @@ function OperationsApp() {
           (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
         "program-activation": enrollments.filter((row: LiveEnrollment) =>
-          row.program_delivery === "مباشر" && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
+          (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status),
         ).length,
         finance: finance.filter(
           (row: FinanceOrder) =>
@@ -4215,7 +4215,9 @@ function LiveAcademy({
     void load();
   }, []);
   const advance = async (row: LiveEnrollment) => {
-    const step = enrollmentStep(row);
+    const step = focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status)
+      ? ["activated", "تفعيل البرنامج"] as [string, string]
+      : enrollmentStep(row);
     if (!step) return;
     setMoving(row.id);
     try {
@@ -4255,6 +4257,8 @@ function LiveAcademy({
   const displayState = (status: string) =>
     status === "تم إنشاء الحساب"
       ? "اكتمل التسجيل"
+      : focus === "program-activation" && status === "تم الإسناد"
+        ? "اكتمل التسجيل"
       : status === "نشط"
         ? "تم الإسناد"
         : status;
@@ -4280,7 +4284,10 @@ function LiveAcademy({
   const availableSubprograms = pathFilterPrograms.includes(programFilter)
     ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === programFilter).map(programPathLabel).filter(Boolean)))
     : [];
-  const isDirectProgram = (row: LiveEnrollment) => row.program_delivery === "مباشر" && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف");
+  const isDirectProgram = (row: LiveEnrollment) =>
+    (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
+    row.order_type !== "إشراف" &&
+    !row.program_name.includes("الإشراف");
   const filteredRows = rows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
@@ -4496,7 +4503,7 @@ function LiveAcademy({
                     window.location.href = `mailto:${row.email}`;
                   }}
                   onAdvance={
-                    enrollmentStep(row)
+                    (focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب", "تم الإسناد"].includes(row.status)) || enrollmentStep(row)
                       ? () => void advance(row)
                       : undefined
                   }

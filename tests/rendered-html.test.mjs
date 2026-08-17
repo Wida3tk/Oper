@@ -386,9 +386,13 @@ test("prevents duplicate intake submissions and recent repeated registrations", 
 
 test("routes every eligible direct program to program activation", async () => {
   const page = await read("../app/page.tsx");
-  assert.match(page, /const isDirectProgram = \(row: LiveEnrollment\) => row\.program_delivery === "مباشر"/);
+  const transition = await read("../app/api/enrollments/transition/route.ts");
+  assert.match(page, /const isDirectProgram = \(row: LiveEnrollment\) =>/);
   assert.match(page, /focus === "program-activation" \? isDirectProgram\(row\)/);
   assert.match(page, /row\.order_type !== "إشراف"/);
+  assert.match(page, /\["الاقتصاد السلوكي", "انتقائية الطعام"\]\.includes\(row\.program_name\)/);
+  assert.match(page, /focus === "program-activation" && status === "تم الإسناد"/);
+  assert.match(transition, /activated:\{from:\["اكتمل التسجيل","تم إنشاء الحساب","تم الإسناد"\]/);
 });
 
 test("offers track filtering for ABA and OBM operational lists", async () => {
