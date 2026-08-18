@@ -795,7 +795,7 @@ function OperationsApp() {
                     const Icon = navIcons[icon],
                       visibleBadge =
                         id === "work"
-                          ? taskCount
+                          ? undefined
                           : navCounts[id] ?? badge;
                     return (
                       <button
