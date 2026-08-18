@@ -386,6 +386,12 @@ html,body{max-width:100%;overflow-x:hidden}
 .login-form .brand-mark .brand-symbol{width:54px!important;height:54px!important;flex-basis:54px!important}
 .login-form .brand-mark .brand-wordmark img,.login-brand .brand-mark .brand-wordmark img{width:142px!important;height:59px!important}
 .sidebar.collapsed .brand-mark .brand-symbol{width:34px!important;height:34px!important;flex-basis:34px!important}
+
+/* Compact operational navigation: closed groups consume no vertical space. */
+.sidebar .nav-group-items{opacity:0!important;overflow:hidden!important;min-height:0!important}
+.sidebar .nav-group.expanded .nav-group-items,.sidebar .nav-group.static .nav-group-items{opacity:1!important}
+.sidebar .nav-group:not(.expanded):not(.static) .nav-group-items>button{height:0!important;min-height:0!important;margin:0!important;padding-block:0!important;border-width:0!important}
+.sidebar .nav-group-items button>em,.sidebar .nav-group-trigger>em{background:#3b82a0!important;color:#fff!important;box-shadow:0 0 0 3px #3b82a022!important}
 @media(max-width:620px){.brand-mark .brand-wordmark img{width:108px!important;height:45px!important}}
 
 /* Compact brand and actionable notification center. */

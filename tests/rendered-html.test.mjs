@@ -401,3 +401,13 @@ test("offers track filtering for ABA and OBM operational lists", async () => {
   assert.match(page, /tertiaryLabel=\{programFilter === "التعليم المستمر" \? "البرنامج الفرعي" : "المسار"\}/);
   assert.match(page, /programPathLabel\(row\) === subprogramFilter/);
 });
+
+test("keeps navigation counters aligned with their operational queues", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /const isDirectActivation = \(row: LiveEnrollment\) =>/);
+  assert.match(page, /\["اكتمل التسجيل", "تم إنشاء الحساب"\]\.includes\(row\.status\) && !isDirectActivation\(row\)/);
+  assert.match(page, /isDirectActivation\(row\) && \["اكتمل التسجيل", "تم إنشاء الحساب"\]\.includes\(row\.status\)/);
+  assert.match(css, /nav-group:not\(\.expanded\):not\(\.static\) \.nav-group-items>button\{height:0!important/);
+  assert.match(css, /background:#3b82a0!important/);
+});

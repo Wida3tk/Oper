@@ -551,19 +551,23 @@ function OperationsApp() {
         financeResult.status === "fulfilled"
           ? financeResult.value.orders || []
           : [];
+      const isDirectActivation = (row: LiveEnrollment) =>
+        (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
+        row.order_type !== "إشراف" &&
+        !row.program_name.includes("الإشراف");
       setNavCounts({
         contact: enrollments.filter((row: LiveEnrollment) => row.status === "جديد").length,
         registration: enrollments.filter(
           (row: LiveEnrollment) => row.status === "تم التواصل",
         ).length,
         assignment: enrollments.filter((row: LiveEnrollment) =>
-          ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
+          ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status) && !isDirectActivation(row),
         ).length,
         reservations: reservations.filter(
           (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
         "program-activation": enrollments.filter((row: LiveEnrollment) =>
-          (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) && row.order_type !== "إشراف" && !row.program_name.includes("الإشراف") && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
+          isDirectActivation(row) && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
         ).length,
         finance: finance.filter(
           (row: FinanceOrder) =>
