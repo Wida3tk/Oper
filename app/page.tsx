@@ -4220,7 +4220,6 @@ function LiveAcademy({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [moving, setMoving] = useState(""),
-    [copied, setCopied] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
     [subprogramFilter, setSubprogramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
@@ -4262,11 +4261,6 @@ function LiveAcademy({
       setError((e as Error).message);
       setMoving("");
     }
-  };
-  const copy = async (value: string, key: string) => {
-    await navigator.clipboard.writeText(value);
-    setCopied(key);
-    setTimeout(() => setCopied(""), 1400);
   };
   const whatsapp = (row: LiveEnrollment) => {
     const digits = row.phone
@@ -4403,18 +4397,10 @@ function LiveAcademy({
             <div>
               <span>رقم الجوال</span>
               <b dir="ltr">{selectedRow.phone}</b>
-              <button onClick={() => copy(selectedRow.phone, "drawer-phone")}>
-                <Copy size={14} />
-                {copied === "drawer-phone" ? "تم النسخ" : "نسخ"}
-              </button>
             </div>
             <div>
               <span>البريد الإلكتروني</span>
               <b dir="ltr">{selectedRow.email}</b>
-              <button onClick={() => copy(selectedRow.email, "drawer-email")}>
-                <Copy size={14} />
-                {copied === "drawer-email" ? "تم النسخ" : "نسخ"}
-              </button>
             </div>
           </div>
           <div className="info customer-data">
