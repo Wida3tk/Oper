@@ -994,6 +994,10 @@ function OperationsApp() {
               <i>{selected.name.slice(0, 2)}</i>
               <div>
                 <h2 id="customer-drawer-title">{selected.name}</h2>
+                <div className="profile-meta-line">
+                  {selectedDetails.delivery && <em className={`profile-delivery ${selectedDetails.delivery === "مباشر" ? "live" : "recorded"}`}>{selectedDetails.delivery}</em>}
+                  {(selected as typeof selected & { createdAt?: string }).createdAt && <small className="profile-created-at">أضيف في {new Date((selected as typeof selected & { createdAt?: string }).createdAt || "").toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
+                </div>
                 <p>
                   {selected.id} · {selected.phone}
                 </p>
@@ -2691,6 +2695,7 @@ type LiveEnrollment = {
   order_number?: string;
   owner_email?: string;
   purchase_source?: string;
+  created_at?: string;
   updated_at?: string;
   payment_id?: string;
   payment_reference?: string;
@@ -4351,7 +4356,8 @@ function LiveAcademy({
           <i>{selectedRow.customer_name.slice(0, 2)}</i>
           <div>
             <h2>{selectedRow.customer_name}</h2>
-            <p>{selectedRow.program_name}</p>
+            <div className="profile-meta-line"><p>{selectedRow.program_name}</p>{selectedRow.program_delivery&&<em className={`profile-delivery ${selectedRow.program_delivery === "مباشر" ? "live" : "recorded"}`}>{selectedRow.program_delivery}</em>}</div>
+            {selectedRow.created_at&&<small className="profile-created-at">أضيف في {new Date(selectedRow.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
           </div>
         </div>
         {Boolean(selectedRow.needs_attention)&&<div className="drawer-attention-note"><ShieldCheck size={18}/><div><b>عميل بحاجة للانتباه</b><span>سلوك السداد الحالي: تطبيق السياسة. مراجعة الملف المالي قبل متابعة الإجراء.</span></div></div>}

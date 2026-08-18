@@ -383,6 +383,8 @@ test("keeps payment references and customer notes actionable near the top of car
   assert.match(notes, /authorize\(req, \["sales", "finance", "academy"\]\)/);
   assert.match(page, /className="customer-note-latest"/);
   assert.match(page, /className="customer-note-archive"/);
+  assert.match(page, /profile-delivery.*selectedRow\.program_delivery/);
+  assert.match(page, /selectedRow\.created_at.*أضيف في/);
 });
 
 test("prevents duplicate intake submissions and recent repeated registrations", async () => {
