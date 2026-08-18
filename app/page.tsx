@@ -31,6 +31,7 @@ import {
   LogOut,
   Mail,
   Menu,
+  MessageSquareText,
   PanelRightClose,
   PanelRightOpen,
   PhoneCall,
@@ -1203,6 +1204,16 @@ function CustomerNotes({ customerId }: { customerId: string }) {
   };
   return (
     <div className="customer-note-log">
+      {notes.length > 0 && (
+        <div className="customer-note-latest">
+          <i><MessageSquareText size={17} /></i>
+          <div>
+            <span>آخر ملاحظة</span>
+            <p>{notes[0].note}</p>
+            <small>{notes[0].created_by_email} · {new Date(notes[0].created_at).toLocaleString("ar-SA-u-nu-latn")}</small>
+          </div>
+        </div>
+      )}
       <div className="customer-note-entry">
         <textarea
           rows={2}
@@ -1220,8 +1231,10 @@ function CustomerNotes({ customerId }: { customerId: string }) {
         </button>
       </div>
       {error && <div className="ops-error compact">{error}</div>}
-      <div className="customer-note-lines">
-        {notes.map((row) => (
+      {notes.length > 1 && <details className="customer-note-archive">
+        <summary>عرض سجل الملاحظات ({notes.length})</summary>
+        <div className="customer-note-lines">
+        {notes.slice(1).map((row) => (
           <article key={row.id}>
             <i />
             <div>
@@ -1233,12 +1246,15 @@ function CustomerNotes({ customerId }: { customerId: string }) {
             </div>
           </article>
         ))}
-        {!notes.length && (
+        </div>
+      </details>}
+      {!notes.length && (
+        <div className="customer-note-lines">
           <div className="customer-history-empty">
             لا توجد تحديثات مسجلة على العميل.
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
