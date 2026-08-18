@@ -380,6 +380,11 @@ test("keeps payment references and customer notes actionable near the top of car
   const notes = await read("../app/api/customers/notes/route.ts");
   const css = await read("../app/globals.css");
   assert.match(page, /className="finance-card-reference"/);
+  assert.match(page, /orderId=\{selected\.order_id\}/);
+  assert.match(page, /selectedReferencePayment\?\.reference \|\| selected\.order_payment_reference/);
+  const financeApi = await read("../app/api/finance/route.ts");
+  assert.match(financeApi, /CREATE TABLE IF NOT EXISTS order_payment_references/);
+  assert.match(financeApi, /action==="update_order_payment_reference"/);
   assert.match(page, /<Section title="ملاحظات العميل">\s*<CustomerNotes customerId=\{selected\.customer_id\}/);
   assert.match(notes, /authorize\(req, \["sales", "finance", "academy"\]\)/);
   assert.match(page, /className="customer-note-latest"/);

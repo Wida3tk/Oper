@@ -2770,6 +2770,7 @@ type FinanceOrder = {
   seat_fee: number;
   discount_percent: number;
   payments: FinancePayment[];
+  order_payment_reference?: string;
   installments: FinanceInstallment[];
   withdrawal?: { id:string;reason:string;withdrawn_at:string;gross_paid:number;non_refundable_amount:number;refund_amount:number;refund_source:string;refund_method:string;reference:string;status:string;created_by_email:string;created_at:string } | null;
   undo_available?: { id: string; action: string; label: string; created_at: string } | null;
@@ -4033,11 +4034,13 @@ const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
     : enrollmentSteps[row.status];
 function PaymentReferenceControl({
   paymentId,
+  orderId,
   initialReference = "",
   canEdit = false,
   onSaved,
 }: {
   paymentId?: string;
+  orderId?: string;
   initialReference?: string;
   canEdit?: boolean;
   onSaved?: (reference: string) => void;
@@ -4050,19 +4053,21 @@ function PaymentReferenceControl({
   useEffect(() => {
     setReferenceValue(initialReference);
     setDraft(initialReference);
-  }, [initialReference, paymentId]);
+  }, [initialReference, paymentId, orderId]);
   const save = async () => {
-    if (!paymentId || !/^https?:\/\/\S+$/i.test(draft.trim())) {
+    if ((!paymentId && !orderId) || !/^https?:\/\/\S+$/i.test(draft.trim())) {
       setError("أدخل رابطاً صحيحاً يبدأ بـ http أو https");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await apiJson("/api/payments", {
-        method: "PATCH",
+      await apiJson(paymentId ? "/api/payments" : "/api/finance", {
+        method: paymentId ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ paymentId, reference: draft.trim() }),
+        body: JSON.stringify(paymentId
+          ? { paymentId, reference: draft.trim() }
+          : { action: "update_order_payment_reference", orderId, reference: draft.trim() }),
       });
       setReferenceValue(draft.trim());
       setEditing(false);
@@ -4073,7 +4078,7 @@ function PaymentReferenceControl({
       setSaving(false);
     }
   };
-  if (!paymentId) return null;
+  if (!paymentId && !orderId) return null;
   if (editing)
     return (
       <div className="payment-reference-editor">
@@ -6151,15 +6156,13 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
             <div className="finance-reference-strip">
               <PaymentReferenceControl
                 paymentId={selectedReferencePayment?.id}
-                initialReference={selectedReferencePayment?.reference}
+                orderId={selected.order_id}
+                initialReference={selectedReferencePayment?.reference || selected.order_payment_reference}
                 canEdit
-                onSaved={(paymentReference) =>
-                  selectedReferencePayment &&
-                  updatePaymentReference(
-                    selectedReferencePayment.id,
-                    paymentReference,
-                  )
-                }
+                onSaved={(paymentReference) => {
+                  if(selectedReferencePayment) updatePaymentReference(selectedReferencePayment.id,paymentReference);
+                  else setSelected(current=>current?{...current,order_payment_reference:paymentReference}:current);
+                }}
               />
               {selectedReferencePayment && <label className="finance-payment-date"><span>تاريخ السداد</span><span><input type="date" value={paymentRecordDate} onChange={(e)=>setPaymentRecordDate(e.target.value)}/><button type="button" disabled={saving || !paymentRecordDate || paymentRecordDate === String(selectedReferencePayment.paid_at || selectedReferencePayment.created_at || "").slice(0,10)} onClick={()=>post({action:"update_payment_record_date",paymentId:selectedReferencePayment.id,paymentDate:paymentRecordDate})}>حفظ</button></span></label>}
             </div>

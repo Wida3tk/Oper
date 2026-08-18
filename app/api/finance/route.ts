@@ -9,6 +9,9 @@ async function ensureFinanceUndoSchema(db:ReturnType<typeof operationalDb>){
 async function ensureWithdrawalSchema(db:ReturnType<typeof operationalDb>){
  await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
 }
+async function ensureOrderPaymentReferenceSchema(db:ReturnType<typeof operationalDb>){
+ await db.prepare("CREATE TABLE IF NOT EXISTS order_payment_references(order_id TEXT PRIMARY KEY,reference TEXT NOT NULL,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+}
 function paymentBehavior(installments:Record<string,unknown>[],today:string){
  const paid=installments.filter(x=>x.status==="مدفوع"),overdue=installments.filter(x=>x.status!=="مدفوع"&&String(x.due_date)<today);
  const summary=`${paid.length} قسط مسدد · ${overdue.length} متأخر · ${installments.reduce((sum,x)=>sum+Number(x.reminder_count||0),0)} تذكير مسجل`;
@@ -26,13 +29,15 @@ export async function GET(req:Request){
  await ensureFinanceClassificationSchema(db);
  await ensureFinanceUndoSchema(db);
  await ensureWithdrawalSchema(db);
- const [ordersResult,paymentsResult,installmentsResult,notesResult,undoResult,withdrawalsResult]=await Promise.all([
+ await ensureOrderPaymentReferenceSchema(db);
+ const [ordersResult,paymentsResult,installmentsResult,notesResult,undoResult,withdrawalsResult,orderReferencesResult]=await Promise.all([
   db.prepare("SELECT o.id order_id,o.program_id,o.order_type,o.track program_track,o.delivery program_delivery,o.language program_language,o.competency_assessment,o.purchase_source,o.payment_plan,o.base_total,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
   db.prepare("SELECT id,order_id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments ORDER BY order_id,sequence").all<Record<string,unknown>>(),
   db.prepare("SELECT order_id,note,updated_by_email,updated_at FROM finance_notes").all<Record<string,unknown>>(),
   db.prepare("SELECT a.id,a.action,a.entity_type,a.entity_id,a.details,a.created_at FROM audit_log a LEFT JOIN finance_undo_log u ON u.target_audit_id=a.id WHERE u.target_audit_id IS NULL AND a.action IN ('UPDATE_FIRST_PAYMENT','SET_LEGACY_SEAT_FEE','PAY_INSTALLMENT','UPDATE_INSTALLMENT_DUE_DATE','UPDATE_PAYMENT_DATE','UPDATE_PAYMENT_RECORD_DATE','UPDATE_INSTALLMENT_STATUS') ORDER BY a.created_at DESC").all<Record<string,unknown>>()
   ,db.prepare("SELECT * FROM withdrawals ORDER BY created_at DESC").all<Record<string,unknown>>()
+  ,db.prepare("SELECT order_id,reference FROM order_payment_references").all<Record<string,unknown>>()
  ]);
  const today=new Date().toISOString().slice(0,10);
  const orders=ordersResult.results.map(order=>{
@@ -42,7 +47,8 @@ export async function GET(req:Request){
   const note=notesResult.results.find(x=>x.order_id===order.order_id);
   const undo=undoResult.results.map(row=>{try{return {...row,parsed:JSON.parse(String(row.details||"{}"))}}catch{return {...row,parsed:{}}}}).find(row=>row.entity_type==="order"?row.entity_id===order.order_id:row.parsed?.orderId===order.order_id);
   const undoLabels:Record<string,string>={UPDATE_FIRST_PAYMENT:"تعديل الدفعة الأولى",SET_LEGACY_SEAT_FEE:"تعديل رسوم المقعد",PAY_INSTALLMENT:"تسجيل سداد القسط",UPDATE_INSTALLMENT_DUE_DATE:"تعديل تاريخ الاستحقاق",UPDATE_PAYMENT_DATE:"تعديل تاريخ سداد القسط",UPDATE_PAYMENT_RECORD_DATE:"تعديل تاريخ السداد",UPDATE_INSTALLMENT_STATUS:"تعديل حالة السداد"};
-  return {...order,total:money(totalCents),gross_paid:money(grossPaidCents),refunded:money(refundCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,withdrawal:withdrawal||null,payment_behavior:paymentBehavior(orderInstallments,today),finance_note:note?.note||"",undo_available:undo?{id:undo.id,action:undo.action,label:undoLabels[String(undo.action)]||"آخر تحديث مالي",created_at:undo.created_at}:null};
+  const orderReference=orderReferencesResult.results.find(x=>x.order_id===order.order_id);
+  return {...order,total:money(totalCents),gross_paid:money(grossPaidCents),refunded:money(refundCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,order_payment_reference:String(orderReference?.reference||""),withdrawal:withdrawal||null,payment_behavior:paymentBehavior(orderInstallments,today),finance_note:note?.note||"",undo_available:undo?{id:undo.id,action:undo.action,label:undoLabels[String(undo.action)]||"آخر تحديث مالي",created_at:undo.created_at}:null};
  });
  const totalCents=orders.reduce((s,o)=>s+cents(o.total),0),paidCents=orders.reduce((s,o)=>s+cents(o.paid),0),remainingCents=orders.reduce((s,o)=>s+cents(o.remaining),0);
  return Response.json({orders,summary:{total:money(totalCents),paid:money(paidCents),remaining:money(remainingCents),overdue:orders.reduce((s,o)=>s+o.installments.filter(x=>x.display_status==="متأخر").length,0)}});
@@ -60,7 +66,18 @@ export async function POST(req:Request){
  const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string}>();
  await ensureFinanceUndoSchema(db);
  await ensureWithdrawalSchema(db);
+ await ensureOrderPaymentReferenceSchema(db);
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
+ if(action==="update_order_payment_reference"){
+  if(!can(auth,"finance.payments.record"))return Response.json({error:"ليس لديك صلاحية تعديل مرجع السداد"},{status:403});
+  const reference=String(body.reference||"").trim();
+  if(!/^https?:\/\/\S+$/i.test(reference))return Response.json({error:"رابط مرجع السداد الصحيح مطلوب"},{status:400});
+  await db.batch([
+   db.prepare("INSERT INTO order_payment_references(order_id,reference,updated_by_email,updated_at) VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET reference=excluded.reference,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(orderId,reference,auth.email,now),
+   db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_ORDER_PAYMENT_REFERENCE','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({reference}),now)
+  ]);
+  return Response.json({ok:true,orderId,reference,updatedBy:auth.email,updatedAt:now});
+ }
  const paidRow=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=?").bind(orderId).first<{paid:number}>(),paidCents=cents(paidRow?.paid);
  if(action==="register_withdrawal"){
   if(!can(auth,"finance.payments.record"))return Response.json({error:"تسجيل الانسحاب متاح للمالية فقط"},{status:403});
