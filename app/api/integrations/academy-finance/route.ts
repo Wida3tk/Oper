@@ -5,6 +5,11 @@ export const dynamic = "force-dynamic";
 
 const cents=(value:unknown)=>Math.round(Number(value||0)*100);
 const money=(value:number)=>value/100;
+const corsHeaders={
+  "Access-Control-Allow-Origin":"https://acd.sulukera.com",
+  "Access-Control-Allow-Methods":"GET,OPTIONS",
+  "Access-Control-Allow-Headers":"Content-Type,x-sulukera-integration-token",
+};
 
 async function ensureWithdrawalSchema(db:ReturnType<typeof operationalDb>){
   await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
@@ -40,14 +45,21 @@ function paymentBehavior(installments:Record<string,unknown>[],today:string){
   return { label, tone, summary };
 }
 
+export async function OPTIONS(){
+  return new Response(null,{status:204,headers:corsHeaders});
+}
+
 export async function GET(req:Request){
   const integration=await authorizeIntegrationRequest(req, env.SULUKERA_ACADEMY_INTEGRATION_TOKEN);
-  if(!integration.ok) return integration.response;
+  if(!integration.ok){
+    const body=await integration.response.text();
+    return new Response(body,{status:integration.response.status,headers:{...corsHeaders,"content-type":"application/json"}});
+  }
 
   const url=new URL(req.url);
   const customerId=(url.searchParams.get("customerId")||"").trim();
   const orderId=(url.searchParams.get("orderId")||"").trim();
-  if(!customerId && !orderId) return Response.json({ error:"customerId أو orderId مطلوب" },{ status:400 });
+  if(!customerId && !orderId) return Response.json({ error:"customerId أو orderId مطلوب" },{ status:400,headers:corsHeaders });
 
   const db=operationalDb();
   await ensureFinanceClassificationSchema(db);
@@ -65,7 +77,7 @@ export async function GET(req:Request){
     ORDER BY o.created_at DESC
     LIMIT 1
   `).bind(orderId,orderId,customerId,customerId).first<Record<string,unknown>>();
-  if(!order) return Response.json({ error:"لم يتم العثور على سجل مالي مطابق" },{ status:404 });
+  if(!order) return Response.json({ error:"لم يتم العثور على سجل مالي مطابق" },{ status:404,headers:corsHeaders });
 
   const [installmentsResult,paymentsResult,referenceRow,withdrawalRow]=await Promise.all([
     db.prepare("SELECT id,sequence,amount_cents,due_date,status,paid_payment_id,paid_at,reference,reminder_count,first_reminder_at,second_reminder_at,last_reminded_by_email FROM installments WHERE order_id=? ORDER BY sequence").bind(order.order_id).all<Record<string,unknown>>(),
@@ -131,5 +143,5 @@ export async function GET(req:Request){
       classificationStatus:String(payment.classification_status||"")
     })),
     installments
-  });
+  },{headers:corsHeaders});
 }
