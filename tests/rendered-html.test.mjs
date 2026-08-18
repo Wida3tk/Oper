@@ -378,6 +378,7 @@ test("lets finance apply a custom discount and rebalance open installments", asy
 test("keeps payment references and customer notes actionable near the top of cards", async () => {
   const page = await read("../app/page.tsx");
   const notes = await read("../app/api/customers/notes/route.ts");
+  const css = await read("../app/globals.css");
   assert.match(page, /className="finance-card-reference"/);
   assert.match(page, /<Section title="ملاحظات العميل">\s*<CustomerNotes customerId=\{selected\.customer_id\}/);
   assert.match(notes, /authorize\(req, \["sales", "finance", "academy"\]\)/);
@@ -385,6 +386,7 @@ test("keeps payment references and customer notes actionable near the top of car
   assert.match(page, /className="customer-note-archive"/);
   assert.match(page, /profile-delivery.*selectedRow\.program_delivery/);
   assert.match(page, /selectedRow\.created_at.*أضيف في/);
+  assert.match(css, /operations-drawer \.detail-contact>div\{display:flex;min-width:0;min-height:94px/);
 });
 
 test("prevents duplicate intake submissions and recent repeated registrations", async () => {
