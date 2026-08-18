@@ -525,3 +525,5 @@ html,body{max-width:100%;overflow-x:hidden}
   margin-top: 4px;
   color: #64748b;
 }
+
+.finance-card-footer{align-items:center;min-height:36px}.finance-card-reference{display:flex;align-items:center;min-width:150px}.finance-card-reference>.payment-reference-empty,.finance-card-reference>.payment-reference-ready{min-height:32px;height:32px;padding:0 10px;font-size:9px;border-radius:8px}.finance-card-reference>.payment-reference-editor{position:relative;display:grid;grid-template-columns:minmax(150px,1fr) auto auto;gap:5px;min-width:310px}.finance-card-reference>.payment-reference-editor input,.finance-card-reference>.payment-reference-editor button{height:32px}.finance-card-reference>em{font-style:normal;color:#b7791f;font-weight:700}@media(max-width:560px){.finance-card-reference{width:100%}.finance-card-reference>.payment-reference-editor{min-width:0;width:100%;grid-template-columns:1fr auto auto}}

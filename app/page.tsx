@@ -1014,6 +1014,9 @@ function OperationsApp() {
                 إيميل
               </button>
             </div>
+            <Section title="ملاحظات العميل">
+              <CustomerNotes customerId={selected.id} />
+            </Section>
             <Section title="بيانات العميل والتسجيل">
               <div className="info customer-data">
                 <label>
@@ -1101,9 +1104,6 @@ function OperationsApp() {
             </Section>
             <Section title="آخر النشاطات">
               <CustomerEditHistory customerId={selected.id} />
-            </Section>
-            <Section title="تحديثات العميل">
-              <CustomerNotes customerId={selected.id} />
             </Section>
             {currentUser.roles.includes("admin") && (
               <Section title="إدارة الملف">
@@ -4373,6 +4373,9 @@ function LiveAcademy({
             }}
           />
         </div>
+        <Section title="ملاحظات العميل">
+          <CustomerNotes customerId={selectedRow.customer_id} />
+        </Section>
         <Section title="بيانات العميل">
           <div className="detail-contact">
             <div>
@@ -4449,9 +4452,6 @@ function LiveAcademy({
                 : enrollmentStep(selectedRow)?.[1]}
             </button>
           )}
-        </Section>
-        <Section title="تحديثات العميل">
-          <CustomerNotes customerId={selectedRow.customer_id} />
         </Section>
       </aside>
     </>
@@ -6070,7 +6070,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
               <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name}</span><small className="finance-order-number">{row.order_id}</small></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : ["منسحب","مرفوض"].includes(saleStatus({row,payment})) ? "red" : "green"}`}>{saleStatus({row,payment})}</em></div>
               {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
               <div className="finance-order-money sale-money"><p className="paid"><span>المدفوع من البرنامج</span><b>{sar(payment.amount)}</b></p>{row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}<p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
-              <footer><span>{saleDate(payment) || "دون تاريخ"}</span><span>{payment.reference || "دون مرجع"}</span><b>فتح الملف المالي ←</b></footer>
+              <footer className="finance-card-footer"><span>{saleDate(payment) || "دون تاريخ"}</span><div className="finance-card-reference" onClick={(event)=>event.stopPropagation()}><PaymentReferenceControl paymentId={payment.id.startsWith("pending-")?undefined:payment.id} initialReference={payment.reference} canEdit onSaved={(reference)=>updatePaymentReference(payment.id,reference)}/>{!payment.reference&&payment.id.startsWith("pending-")&&<em>لا توجد دفعة مرتبطة لإضافة المرجع</em>}</div><b>فتح الملف المالي ←</b></footer>
             </article>
           )) : filteredFinance.map((row) => (
             <article
@@ -6156,6 +6156,9 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
               {selectedReferencePayment && <label className="finance-payment-date"><span>تاريخ السداد</span><span><input type="date" value={paymentRecordDate} onChange={(e)=>setPaymentRecordDate(e.target.value)}/><button type="button" disabled={saving || !paymentRecordDate || paymentRecordDate === String(selectedReferencePayment.paid_at || selectedReferencePayment.created_at || "").slice(0,10)} onClick={()=>post({action:"update_payment_record_date",paymentId:selectedReferencePayment.id,paymentDate:paymentRecordDate})}>حفظ</button></span></label>}
             </div>
             {error && <div className="ops-error compact">{error}</div>}
+            <Section title="ملاحظات العميل">
+              <CustomerNotes customerId={selected.customer_id} />
+            </Section>
             {selected.undo_available && (
               <div className="finance-undo-bar">
                 <div><b>آخر إجراء قابل للتراجع</b><span>{selected.undo_available.label}</span></div>
@@ -6437,9 +6440,6 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
                   </article>
                 ))}
               </div>
-            </Section>
-            <Section title="تحديثات العميل">
-              <CustomerNotes customerId={selected.customer_id} />
             </Section>
           </aside>
         </>

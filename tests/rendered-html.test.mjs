@@ -372,6 +372,15 @@ test("lets finance apply a custom discount and rebalance open installments", asy
   assert.match(finance, /UPDATE_DISCOUNT_PERCENT/);
   assert.match(page, /finance-discount-editor/);
   assert.match(page, /step="0\.01" value=\{customDiscount\}/);
+  assert.match(finance, /auth\.roles\.includes\("finance"\).*finance\.total\.edit/);
+});
+
+test("keeps payment references and customer notes actionable near the top of cards", async () => {
+  const page = await read("../app/page.tsx");
+  const notes = await read("../app/api/customers/notes/route.ts");
+  assert.match(page, /className="finance-card-reference"/);
+  assert.match(page, /<Section title="ملاحظات العميل">\s*<CustomerNotes customerId=\{selected\.customer_id\}/);
+  assert.match(notes, /authorize\(req, \["sales", "finance", "academy"\]\)/);
 });
 
 test("prevents duplicate intake submissions and recent repeated registrations", async () => {

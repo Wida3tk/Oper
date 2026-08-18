@@ -131,7 +131,7 @@ export async function POST(req:Request){
   return Response.json({ok:true});
  }
  if(action==="update_discount_percent"){
-  if(!can(auth,"finance.total.edit"))return Response.json({error:"ليس لديك صلاحية تعديل نسبة الخصم"},{status:403});
+  if(!auth.roles.includes("finance")&&!can(auth,"finance.total.edit"))return Response.json({error:"ليس لديك صلاحية تعديل نسبة الخصم"},{status:403});
   const discountPercent=Number(body.discountPercent);
   if(!Number.isFinite(discountPercent)||discountPercent<0||discountPercent>100)return Response.json({error:"نسبة الخصم يجب أن تكون بين 0 و100"},{status:400});
   const previousPercent=Number(order.discount_percent||0),storedBaseCents=cents(order.base_total),derivedBaseCents=previousPercent<100?Math.round(cents(order.total)/(1-previousPercent/100)):cents(order.total),baseCents=storedBaseCents>0?storedBaseCents:derivedBaseCents,newTotalCents=Math.round(baseCents*(1-discountPercent/100));
