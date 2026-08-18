@@ -95,10 +95,14 @@ export function actorEmail(req: Request) {
   return (email || "").trim().toLowerCase();
 }
 
+async function sha256Hex(value:string){
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+
 export async function authorize(req: Request, allowed: StaffRole[]) {
   const cookie=req.headers.get("cookie")||"",token=decodeURIComponent(cookie.match(/(?:^|;\s*)sulukera_session=([^;]+)/)?.[1]||"");
   let email="",permissions:string[]=[];
-  if(token){const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)))).map(x=>x.toString(16).padStart(2,"0")).join("");const session=await operationalDb().prepare("SELECT s.email,a.permissions FROM staff_sessions s JOIN staff_accounts a ON a.email=s.email WHERE s.token_hash=? AND s.expires_at>? AND a.active=1").bind(digest,new Date().toISOString()).first<{email:string;permissions:string}>();if(session){email=session.email;try{permissions=JSON.parse(session.permissions||"[]")}catch{permissions=[]}}}
+  if(token){const digest=await sha256Hex(token);const session=await operationalDb().prepare("SELECT s.email,a.permissions FROM staff_sessions s JOIN staff_accounts a ON a.email=s.email WHERE s.token_hash=? AND s.expires_at>? AND a.active=1").bind(digest,new Date().toISOString()).first<{email:string;permissions:string}>();if(session){email=session.email;try{permissions=JSON.parse(session.permissions||"[]")}catch{permissions=[]}}}
   if (!email) return { ok: false as const, response: Response.json({ error: "يلزم تسجيل الدخول" }, { status: 401 }) };
   if (bootstrapAdmins.has(email)) return { ok: true as const, email, roles: ["admin"] as StaffRole[], permissions:["*"] };
   const db = operationalDb();
@@ -111,6 +115,14 @@ export async function authorize(req: Request, allowed: StaffRole[]) {
 }
 
 export function can(auth:{roles:StaffRole[];permissions:string[]},permission:string){return auth.roles.includes("admin")||auth.permissions.includes("*")||auth.permissions.includes(permission)}
+
+export async function authorizeIntegrationRequest(req:Request, expectedToken:string|undefined){
+  const headerToken=(req.headers.get("x-sulukera-integration-token")||"").trim();
+  if(!expectedToken||!headerToken)return { ok:false as const, response:Response.json({ error:"تكامل الأكاديمية غير مفعّل" },{ status:401 }) };
+  const [expectedHash,headerHash]=await Promise.all([sha256Hex(expectedToken),sha256Hex(headerToken)]);
+  if(expectedHash!==headerHash)return { ok:false as const, response:Response.json({ error:"رمز التكامل غير صحيح" },{ status:403 }) };
+  return { ok:true as const };
+}
 
 export function cleanContact(body: Record<string, unknown>) {
   const rawPhone = String(body.phone || "").replace(/[^\d+]/g, "");
