@@ -8,19 +8,20 @@ export async function GET(req: Request) {
   await ensureOrderNumberSchema(operationalDb());
 
   const { results } = await operationalDb().prepare(`
-    SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,c.created_at,
+    SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,
+           COALESCE(o.created_at,c.created_at) created_at,
            o.id order_id,o.order_number,o.program,o.track,o.delivery,o.purchase_source source,o.owner,
            o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,o.scheduled_start_date,
            CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee,
            p.name program_name
     FROM customers c
-    LEFT JOIN orders o ON o.id=(
-      SELECT o2.id FROM orders o2 WHERE o2.customer_id=c.id
-      ORDER BY o2.created_at DESC LIMIT 1
-    )
+    -- The directory is a registration directory, not a single-row customer
+    -- directory. A customer may legitimately buy more than one program, so
+    -- returning only their latest order hides earlier OBM/competency records.
+    LEFT JOIN orders o ON o.customer_id=c.id AND o.status!='محذوف'
     LEFT JOIN programs p ON p.id=o.program_id
     WHERE c.deleted_at IS NULL
-    ORDER BY c.created_at DESC
+    ORDER BY COALESCE(o.created_at,c.created_at) DESC
     LIMIT 500
   `).all<Record<string, unknown>>();
 

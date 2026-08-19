@@ -6697,7 +6697,7 @@ function CustomerTable({
         </thead>
         <tbody>
           {list.map((p) => (
-            <tr key={p.id} onClick={() => open(p)}>
+            <tr key={`${p.id}-${p.orderId || "customer"}`} onClick={() => open(p)}>
               <td>
                 <b>{p.name}</b>
                 <small>
