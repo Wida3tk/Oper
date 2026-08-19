@@ -432,3 +432,14 @@ test("keeps navigation counters aligned with their operational queues", async ()
   assert.match(css, /background:#3b82a0!important/);
   assert.match(page, /id === "work"\s*\? undefined/);
 });
+
+test("opens a complete student file from seat reservations", async () => {
+  const page = await read("../app/page.tsx");
+  const reservations = await read("../app/api/reservations/route.ts");
+  assert.match(page, /فتح ملف الطالب/);
+  assert.match(page, /className="drawer operations-drawer reservation-customer-drawer"/);
+  assert.match(page, /<CustomerNotes customerId=\{selectedReservation\.customer_id\}/);
+  assert.match(page, /selectedReservation\.phone/);
+  assert.match(page, /selectedReservation\.email/);
+  assert.match(reservations, /o\.track program_track,o\.delivery program_delivery,o\.purchase_source,o\.order_number/);
+});

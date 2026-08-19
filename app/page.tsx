@@ -2703,6 +2703,8 @@ type LiveEnrollment = {
 };
 type LiveReservation = {
   id: string;
+  customer_id: string;
+  order_id: string;
   status: string;
   customer_name: string;
   phone?: string;
@@ -2715,6 +2717,11 @@ type LiveReservation = {
   start_date?: string;
   assignment_date?: string;
   converted_enrollment_id?: string;
+  program_track?: string;
+  program_delivery?: string;
+  purchase_source?: string;
+  order_number?: string;
+  created_at?: string;
 };
 type FinancePayment = {
   id: string;
@@ -5273,7 +5280,8 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
     [statusFilter, setStatusFilter] = useState("الكل"),
     [cohort, setCohort] = useState(""),
     [startDate, setStartDate] = useState(""),
-    [assignmentDate, setAssignmentDate] = useState("");
+    [assignmentDate, setAssignmentDate] = useState(""),
+    [selectedReservation,setSelectedReservation]=useState<LiveReservation|null>(null);
   const [completing,setCompleting]=useState(""),[completion,setCompletion]=useState({baseTotal:"",discount:"0",paymentPlan:"دفع كامل",firstPayment:"",reference:""}),[kindFilter,setKindFilter]=useState("الكل");
   const load = async () => {
     setLoading(true);
@@ -5418,7 +5426,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
               <div className="reservation-person">
                 <i>{row.customer_name.slice(0, 2)}</i>
                 <div>
-                  <b>{row.customer_name}</b>
+                  <button type="button" className="reservation-customer-link" onClick={()=>setSelectedReservation(row)}>{row.customer_name}</button>
                   <span>{row.id}</span>
                 </div>
               </div>
@@ -5453,6 +5461,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
                 {row.status}
               </em>
               <div className="reservation-actions">
+                <button type="button" className="reservation-open-profile" onClick={()=>setSelectedReservation(row)}><UserRound size={16}/>فتح ملف الطالب</button>
                 {["مؤكد", "بانتظار البدء", "بانتظار الإسناد"].includes(
                   row.status,
                 ) && (
@@ -5540,6 +5549,28 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
           ))}
         </div>
       </Card>
+      {selectedReservation&&<>
+        <div className="overlay" onClick={()=>setSelectedReservation(null)}/>
+        <aside className="drawer operations-drawer reservation-customer-drawer" role="dialog" aria-modal="true" aria-labelledby="reservation-customer-title">
+          <button className="close" aria-label="إغلاق ملف الطالب" onClick={()=>setSelectedReservation(null)}>×</button>
+          <div className="person"><i>{selectedReservation.customer_name.slice(0,2)}</i><div><h2 id="reservation-customer-title">{selectedReservation.customer_name}</h2><div className="profile-meta-line"><em className="profile-delivery live">{selectedReservation.reservation_kind||"حجز مقعد"}</em></div><p>{selectedReservation.order_number||selectedReservation.order_id} · {selectedReservation.program_name}</p></div></div>
+          <div className="operations-contact-actions">
+            <button className="whatsapp" onClick={()=>window.open(`https://wa.me/${String(selectedReservation.phone||"").replace(/\D/g,"").replace(/^00/,"").replace(/^0/,"966")}`,'_blank','noopener,noreferrer')}><FaWhatsapp size={18}/>واتساب</button>
+            <button className="email-action" disabled={!selectedReservation.email} onClick={()=>window.location.href=`mailto:${selectedReservation.email||""}`}><Mail size={17}/>إيميل</button>
+          </div>
+          <Section title="ملاحظات العميل"><CustomerNotes customerId={selectedReservation.customer_id}/></Section>
+          <Section title="بيانات الطالب والحجز">
+            <div className="info customer-data">
+              <label>رقم الجوال<b dir="ltr">{selectedReservation.phone||"—"}</b></label><label>البريد الإلكتروني<b dir="ltr">{selectedReservation.email||"—"}</b></label>
+              <label>البرنامج<b>{selectedReservation.program_name}</b></label><label>المسار<b>{selectedReservation.program_track||"غير محدد"}</b></label>
+              <label>نمط البرنامج<b>{selectedReservation.program_delivery||"غير محدد"}</b></label><label>مصدر التسجيل<b>{selectedReservation.purchase_source||"—"}</b></label>
+              <label>الدفعة<b>{selectedReservation.cohort_label||"لم تحدد"}</b></label><label>رسوم المقعد<b>{Number(selectedReservation.fee_amount).toLocaleString("en-US")} ر.س</b></label>
+              <label>تاريخ بدء البرنامج<b>{selectedReservation.start_date||"لم يحدد"}</b></label><label>تاريخ الإسناد<b>{selectedReservation.assignment_date||"لم يحدد"}</b></label>
+            </div>
+          </Section>
+          <button type="button" className="drawer-next" onClick={()=>setSelectedReservation(null)}>العودة إلى حجوزات المقاعد</button>
+        </aside>
+      </>}
     </div>
   );
 }
