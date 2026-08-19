@@ -5461,7 +5461,7 @@ function Reservations({ kind = "حجز مقعد" }: { kind?: string }) {
                 {row.status}
               </em>
               <div className="reservation-actions">
-                <button type="button" className="reservation-open-profile" onClick={()=>setSelectedReservation(row)}><UserRound size={16}/>فتح ملف الطالب</button>
+                <button type="button" className="reservation-open-profile" onClick={()=>setSelectedReservation(row)}><CircleUserRound size={16}/>فتح ملف الطالب</button>
                 {["مؤكد", "بانتظار البدء", "بانتظار الإسناد"].includes(
                   row.status,
                 ) && (

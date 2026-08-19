@@ -437,6 +437,8 @@ test("opens a complete student file from seat reservations", async () => {
   const page = await read("../app/page.tsx");
   const reservations = await read("../app/api/reservations/route.ts");
   assert.match(page, /فتح ملف الطالب/);
+  assert.match(page, /<CircleUserRound size=\{16\}\/>فتح ملف الطالب/);
+  assert.doesNotMatch(page, /<UserRound size=/);
   assert.match(page, /className="drawer operations-drawer reservation-customer-drawer"/);
   assert.match(page, /<CustomerNotes customerId=\{selectedReservation\.customer_id\}/);
   assert.match(page, /selectedReservation\.phone/);
