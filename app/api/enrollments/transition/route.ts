@@ -16,9 +16,10 @@ export async function POST(req:Request){
   const auth=await authorize(req,["academy"]);if(!auth.ok)return auth.response;
   const body=await req.json() as Record<string,unknown>, enrollmentId=String(body.enrollmentId||""), action=String(body.action||"");
   let transition=transitions[action];if(!transition)return Response.json({error:"الانتقال غير صالح"},{status:400});
-  const db=operationalDb();const enrollment=await db.prepare("SELECT e.status,e.order_id,o.order_type FROM enrollments e JOIN orders o ON o.id=e.order_id WHERE e.id=?").bind(enrollmentId).first<{status:string;order_id:string;order_type:string}>();
+  const db=operationalDb();const enrollment=await db.prepare("SELECT e.status,e.order_id,o.order_type,o.program FROM enrollments e JOIN orders o ON o.id=e.order_id WHERE e.id=?").bind(enrollmentId).first<{status:string;order_id:string;order_type:string;program:string}>();
   if(!enrollment)return Response.json({error:"التسجيل غير موجود"},{status:404});
   if(action==="registered"&&enrollment.order_type==="إشراف")transition={from:["تم التواصل"],to:"مكتمل",column:"completed_at"};
+  if(action==="registered"&&(enrollment.order_type==="تقييم كفاءة"||enrollment.program.includes("تقييم الكفاءة")))transition={from:["تم التواصل"],to:"اكتمل التسجيل",next:"ربط المقيم وإكمال تقييم الكفاءة"};
   if(!transition.from.includes(enrollment.status))return Response.json({error:`لا يمكن تنفيذ الإجراء من حالة ${enrollment.status}`},{status:409});
   const now=new Date().toISOString(), column=transition.column?`,${transition.column}=?`:"";
   const update=transition.column?db.prepare(`UPDATE enrollments SET status=?,updated_at=?${column} WHERE id=?`).bind(transition.to,now,now,enrollmentId):db.prepare("UPDATE enrollments SET status=?,updated_at=? WHERE id=?").bind(transition.to,now,enrollmentId);

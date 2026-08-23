@@ -91,13 +91,18 @@ test("calculates payment behavior from installments and recorded reminders", asy
   assert.match(operations, /reminder_count/);
 });
 
-test("completes Asara registrations without onboarding tasks", async () => {
+test("completes ordinary Asara registrations but keeps competency assessment operational", async () => {
   const intake = await read("../app/api/intake/route.ts");
+  const transition = await read("../app/api/enrollments/transition/route.ts");
+  const page = await read("../app/page.tsx");
   assert.match(intake, /isAsara=source==="عصارة"/);
-  assert.match(intake, /else if\(autoAsara\)/);
+  assert.match(intake, /else if\(autoAsara&&!isCompetencyService\)/);
   assert.match(intake, /status,completed_at,created_at,updated_at/);
   assert.match(intake, /VALUES\(\?,\?,\?,\?,'مكتمل',\?,\?,\?\)/);
-  assert.match(intake, /autoAsara\?"مكتمل"/);
+  assert.match(intake, /autoAsara&&!isCompetencyService\?"مكتمل"/);
+  assert.match(page, /إضافة خدمة التقييم/);
+  assert.match(page, /ربط المقيم وإكمال التقييم/);
+  assert.match(transition, /ربط المقيم وإكمال تقييم الكفاءة/);
 });
 
 test("routes supervision through onboarding and collection without course activation", async () => {

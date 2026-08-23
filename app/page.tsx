@@ -4040,7 +4040,9 @@ const enrollmentSteps: Record<string, [string, string]> = {
   "تم إنشاء الحساب": ["activated", "تم تفعيل المقررات"],
 };
 const enrollmentStep = (row: LiveEnrollment): [string, string] | undefined =>
-  row.order_type === "إشراف" && row.status === "تم التواصل"
+  row.order_type === "تقييم كفاءة" && row.status === "تم التواصل"
+    ? ["registered", "إضافة خدمة التقييم"]
+    : row.order_type === "إشراف" && row.status === "تم التواصل"
     ? ["registered", "تهيئة العميل"]
     : enrollmentSteps[row.status];
 function PaymentReferenceControl({
@@ -4318,9 +4320,16 @@ function LiveAcademy({
     ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === programFilter).map(programPathLabel).filter(Boolean)))
     : [];
   const isDirectProgram = (row: LiveEnrollment) =>
-    (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
+    (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة") || row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
     row.order_type !== "إشراف" &&
     !row.program_name.includes("الإشراف");
+
+  const actionLabel = (row: LiveEnrollment) =>
+    focus === "program-activation" && (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة"))
+      ? "ربط المقيم وإكمال التقييم"
+      : focus === "program-activation"
+        ? "تم تفعيل البرنامج"
+        : enrollmentStep(row)?.[1];
   const filteredRows = rows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
@@ -4462,7 +4471,7 @@ function LiveAcademy({
               );
             })}
           </div>
-          {enrollmentStep(selectedRow) && (
+          {actionLabel(selectedRow) && (
             <button
               className="primary drawer-next"
               disabled={moving === selectedRow.id}
@@ -4473,7 +4482,7 @@ function LiveAcademy({
             >
               {moving === selectedRow.id
                 ? "جارٍ التحديث..."
-                : enrollmentStep(selectedRow)?.[1]}
+                : actionLabel(selectedRow)}
             </button>
           )}
         </Section>
@@ -4521,7 +4530,7 @@ function LiveAcademy({
                   key={row.id}
                   row={row}
                   stage={stageLabel(state)}
-                  nextLabel={focus === "program-activation" ? "تم تفعيل البرنامج" : enrollmentStep(row)?.[1]}
+                  nextLabel={actionLabel(row)}
                   moving={moving === row.id}
                   onOpen={() => setSelectedRow(row)}
                   onWhatsapp={() => whatsapp(row)}
