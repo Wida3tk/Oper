@@ -23,9 +23,12 @@ test("records payments and updates the order balance", async () => {
 
 test("loads the customer directory from the live API", async () => {
   const source = await read("../app/page.tsx");
+  const api = await read("../app/api/customers/route.ts");
   assert.match(source, /function LiveCustomers/);
   assert.match(source, /apiJson\("\/api\/customers"\)/);
   assert.match(source, /view\s*===\s*"customers"\s*&&\s*<LiveCustomers/);
+  assert.match(api, /LEFT JOIN orders o ON o\.id=\(/);
+  assert.match(api, /latest\.payment_plan='رسوم مقعد'/);
 });
 
 test("supports a custom final installment while preserving the order balance", async () => {

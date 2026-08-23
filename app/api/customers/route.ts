@@ -15,10 +15,19 @@ export async function GET(req: Request) {
            CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee,
            p.name program_name
     FROM customers c
-    -- The directory is a registration directory, not a single-row customer
-    -- directory. A customer may legitimately buy more than one program, so
-    -- returning only their latest order hides earlier OBM/competency records.
-    LEFT JOIN orders o ON o.customer_id=c.id AND o.status!='محذوف'
+    -- The directory is customer-based: reservations, renewals and later
+    -- purchases remain inside the same file instead of duplicating its row.
+    -- Prefer the latest real program order over a seat-only reservation.
+    LEFT JOIN orders o ON o.id=(
+      SELECT latest.id
+      FROM orders latest
+      WHERE latest.customer_id=c.id AND latest.status!='محذوف'
+      ORDER BY
+        CASE WHEN latest.status='حجز فقط' OR latest.payment_plan='رسوم مقعد' THEN 1 ELSE 0 END,
+        latest.created_at DESC,
+        latest.id DESC
+      LIMIT 1
+    )
     LEFT JOIN programs p ON p.id=o.program_id
     WHERE c.deleted_at IS NULL
     ORDER BY COALESCE(o.created_at,c.created_at) DESC
