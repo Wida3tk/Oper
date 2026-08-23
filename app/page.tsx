@@ -557,7 +557,7 @@ function OperationsApp() {
           ? financeResult.value.orders || []
           : [];
       const isDirectActivation = (row: LiveEnrollment) =>
-        (row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
+        (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة") || row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
         row.order_type !== "إشراف" &&
         !row.program_name.includes("الإشراف");
       setNavCounts({
