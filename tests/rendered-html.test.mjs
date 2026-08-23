@@ -445,3 +445,28 @@ test("opens a complete student file from seat reservations", async () => {
   assert.match(page, /selectedReservation\.email/);
   assert.match(reservations, /o\.track program_track,o\.delivery program_delivery,o\.purchase_source,o\.order_number/);
 });
+
+test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /الاستكشاف والتقييم/);
+  assert.match(page, /التفاوض والهيكلة/);
+  assert.match(page, /التفعيل والعمليات/);
+  assert.match(page, /قياس الأثر/);
+  assert.match(page, /التجديد أو الخروج/);
+  assert.match(page, /b2b-kanban/);
+  assert.match(b2b, /update_lifecycle/);
+  assert.match(b2b, /اتفاقية السرية NDA/);
+  assert.match(b2b, /اعتماد مدير الشراكات/);
+});
+
+test("keeps B2B governance documents and finance isolated inside the partnership file", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /مركز المستندات/);
+  assert.match(page, /بوابات الموافقة/);
+  assert.match(page, /المؤشرات المالية للشراكة/);
+  assert.match(page, /مستقلة تمامًا عن مبيعات وتحصيل الأفراد/);
+  assert.match(b2b, /b2b_partnership_finance/);
+  assert.match(b2b, /record_approval/);
+});

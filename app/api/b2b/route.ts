@@ -7,6 +7,9 @@ const trainingStages = ["جهة مسندة","تم التواصل","تم تحدي
 const businessStages = [...new Set([...partnershipStages,...trainingStages])];
 const partnershipStatuses = ["بانتظار التفعيل","نشطة","تحتاج متابعة","تجديد قريب","قيد التجديد","منتهية","ملغاة"];
 const paths = ["ABA","OBM"];
+const lifecycleStages = ["الاستكشاف والتقييم","التفاوض والهيكلة","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
+const documentTypes = ["الملف التعريفي","اتفاقية السرية NDA","مسودة العقد","النموذج المالي","العقد النهائي","خطة العمل","تقرير أداء ربع سنوي","محضر اجتماع","تقرير التقييم النهائي","ملحق التجديد"];
+const approvalTypes = ["مدير الشراكات","الإدارة القانونية","الإدارة المالية","الاعتماد النهائي"];
 
 async function addColumn(db:ReturnType<typeof operationalDb>,sql:string){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
 async function ensureSchema(db:ReturnType<typeof operationalDb>) {
@@ -19,9 +22,14 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
     db.prepare("CREATE TABLE IF NOT EXISTS b2b_teams(id TEXT PRIMARY KEY,name TEXT NOT NULL,lead_email TEXT,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS b2b_team_members(team_id TEXT NOT NULL,email TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,PRIMARY KEY(team_id,email))"),
     db.prepare("CREATE TABLE IF NOT EXISTS b2b_assignments(account_id TEXT NOT NULL,email TEXT NOT NULL,team_id TEXT,assigned_by_email TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(account_id,email))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS b2b_documents(id TEXT PRIMARY KEY,account_id TEXT NOT NULL,opportunity_id TEXT,partnership_id TEXT,document_type TEXT NOT NULL,title TEXT NOT NULL,url TEXT NOT NULL,quarter_label TEXT,uploaded_by_email TEXT NOT NULL,created_at TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS b2b_approvals(id TEXT PRIMARY KEY,account_id TEXT NOT NULL,opportunity_id TEXT,partnership_id TEXT,approval_type TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',note TEXT,decided_by_email TEXT,decided_at TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS b2b_partnership_finance(partnership_id TEXT PRIMARY KEY,coupon_code TEXT,discount_percent REAL NOT NULL DEFAULT 0,commission_percent REAL NOT NULL DEFAULT 0,gross_sales REAL NOT NULL DEFAULT 0,coordination_cost REAL NOT NULL DEFAULT 0,commission_due REAL NOT NULL DEFAULT 0,commission_paid REAL NOT NULL DEFAULT 0,payout_status TEXT NOT NULL DEFAULT 'غير مستحق',updated_by_email TEXT,updated_at TEXT NOT NULL)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_b2b_opportunities_stage ON b2b_opportunities(stage,updated_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_b2b_partnerships_status ON b2b_partnerships(status,end_date)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_b2b_assignments_email ON b2b_assignments(email,account_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS idx_b2b_documents_account ON b2b_documents(account_id,document_type)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS idx_b2b_approvals_account ON b2b_approvals(account_id,approval_type,status)"),
   ]);
   await addColumn(db,"ALTER TABLE b2b_accounts ADD COLUMN path TEXT NOT NULL DEFAULT 'ABA'");
   await addColumn(db,"ALTER TABLE b2b_accounts ADD COLUMN team_id TEXT");
@@ -32,12 +40,20 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN trainee_count INTEGER");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN requested_program TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN delivery_date TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN lifecycle_stage TEXT NOT NULL DEFAULT 'الاستكشاف والتقييم'");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN lifecycle_updated_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_partnerships ADD COLUMN lifecycle_stage TEXT NOT NULL DEFAULT 'التفعيل والعمليات'");
+  await addColumn(db,"ALTER TABLE b2b_partnerships ADD COLUMN work_plan_ready INTEGER NOT NULL DEFAULT 0");
+  await addColumn(db,"ALTER TABLE b2b_partnerships ADD COLUMN final_approval INTEGER NOT NULL DEFAULT 0");
+  await addColumn(db,"ALTER TABLE b2b_partnerships ADD COLUMN activated_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_partnerships ADD COLUMN last_quarterly_report_at TEXT");
   await db.batch([
     db.prepare("UPDATE b2b_opportunities SET stage='جهة مسندة' WHERE stage='جهة جديدة'"),
     db.prepare("UPDATE b2b_opportunities SET stage='تم التواصل' WHERE stage='تواصل أولي'"),
     db.prepare("UPDATE b2b_opportunities SET stage='تم الاجتماع' WHERE stage IN ('تأهيل الاحتياج','اجتماع أو عرض تعريفي')"),
     db.prepare("UPDATE b2b_opportunities SET stage='أُرسل العرض' WHERE stage IN ('إعداد العرض','عرض مرسل')"),
     db.prepare("UPDATE b2b_opportunities SET stage='بانتظار التوقيع' WHERE stage='تفاوض'"),
+    db.prepare("UPDATE b2b_opportunities SET lifecycle_stage=CASE WHEN signed_at IS NOT NULL OR stage IN ('تم التوقيع','تم التفعيل') THEN 'التفعيل والعمليات' WHEN stage IN ('تم الاجتماع','أُرسل العرض','بانتظار التوقيع') THEN 'التفاوض والهيكلة' ELSE 'الاستكشاف والتقييم' END WHERE lifecycle_stage IS NULL OR lifecycle_stage=''")
   ]);
 }
 
@@ -54,18 +70,35 @@ export async function GET(req: Request) {
   if(accountId){
     const allowed=await db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first();
     if(!allowed)return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
-    const {results}=await db.prepare("SELECT id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at FROM b2b_activities WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all();
-    return Response.json({activities:results});
+    const [{results:activities},{results:documents},{results:approvals}]=await Promise.all([
+      db.prepare("SELECT id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at FROM b2b_activities WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
+      db.prepare("SELECT * FROM b2b_documents WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
+      db.prepare("SELECT * FROM b2b_approvals WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
+    ]);
+    return Response.json({activities,documents,approvals,documentTypes,approvalTypes});
   }
+  const {results:staff}=await db.prepare("SELECT email,display_name FROM staff_accounts WHERE active=1 ORDER BY display_name,email").all();
   const section=params.get("section")||"business";
   if(section==="partnerships"){
-    const {results}=await db.prepare(`SELECT p.*,a.name account_name,a.type account_type,a.region,a.city,a.path,a.owner_email,a.team_id,
+    const {results}=await db.prepare(`SELECT COALESCE(p.id,o.id) id,p.id partnership_id,o.id opportunity_id,o.account_id,
+      o.stage opportunity_stage,o.lifecycle_stage opportunity_lifecycle_stage,o.next_follow_up,o.expected_value,o.created_at opportunity_created_at,
+      COALESCE(p.lifecycle_stage,o.lifecycle_stage,'الاستكشاف والتقييم') lifecycle_stage,
+      p.agreement_number,p.signed_at,p.start_date,p.end_date,p.value,p.payment_terms,p.scope,p.services,p.renewal_terms,
+      COALESCE(p.status,CASE WHEN o.approval_status='pending' THEN 'بانتظار الاعتماد' ELSE 'فرصة قائمة' END) status,
+      p.internal_owner_email,p.primary_contact_id,p.document_url,p.work_plan_ready,p.final_approval,p.activated_at,p.last_quarterly_report_at,
+      a.name account_name,a.type account_type,a.region,a.city,a.path,a.owner_email,a.team_id,
       c.name contact_name,c.job_title contact_title,c.phone contact_phone,c.email contact_email,
-      (SELECT COUNT(*) FROM b2b_activities x WHERE x.partnership_id=p.id) activity_count
-      FROM b2b_partnerships p JOIN b2b_accounts a ON a.id=p.account_id
-      LEFT JOIN b2b_contacts c ON c.id=p.primary_contact_id WHERE 1=1${scope.sql}
-      ORDER BY CASE p.status WHEN 'تجديد قريب' THEN 0 WHEN 'تحتاج متابعة' THEN 1 WHEN 'نشطة' THEN 2 ELSE 3 END,p.end_date`).bind(...scope.bind).all();
-    return Response.json({partnerships:results,statuses:partnershipStatuses,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),viewerEmail:auth.email});
+      (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
+      (SELECT COUNT(*) FROM b2b_documents d WHERE d.opportunity_id=o.id OR (p.id IS NOT NULL AND d.partnership_id=p.id)) document_count,
+      (SELECT COUNT(*) FROM b2b_approvals ap WHERE (ap.opportunity_id=o.id OR (p.id IS NOT NULL AND ap.partnership_id=p.id)) AND ap.status='pending') pending_approvals,
+      f.coupon_code,f.discount_percent,f.commission_percent,f.gross_sales,f.coordination_cost,f.commission_due,f.commission_paid,f.payout_status
+      FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id
+      LEFT JOIN b2b_partnerships p ON p.opportunity_id=o.id
+      LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
+      LEFT JOIN b2b_partnership_finance f ON f.partnership_id=p.id WHERE 1=1${scope.sql}
+      AND o.opportunity_kind='partnership'
+      ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,o.updated_at DESC`).bind(...scope.bind).all();
+    return Response.json({partnerships:results,statuses:partnershipStatuses,lifecycleStages,staff,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,a.priority,a.path,a.team_id,
@@ -76,7 +109,7 @@ export async function GET(req: Request) {
     LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
     WHERE NOT EXISTS(SELECT 1 FROM b2b_partnerships p WHERE p.opportunity_id=o.id)${businessScope.sql}
     ORDER BY CASE o.approval_status WHEN 'pending' THEN 0 ELSE 1 END,CASE o.stage WHEN 'بانتظار التوقيع' THEN 0 WHEN 'أُرسل العرض' THEN 1 WHEN 'تم الاجتماع' THEN 2 ELSE 3 END,o.updated_at DESC`).bind(...businessScope.bind).all();
-  return Response.json({opportunities:results,stages:businessStages,partnershipStages,trainingStages,paths,scope:isAdmin(auth)?"all":"assigned",canReview:reviewAccess||isAdmin(auth),canCreatePartnership:can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),viewerEmail:auth.email});
+  return Response.json({opportunities:results,stages:businessStages,partnershipStages,trainingStages,lifecycleStages,paths,staff,scope:isAdmin(auth)?"all":"assigned",canReview:reviewAccess||isAdmin(auth),canCreatePartnership:can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),viewerEmail:auth.email});
 }
 
 export async function DELETE(req:Request){
@@ -87,6 +120,9 @@ export async function DELETE(req:Request){
   const counts=await db.prepare(`SELECT (SELECT COUNT(*) FROM b2b_opportunities WHERE account_id=?) opportunities,(SELECT COUNT(*) FROM b2b_partnerships WHERE account_id=?) partnerships,(SELECT COUNT(*) FROM b2b_activities WHERE account_id=?) activities`).bind(accountId,accountId,accountId).first();
   await db.batch([
     db.prepare("DELETE FROM b2b_activities WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_documents WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_approvals WHERE account_id=?").bind(accountId),
+    db.prepare("DELETE FROM b2b_partnership_finance WHERE partnership_id IN (SELECT id FROM b2b_partnerships WHERE account_id=?)").bind(accountId),
     db.prepare("DELETE FROM b2b_partnerships WHERE account_id=?").bind(accountId),
     db.prepare("DELETE FROM b2b_opportunities WHERE account_id=?").bind(accountId),
     db.prepare("DELETE FROM b2b_contacts WHERE account_id=?").bind(accountId),
@@ -132,9 +168,61 @@ export async function POST(req:Request){
       db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'واتساب',1,?,?)").bind(contactId,accountId,contactName,String(body.jobTitle||""),String(body.phone||""),String(body.email||""),"مسؤول الجهة",now,now),
       db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at,signed_at) VALUES(?,?,'تم التوقيع',?,?,?,'approved',?,?,?)").bind(opportunityId,accountId,auth.email,now,now,auth.email,now,signedAt),
       db.prepare("INSERT INTO b2b_partnerships(id,account_id,opportunity_id,agreement_number,signed_at,start_date,end_date,value,scope,services,status,internal_owner_email,primary_contact_id,document_url,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'بانتظار التفعيل',?,?,?,?,?,?)").bind(partnershipId,accountId,opportunityId,String(body.agreementNumber||""),signedAt,startDate,endDate,Number(body.value||0),String(body.scope||""),String(body.services||""),String(body.ownerEmail||auth.email),contactId,String(body.documentUrl||""),auth.email,now,now),
+      db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفاوض والهيكلة',lifecycle_updated_at=? WHERE id=?").bind(now,opportunityId),
+      db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والهيكلة' WHERE id=?").bind(partnershipId),
       db.prepare("INSERT OR IGNORE INTO b2b_assignments(account_id,email,assigned_by_email,created_at) VALUES(?,?,?,?)").bind(accountId,String(body.ownerEmail||auth.email),auth.email,now),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'إضافة شراكة','تمت إضافة الجهة مباشرة إلى سجل الشراكات',?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,auth.email,now),
     ]);return Response.json({ok:true,id:partnershipId});
+  }
+  if(action==="save_document"){
+    const accountId=String(body.accountId||""),opportunityId=String(body.opportunityId||"")||null,partnershipId=String(body.partnershipId||"")||null,documentType=String(body.documentType||""),title=String(body.title||documentType).trim(),url=String(body.url||"").trim();
+    if(!accountId||!documentTypes.includes(documentType)||!title||!/^https?:\/\/\S+$/i.test(url))return Response.json({error:"نوع المستند واسمه ورابطه الصحيح مطلوبة"},{status:400});
+    if(!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    await db.batch([
+      db.prepare("INSERT INTO b2b_documents(id,account_id,opportunity_id,partnership_id,document_type,title,url,quarter_label,uploaded_by_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id("B2BD"),accountId,opportunityId,partnershipId,documentType,title,url,String(body.quarterLabel||"")||null,auth.email,now),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"إضافة مستند",documentType,auth.email,now),
+    ]);return Response.json({ok:true});
+  }
+  if(action==="record_approval"){
+    const accountId=String(body.accountId||""),opportunityId=String(body.opportunityId||"")||null,partnershipId=String(body.partnershipId||"")||null,approvalType=String(body.approvalType||""),decision=String(body.decision||""),note=String(body.note||"").trim();
+    if(!accountId||!approvalTypes.includes(approvalType)||!["approved","rejected"].includes(decision))return Response.json({error:"بيانات الاعتماد غير صحيحة"},{status:400});
+    const managerAllowed=isAdmin(auth)||can(auth,"b2b.review"),financeAllowed=auth.roles.includes("finance")||isAdmin(auth)||can(auth,"b2b.partnerships.manage"),governanceAllowed=isAdmin(auth)||can(auth,"b2b.partnerships.manage");
+    if((approvalType==="مدير الشراكات"&&!managerAllowed)||(approvalType==="الإدارة المالية"&&!financeAllowed)||(["الإدارة القانونية","الاعتماد النهائي"].includes(approvalType)&&!governanceAllowed))return Response.json({error:"ليست لديك صلاحية هذا الاعتماد"},{status:403});
+    if(!await assertAccess(accountId)&&!isAdmin(auth))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const existing=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type=? ORDER BY created_at DESC LIMIT 1").bind(accountId,approvalType).first<{id:string}>(),approvalId=existing?.id||id("B2BAp");
+    await db.batch([
+      existing?db.prepare("UPDATE b2b_approvals SET status=?,note=?,decided_by_email=?,decided_at=?,updated_at=? WHERE id=?").bind(decision,note,auth.email,now,now,approvalId):db.prepare("INSERT INTO b2b_approvals(id,account_id,opportunity_id,partnership_id,approval_type,status,note,decided_by_email,decided_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(approvalId,accountId,opportunityId,partnershipId,approvalType,decision,note,auth.email,now,now,now),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"اعتماد",`${approvalType}: ${decision==="approved"?"معتمد":"مرفوض"}${note?` · ${note}`:""}`,auth.email,now),
+    ]);return Response.json({ok:true});
+  }
+  if(action==="update_lifecycle"){
+    const partnershipId=String(body.partnershipId||""),opportunityId=String(body.opportunityId||""),target=String(body.stage||"");
+    if(!opportunityId||!lifecycleStages.includes(target))return Response.json({error:"مرحلة دورة الحياة غير صحيحة"},{status:400});
+    const row=await db.prepare(`SELECT o.account_id,o.id opportunity_id,o.lifecycle_stage opportunity_lifecycle_stage,
+      p.id partnership_id,p.lifecycle_stage,p.end_date,p.work_plan_ready,p.final_approval
+      FROM b2b_opportunities o LEFT JOIN b2b_partnerships p ON p.opportunity_id=o.id WHERE o.id=?`).bind(opportunityId).first<{account_id:string;opportunity_id:string;opportunity_lifecycle_stage:string;partnership_id?:string;lifecycle_stage?:string;end_date?:string;work_plan_ready?:number;final_approval?:number}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الفرصة غير متاحة ضمن نطاق عملك"},{status:403});
+    if(lifecycleStages.indexOf(target)>=2&&!row.partnership_id)return Response.json({error:"يجب توقيع العقد وإنشاء الشراكة قبل الانتقال إلى التفعيل والعمليات"},{status:409});
+    const {results:docs}=await db.prepare("SELECT document_type FROM b2b_documents WHERE account_id=?").bind(row.account_id).all<{document_type:string}>(),docSet=new Set(docs.map(x=>x.document_type));
+    const {results:approvals}=await db.prepare("SELECT approval_type,status FROM b2b_approvals WHERE account_id=?").bind(row.account_id).all<{approval_type:string;status:string}>(),approved=new Set(approvals.filter(x=>x.status==="approved").map(x=>x.approval_type));
+    const missing:string[]=[];
+    if(target==="التفاوض والهيكلة"){if(!docSet.has("الملف التعريفي"))missing.push("الملف التعريفي");if(!docSet.has("اتفاقية السرية NDA"))missing.push("اتفاقية السرية NDA");if(!approved.has("مدير الشراكات"))missing.push("اعتماد مدير الشراكات")}
+    if(target==="التفعيل والعمليات"){if(!docSet.has("مسودة العقد"))missing.push("مسودة العقد");if(!docSet.has("النموذج المالي"))missing.push("النموذج المالي");if(!approved.has("الإدارة القانونية"))missing.push("اعتماد القانونية");if(!approved.has("الإدارة المالية"))missing.push("اعتماد المالية")}
+    if(target==="قياس الأثر"){if(!docSet.has("خطة العمل"))missing.push("خطة العمل");if(!approved.has("الاعتماد النهائي"))missing.push("الاعتماد النهائي")}
+    if(target==="التجديد أو الخروج"&&!row.end_date)missing.push("تاريخ انتهاء الاتفاقية");
+    if(missing.length)return Response.json({error:`لا يمكن نقل الشراكة قبل استكمال: ${missing.join("، ")}`,missing},{status:409});
+    const active=target==="قياس الأثر",previous=row.lifecycle_stage||row.opportunity_lifecycle_stage||"الاستكشاف والتقييم",changes=[
+      db.prepare("UPDATE b2b_opportunities SET lifecycle_stage=?,lifecycle_updated_at=?,updated_at=? WHERE id=?").bind(target,now,now,row.opportunity_id),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'تحديث دورة الحياة',?,?,?)").bind(id("B2BX"),row.account_id,row.opportunity_id,row.partnership_id||null,`${previous} ← ${target}`,auth.email,now),
+    ];
+    if(row.partnership_id)changes.push(db.prepare("UPDATE b2b_partnerships SET lifecycle_stage=?,status=CASE WHEN ? THEN 'نشطة' ELSE status END,activated_at=CASE WHEN ? THEN COALESCE(activated_at,?) ELSE activated_at END,updated_at=? WHERE id=?").bind(target,active?1:0,active?1:0,now,now,row.partnership_id));
+    await db.batch(changes);return Response.json({ok:true,stage:target});
+  }
+  if(action==="update_partnership_finance"){
+    if(!isAdmin(auth)&&!auth.roles.includes("finance")&&!can(auth,"b2b.partnerships.manage"))return Response.json({error:"التحديث المالي متاح للإدارة والمالية فقط"},{status:403});
+    const partnershipId=String(body.partnershipId||""),row=await db.prepare("SELECT account_id FROM b2b_partnerships WHERE id=?").bind(partnershipId).first<{account_id:string}>();if(!row)return Response.json({error:"الشراكة غير موجودة"},{status:404});
+    const gross=Math.max(0,Number(body.grossSales||0)),cost=Math.max(0,Number(body.coordinationCost||0)),rate=Math.max(0,Number(body.commissionPercent||0)),due=Math.max(0,Number(body.commissionDue||gross*rate/100)),paid=Math.max(0,Number(body.commissionPaid||0));
+    await db.prepare("INSERT INTO b2b_partnership_finance(partnership_id,coupon_code,discount_percent,commission_percent,gross_sales,coordination_cost,commission_due,commission_paid,payout_status,updated_by_email,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(partnership_id) DO UPDATE SET coupon_code=excluded.coupon_code,discount_percent=excluded.discount_percent,commission_percent=excluded.commission_percent,gross_sales=excluded.gross_sales,coordination_cost=excluded.coordination_cost,commission_due=excluded.commission_due,commission_paid=excluded.commission_paid,payout_status=excluded.payout_status,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(partnershipId,String(body.couponCode||""),Number(body.discountPercent||0),rate,gross,cost,due,paid,String(body.payoutStatus||"غير مستحق"),auth.email,now).run();return Response.json({ok:true,roi:cost?((gross-cost)/cost)*100:null});
   }
   if(action==="update_stage"){
     const opportunityId=String(body.opportunityId||""),stage=String(body.stage||"");if(!opportunityId||!businessStages.includes(stage))return Response.json({error:"الفرصة أو المرحلة غير صحيحة"},{status:400});
@@ -149,7 +237,7 @@ export async function POST(req:Request){
     if(!can(auth,"b2b.partnerships.manage"))return Response.json({error:"ليس لديك صلاحية اعتماد الاتفاقيات"},{status:403});
     const opportunityId=String(body.opportunityId||""),startDate=String(body.startDate||""),endDate=String(body.endDate||""),signedAt=String(body.signedAt||"");if(!opportunityId||![startDate,endDate,signedAt].every(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))return Response.json({error:"تاريخ التوقيع والبداية والنهاية مطلوبة"},{status:400});
     const opportunity=await db.prepare("SELECT o.account_id,o.opportunity_kind,c.id contact_id FROM b2b_opportunities o LEFT JOIN b2b_contacts c ON c.account_id=o.account_id AND c.is_primary=1 WHERE o.id=?").bind(opportunityId).first<{account_id:string;contact_id:string;opportunity_kind:string}>();if(!opportunity)return Response.json({error:"الفرصة غير موجودة"},{status:404});if(opportunity.opportunity_kind==="corporate_training")return Response.json({error:"طلبات التدريب المؤسسي تُغلق بالتنفيذ ولا تتحول إلى شراكات"},{status:409});if(!await assertAccess(opportunity.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});const partnershipId=id("B2BP");
-    await db.batch([db.prepare("INSERT INTO b2b_partnerships(id,account_id,opportunity_id,agreement_number,signed_at,start_date,end_date,value,payment_terms,scope,services,renewal_terms,status,internal_owner_email,primary_contact_id,document_url,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(partnershipId,opportunity.account_id,opportunityId,String(body.agreementNumber||""),signedAt,startDate,endDate,Number(body.value||0),String(body.paymentTerms||""),String(body.scope||""),String(body.services||""),String(body.renewalTerms||""),"بانتظار التفعيل",String(body.internalOwnerEmail||auth.email),opportunity.contact_id||null,String(body.documentUrl||""),auth.email,now,now),db.prepare("UPDATE b2b_opportunities SET stage='تم التوقيع',signed_at=?,updated_at=? WHERE id=?").bind(signedAt,now,opportunityId),db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'توقيع الاتفاقية','تم تحويل الفرصة إلى شراكة',?,?)").bind(id("B2BX"),opportunity.account_id,opportunityId,partnershipId,auth.email,now)]);return Response.json({ok:true,id:partnershipId});
+    await db.batch([db.prepare("INSERT INTO b2b_partnerships(id,account_id,opportunity_id,agreement_number,signed_at,start_date,end_date,value,payment_terms,scope,services,renewal_terms,status,internal_owner_email,primary_contact_id,document_url,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(partnershipId,opportunity.account_id,opportunityId,String(body.agreementNumber||""),signedAt,startDate,endDate,Number(body.value||0),String(body.paymentTerms||""),String(body.scope||""),String(body.services||""),String(body.renewalTerms||""),"بانتظار التفعيل",String(body.internalOwnerEmail||auth.email),opportunity.contact_id||null,String(body.documentUrl||""),auth.email,now,now),db.prepare("UPDATE b2b_opportunities SET stage='تم التوقيع',signed_at=?,lifecycle_stage='التفاوض والهيكلة',lifecycle_updated_at=?,updated_at=? WHERE id=?").bind(signedAt,now,now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والهيكلة' WHERE id=?").bind(partnershipId),db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'توقيع الاتفاقية','تم تحويل الفرصة إلى شراكة',?,?)").bind(id("B2BX"),opportunity.account_id,opportunityId,partnershipId,auth.email,now)]);return Response.json({ok:true,id:partnershipId});
   }
   if(action==="update_partnership"){
     if(!can(auth,"b2b.partnerships.manage"))return Response.json({error:"ليس لديك صلاحية تعديل الشراكات"},{status:403});const partnershipId=String(body.partnershipId||""),status=String(body.status||"");if(!partnershipId||!partnershipStatuses.includes(status))return Response.json({error:"الشراكة أو الحالة غير صحيحة"},{status:400});const row=await db.prepare("SELECT account_id FROM b2b_partnerships WHERE id=?").bind(partnershipId).first<{account_id:string}>();if(!row||!await assertAccess(row.account_id))return Response.json({error:"الشراكة غير متاحة ضمن نطاق عملك"},{status:403});await db.prepare("UPDATE b2b_partnerships SET status=?,start_date=COALESCE(?,start_date),end_date=COALESCE(?,end_date),updated_at=? WHERE id=?").bind(status,String(body.startDate||"")||null,String(body.endDate||"")||null,now,partnershipId).run();return Response.json({ok:true});
