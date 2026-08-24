@@ -7464,7 +7464,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       </p>
                     ) : (
                       stageRows.map((row) => {
-                        const remaining = days(row.end_date);
                         return (
                           <article
                             draggable={canConvert}
@@ -7486,9 +7485,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               <div>
                                 <b>{row.account_name}</b>
                                 <small>
-                                  {row.account_type} · {b2bPathLabel(row.path)}
+                                  {row.partnership_type || "نوع الشراكة غير محدد"}
                                 </small>
-                                <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                               </div>
                               <button
                                 aria-label={`فتح ملف ${row.account_name}`}
@@ -7496,26 +7494,17 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                                 <Eye size={15} />
                               </button>
                             </div>
-                            <div className="kanban-card-meta">
+                            <div className="kanban-card-meta organization-summary">
                               <span>
-                                المسؤول <b>{row.contact_name || "غير محدد"}</b>
+                                المدينة <b>{row.city || "غير محددة"}</b>
                               </span>
                               <span>
-                                الانتهاء <b>{row.end_date || "غير محدد"}</b>
+                                ممثل الجهة <b>{row.contact_name || "غير محدد"}</b>
+                              </span>
+                              <span>
+                                حالة الجهة <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                               </span>
                             </div>
-                            <footer>
-                              <em
-                                className={`b2b-status ${row.status === "نشطة" ? "green" : remaining !== null && remaining <= 60 ? "orange" : "blue"}`}
-                              >
-                                {row.status}
-                              </em>
-                              {Number(row.pending_approvals || 0) > 0 && (
-                                <strong>
-                                  {row.pending_approvals} موافقات معلقة
-                                </strong>
-                              )}
-                            </footer>
                           </article>
                         );
                       })
@@ -7527,7 +7516,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
           </div>
         ) : (
           visibleRows.map((row) => {
-            const remaining = days(row.end_date);
             return (
               <article
                 className="b2b-row"
@@ -7539,7 +7527,9 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   <div>
                     <b>{row.account_name}</b>
                     <span>
-                      {row.opportunity_kind === "corporate_training"
+                      {section === "partnerships"
+                        ? row.partnership_type || "نوع الشراكة غير محدد"
+                        : row.opportunity_kind === "corporate_training"
                         ? `طلب تدريب مؤسسي${row.trainee_count ? ` · ${row.trainee_count} متدرب` : ""}`
                         : `فرصة شراكة · ${row.account_type}`}
                     </span>
@@ -7644,29 +7634,16 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                 ) : (
                   <>
                     <div>
-                      <span>المسار</span>
-                      <b>{b2bPathLabel(row.path)}</b>
+                      <span>المدينة</span>
+                      <b>{row.city || "غير محددة"}</b>
                     </div>
                     <div>
-                      <span>حالة الشراكة</span>
-                      <em
-                        className={`b2b-status ${row.status === "نشطة" ? "green" : remaining !== null && remaining <= 60 ? "orange" : "blue"}`}
-                      >
-                        {row.status}
-                      </em>
+                      <span>حالة الجهة</span>
+                      <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                     </div>
                     <div>
-                      <span>مدة الاتفاقية</span>
-                      <b>
-                        {row.start_date} — {row.end_date}
-                      </b>
-                      <small>
-                        {remaining === null
-                          ? ""
-                          : remaining < 0
-                            ? "منتهية"
-                            : `${remaining} يوم متبقٍ`}
-                      </small>
+                      <span>نوع الشراكة</span>
+                      <b>{row.partnership_type || "غير محدد"}</b>
                     </div>
                   </>
                 )}

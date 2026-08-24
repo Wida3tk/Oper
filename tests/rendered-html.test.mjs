@@ -557,3 +557,12 @@ test("labels the combined B2B path in Arabic everywhere", async () => {
   assert.match(page, /path==="BOTH"\?"جميع المجالات"/);
   assert.match(page, /b2bPathLabel\(row\.path\)/);
 });
+
+test("keeps organization cards focused on operational identity fields", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /نوع الشراكة غير محدد/);
+  assert.match(page, /ممثل الجهة/);
+  assert.match(page, /حالة الجهة/);
+  assert.match(page, /المدينة/);
+  assert.doesNotMatch(page, /الانتهاء <b>\{row\.end_date/);
+});
