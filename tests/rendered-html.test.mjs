@@ -492,3 +492,18 @@ test("starts partnerships with optional initial compatibility data", async () =>
   assert.match(b2b, /stage:'?مرحلة الملاءمة'?|مرحلة الملاءمة/);
   assert.doesNotMatch(b2b, /create_partnership_initial[\s\S]{0,700}اسم الجهة والمسؤول وتواريخ الاتفاقية مطلوبة/);
 });
+
+test("tracks partnership contact meetings fit decisions and agreement milestones", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  const css = await read("../app/globals.css");
+  assert.match(page, /لم يتم التواصل.*تم التواصل الأول.*في انتظار الرد.*تم تحديد اجتماع.*تم الاجتماع/s);
+  assert.match(page, /محضر الاجتماع/);
+  assert.match(page, /الحضور من سلوكيرا/);
+  assert.match(page, /اعتماد","رفض","تأجيل/);
+  assert.match(page, /إرسال النموذج.*تعبئة النموذج.*إرسال الاتفاقية.*توقيع الاتفاقية/s);
+  assert.match(page, /partnership-decisions-overview/);
+  assert.match(b2b, /update_partnership_pipeline/);
+  assert.match(b2b, /fit_decided_by_email/);
+  assert.match(css, /partnership-card-progress/);
+});
