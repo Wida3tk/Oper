@@ -478,3 +478,17 @@ test("keeps B2B governance documents and finance isolated inside the partnership
   assert.match(b2b, /b2b_partnership_finance/);
   assert.match(b2b, /record_approval/);
 });
+
+test("starts partnerships with optional initial compatibility data", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /المرحلة الأولى · البيانات الأولية/);
+  assert.match(page, /عميل سابق","قاعدة بيانات سلوكيرا","هو تواصل معنا/);
+  assert.match(page, /مذكرة تفاهم","شراكة تدريب","اتفاقية تسويق/);
+  assert.match(page, /<option>BOTH<\/option>/);
+  assert.match(page, /action:"create_partnership_initial"/);
+  assert.match(b2b, /partnership_type TEXT/);
+  assert.match(b2b, /contact_status TEXT/);
+  assert.match(b2b, /stage:'?مرحلة الملاءمة'?|مرحلة الملاءمة/);
+  assert.doesNotMatch(b2b, /create_partnership_initial[\s\S]{0,700}اسم الجهة والمسؤول وتواريخ الاتفاقية مطلوبة/);
+});
