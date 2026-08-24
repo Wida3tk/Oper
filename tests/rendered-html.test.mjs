@@ -576,3 +576,12 @@ test("supports multiple organization representatives with one primary contact", 
   assert.match(b2b, /action==="delete_contact"/);
   assert.match(b2b, /SET is_primary=0/);
 });
+
+test("shows the Sulukera owner and a visual organization status signal", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /مسؤول سلوكيرا/);
+  assert.match(page, /b2b-contact-signal/);
+  assert.match(page, /row\.owner_name \|\| "غير مسند"/);
+  assert.match(b2b, /owner_name/);
+});

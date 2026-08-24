@@ -7502,9 +7502,10 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                                 ممثل الجهة <b>{row.contact_name || "غير محدد"}</b>
                               </span>
                               <span>
-                                حالة الجهة <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
+                                مسؤول سلوكيرا <b>{row.owner_name || "غير مسند"}</b>
                               </span>
                             </div>
+                            <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><span>حالة الجهة</span><b>{row.contact_status || "لم يتم التواصل"}</b></div>
                           </article>
                         );
                       })
@@ -7639,11 +7640,11 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     </div>
                     <div>
                       <span>حالة الجهة</span>
-                      <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
+                      <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><b>{row.contact_status || "لم يتم التواصل"}</b></div>
                     </div>
                     <div>
-                      <span>نوع الشراكة</span>
-                      <b>{row.partnership_type || "غير محدد"}</b>
+                      <span>مسؤول سلوكيرا</span>
+                      <b>{row.owner_name || "غير مسند"}</b>
                     </div>
                   </>
                 )}
