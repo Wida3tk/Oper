@@ -458,7 +458,7 @@ test("builds the five-stage B2B partnership lifecycle with gated approvals", asy
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
   assert.match(page, /الاستكشاف والتقييم/);
-  assert.match(page, /التفاوض والهيكلة/);
+  assert.match(page, /التفاوض والاتفاقية/);
   assert.match(page, /التفعيل والعمليات/);
   assert.match(page, /قياس الأثر/);
   assert.match(page, /التجديد أو الخروج/);
@@ -472,7 +472,7 @@ test("keeps B2B governance documents and finance isolated inside the partnership
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
   assert.match(page, /مركز المستندات/);
-  assert.match(page, /بوابات الموافقة/);
+  assert.match(page, /مسار الاعتماد/);
   assert.match(page, /المؤشرات المالية للشراكة/);
   assert.match(page, /مستقلة تمامًا عن مبيعات وتحصيل الأفراد/);
   assert.match(b2b, /b2b_partnership_finance/);
@@ -514,7 +514,7 @@ test("persists multiple B2B meeting minutes and unlocks approved lifecycle trans
   assert.match(b2b, /CREATE TABLE IF NOT EXISTS b2b_meeting_minutes/);
   assert.match(b2b, /INSERT INTO b2b_meeting_minutes/);
   assert.match(b2b, /SELECT \* FROM b2b_meeting_minutes/);
-  assert.match(b2b, /target==="التفاوض والهيكلة"&&row\.fit_decision!=="اعتماد"/);
+  assert.match(b2b, /target==="التفاوض والاتفاقية"&&row\.fit_decision!=="اعتماد"/);
   assert.match(page, /محاضر الاجتماعات السابقة/);
   assert.match(page, /setMeetingMinutes\(data\.meetings\|\|\[\]\)/);
   assert.match(page, /canConvert=\{has\("b2b\.partnerships\.manage"\)\|\|has\("b2b\.manage"\)\}/);
