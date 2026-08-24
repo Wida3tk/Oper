@@ -551,3 +551,9 @@ test("shows the current organization contact status on external B2B cards", asyn
   assert.match(page, /row\.contact_status \|\| "لم يتم التواصل"/);
   assert.match(b2b, /a\.contact_status/);
 });
+
+test("labels the combined B2B path in Arabic everywhere", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /path==="BOTH"\?"جميع المجالات"/);
+  assert.match(page, /b2bPathLabel\(row\.path\)/);
+});

@@ -6577,6 +6577,7 @@ const b2bStageColors: Record<string,string> = {
 };
 const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
 const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":status==="تم تحديد اجتماع"?"meeting":status==="في انتظار الرد"?"waiting":status==="تم التواصل الأول"?"contacted":"new";
+const b2bPathLabel=(path:unknown)=>path==="BOTH"?"جميع المجالات":String(path||"ABA");
 const B2B_LOCATIONS: Record<string,string[]> = {
   "الرياض":["الرياض","الخرج","الدرعية","المجمعة"],"مكة المكرمة":["مكة المكرمة","جدة","الطائف","رابغ"],"المدينة المنورة":["المدينة المنورة","ينبع","العلا"],
   "المنطقة الشرقية":["الدمام","الخبر","الظهران","الأحساء","الجبيل"],"القصيم":["بريدة","عنيزة","الرس"],"عسير":["أبها","خميس مشيط","محايل عسير"],
@@ -7395,6 +7396,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
             <option>الكل</option>
             <option>ABA</option>
             <option>OBM</option>
+            <option value="BOTH">جميع المجالات</option>
           </select>
           <select
             value={stageFilter}
@@ -7484,7 +7486,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               <div>
                                 <b>{row.account_name}</b>
                                 <small>
-                                  {row.account_type} · {row.path || "ABA"}
+                                  {row.account_type} · {b2bPathLabel(row.path)}
                                 </small>
                                 <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                               </div>
@@ -7556,7 +7558,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   <>
                     <div>
                       <span>المسار</span>
-                      <b>{row.path || "ABA"}</b>
+                      <b>{b2bPathLabel(row.path)}</b>
                     </div>
                     <div>
                       <span>
@@ -7643,7 +7645,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   <>
                     <div>
                       <span>المسار</span>
-                      <b>{row.path || "ABA"}</b>
+                      <b>{b2bPathLabel(row.path)}</b>
                     </div>
                     <div>
                       <span>حالة الشراكة</span>
