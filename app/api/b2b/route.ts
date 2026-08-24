@@ -204,10 +204,10 @@ export async function POST(req:Request){
   }
   if(action==="create_partnership_initial"){
     if(!isAdmin(auth)&&!can(auth,"b2b.partnerships.create"))return Response.json({error:"ليس لديك صلاحية إضافة جهة إلى الشراكات"},{status:403});
-    const name=String(body.name||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"",ownerEmail=String(body.ownerEmail||"").trim().toLowerCase();
+    const name=String(body.name||"").trim(),contactName=String(body.contactName||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"",ownerEmail=String(body.ownerEmail||"").trim().toLowerCase();
     const accountId=id("B2BA"),contactId=id("B2BC"),opportunityId=id("B2BO"),changes=[
       db.prepare("INSERT INTO b2b_accounts(id,name,type,region,city,activity,source,owner_email,priority,status,created_by_email,created_at,updated_at,path,partnership_type,contact_status) VALUES(?,?,?,?,?,?,?,?,?,'فرصة أولية',?,?,?,?,?,?)").bind(accountId,name,"",String(body.region||""),String(body.city||""),"",String(body.source||""),ownerEmail,String(body.priority||""),auth.email,now,now,path,String(body.partnershipType||""),String(body.contactStatus||"")),
-      db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,'','',?,'','',1,?,?)").bind(contactId,accountId,"",email,now,now),
+      db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,'','',?,'مسؤول الجهة','',1,?,?)").bind(contactId,accountId,contactName,email,now,now),
       db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at,opportunity_kind,lifecycle_stage,lifecycle_updated_at) VALUES(?,?,'مرحلة الملاءمة',?,?,?,'approved',?,?,'partnership','الاستكشاف والتقييم',?)").bind(opportunityId,accountId,auth.email,now,now,auth.email,now,now),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'إضافة بيانات أولية','تم إنشاء سجل أولي للجهة في مرحلة الملاءمة',?,?)").bind(id("B2BX"),accountId,opportunityId,auth.email,now),
     ];

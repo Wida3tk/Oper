@@ -529,4 +529,6 @@ test("edits B2B organization and contact data with an audit trail", async () => 
   assert.match(b2b, /action==="update_account"/);
   assert.match(b2b, /UPDATE_B2B_ACCOUNT/);
   assert.match(b2b, /تعديل بيانات الجهة/);
+  assert.match(page, /اسم ممثل الجهة/);
+  assert.match(b2b, /contactName=String\(body\.contactName/);
 });
