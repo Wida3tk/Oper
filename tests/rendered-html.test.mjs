@@ -483,9 +483,9 @@ test("starts partnerships with optional initial compatibility data", async () =>
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
   assert.match(page, /المرحلة الأولى · البيانات الأولية/);
-  assert.match(page, /عميل سابق","قاعدة بيانات سلوكيرا","هو تواصل معنا/);
+  assert.match(page, /عميل سابق","قاعدة بيانات سلوكيرا","طلب وارد/);
   assert.match(page, /مذكرة تفاهم","شراكة تدريب","اتفاقية تسويق/);
-  assert.match(page, /<option>BOTH<\/option>/);
+  assert.match(page, /<option value="BOTH">جميع المجالات<\/option>/);
   assert.match(page, /action:"create_partnership_initial"/);
   assert.match(b2b, /partnership_type TEXT/);
   assert.match(b2b, /contact_status TEXT/);
