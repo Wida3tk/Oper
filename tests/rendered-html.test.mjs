@@ -566,3 +566,13 @@ test("keeps organization cards focused on operational identity fields", async ()
   assert.match(page, /المدينة/);
   assert.doesNotMatch(page, /الانتهاء <b>\{row\.end_date/);
 });
+
+test("supports multiple organization representatives with one primary contact", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /ممثلو الجهة/);
+  assert.match(page, /تعيين كأساسي/);
+  assert.match(b2b, /action==="save_contact"/);
+  assert.match(b2b, /action==="delete_contact"/);
+  assert.match(b2b, /SET is_primary=0/);
+});

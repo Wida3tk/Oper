@@ -100,13 +100,14 @@ export async function GET(req: Request) {
   if(accountId){
     const allowed=await db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first();
     if(!allowed)return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
-    const [{results:activities},{results:documents},{results:approvals},{results:meetings}]=await Promise.all([
+    const [{results:activities},{results:documents},{results:approvals},{results:meetings},{results:contacts}]=await Promise.all([
       db.prepare("SELECT id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at FROM b2b_activities WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
       db.prepare("SELECT * FROM b2b_documents WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
       db.prepare("SELECT ap.*,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(ap.decided_by_email) LIMIT 1) decided_by_name FROM b2b_approvals ap WHERE ap.account_id=? ORDER BY ap.created_at DESC").bind(accountId).all(),
       db.prepare("SELECT * FROM b2b_meeting_minutes WHERE account_id=? ORDER BY COALESCE(meeting_at,created_at) DESC,created_at DESC").bind(accountId).all(),
+      db.prepare("SELECT id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at FROM b2b_contacts WHERE account_id=? ORDER BY is_primary DESC,created_at").bind(accountId).all(),
     ]);
-    return Response.json({activities,documents,approvals,meetings,documentTypes,approvalTypes});
+    return Response.json({activities,documents,approvals,meetings,contacts,documentTypes,approvalTypes});
   }
   const {results:staff}=await db.prepare("SELECT email,display_name FROM staff_accounts WHERE active=1 ORDER BY display_name,email").all();
   const section=params.get("section")||"business";
@@ -171,6 +172,21 @@ export async function POST(req:Request){
   if(!can(auth,"b2b.manage"))return Response.json({error:"ليس لديك صلاحية تعديل بيانات قطاع الأعمال"},{status:403});
   const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();await ensureSchema(db);
   const assertAccess=async(accountId:string)=>{const scope=scopeSql(auth);return db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first()};
+  if(action==="save_contact"){
+    const accountId=String(body.accountId||""),contactId=String(body.contactId||""),name=String(body.name||"").trim(),jobTitle=String(body.jobTitle||"").trim(),phone=String(body.phone||"").trim(),email=String(body.email||"").trim().toLowerCase(),isPrimary=body.isPrimary===true;
+    if(!accountId||!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    if(!name)return Response.json({error:"اسم ممثل الجهة مطلوب"},{status:400});
+    const existing=contactId?await db.prepare("SELECT id FROM b2b_contacts WHERE id=? AND account_id=?").bind(contactId,accountId).first():null,newId=existing?contactId:id("B2BC"),changes=[];
+    if(isPrimary)changes.push(db.prepare("UPDATE b2b_contacts SET is_primary=0,updated_at=? WHERE account_id=?").bind(now,accountId));
+    changes.push(existing?db.prepare("UPDATE b2b_contacts SET name=?,job_title=?,phone=?,email=?,is_primary=CASE WHEN ? THEN 1 ELSE is_primary END,updated_at=? WHERE id=?").bind(name,jobTitle,phone,email,isPrimary?1:0,now,newId):db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,?,?,?,'ممثل الجهة','',?,?,?)").bind(newId,accountId,name,jobTitle,phone,email,isPrimary?1:0,now,now));
+    changes.push(db.prepare("INSERT INTO b2b_activities(id,account_id,activity_type,details,actor_email,created_at) VALUES(?,?,'تحديث ممثلي الجهة',?,?,?)").bind(id("B2BX"),accountId,`${existing?"تم تحديث":"تمت إضافة"} ممثل الجهة: ${name}${isPrimary?" · ممثل أساسي":""}`,auth.email,now));
+    await db.batch(changes);return Response.json({ok:true,id:newId});
+  }
+  if(action==="delete_contact"){
+    const accountId=String(body.accountId||""),contactId=String(body.contactId||"");if(!accountId||!contactId||!await assertAccess(accountId))return Response.json({error:"ممثل الجهة غير متاح"},{status:403});
+    const {results}=await db.prepare("SELECT id,name,is_primary FROM b2b_contacts WHERE account_id=? ORDER BY is_primary DESC,created_at").bind(accountId).all<{id:string;name:string;is_primary:number}>();if(results.length<=1)return Response.json({error:"يجب الإبقاء على ممثل واحد على الأقل للجهة"},{status:409});const removed=results.find(x=>x.id===contactId);if(!removed)return Response.json({error:"ممثل الجهة غير موجود"},{status:404});const next=results.find(x=>x.id!==contactId);
+    await db.batch([db.prepare("DELETE FROM b2b_contacts WHERE id=? AND account_id=?").bind(contactId,accountId),...(removed.is_primary&&next?[db.prepare("UPDATE b2b_contacts SET is_primary=1,updated_at=? WHERE id=?").bind(now,next.id)]:[]),db.prepare("INSERT INTO b2b_activities(id,account_id,activity_type,details,actor_email,created_at) VALUES(?,?,'تحديث ممثلي الجهة',?,?,?)").bind(id("B2BX"),accountId,`تم حذف ممثل الجهة: ${removed.name}`,auth.email,now)]);return Response.json({ok:true});
+  }
   if(action==="update_account"){
     const accountId=String(body.accountId||"");
     if(!accountId||!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
