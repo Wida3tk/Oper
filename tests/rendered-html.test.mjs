@@ -543,3 +543,11 @@ test("keeps partnership intake out of business sales and shows organization logo
   assert.match(page, /row\.logo_data/);
   assert.match(page, /image\/png,image\/jpeg,image\/webp/);
 });
+
+test("shows the current organization contact status on external B2B cards", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /b2b-contact-state/);
+  assert.match(page, /row\.contact_status \|\| "لم يتم التواصل"/);
+  assert.match(b2b, /a\.contact_status/);
+});

@@ -134,7 +134,7 @@ export async function GET(req: Request) {
     return Response.json({partnerships:results,statuses:partnershipStatuses,lifecycleStages,staff,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
-  const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(a.owner_email) LIMIT 1) owner_name,a.priority,a.path,a.team_id,a.logo_data,
+  const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(a.owner_email) LIMIT 1) owner_name,a.priority,a.path,a.team_id,a.contact_status,a.logo_data,
     c.id contact_id,c.name contact_name,c.job_title contact_title,c.phone contact_phone,c.email contact_email,c.contact_role,c.preferred_channel,
     (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
     (SELECT MAX(x.created_at) FROM b2b_activities x WHERE x.opportunity_id=o.id AND x.activity_type IN ('تم التواصل','تواصل أولي','اتصال','واتساب','بريد إلكتروني')) last_contact_at

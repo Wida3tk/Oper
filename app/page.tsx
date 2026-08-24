@@ -6576,6 +6576,7 @@ const b2bStageColors: Record<string,string> = {
   "إعداد العرض":"amber","عرض مرسل":"amber","تفاوض":"orange","بانتظار التوقيع":"orange","تم التوقيع":"green","مغلقة":"gray",
 };
 const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
+const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":status==="تم تحديد اجتماع"?"meeting":status==="في انتظار الرد"?"waiting":status==="تم التواصل الأول"?"contacted":"new";
 const B2B_LOCATIONS: Record<string,string[]> = {
   "الرياض":["الرياض","الخرج","الدرعية","المجمعة"],"مكة المكرمة":["مكة المكرمة","جدة","الطائف","رابغ"],"المدينة المنورة":["المدينة المنورة","ينبع","العلا"],
   "المنطقة الشرقية":["الدمام","الخبر","الظهران","الأحساء","الجبيل"],"القصيم":["بريدة","عنيزة","الرس"],"عسير":["أبها","خميس مشيط","محايل عسير"],
@@ -7485,6 +7486,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                                 <small>
                                   {row.account_type} · {row.path || "ABA"}
                                 </small>
+                                <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                               </div>
                               <button
                                 aria-label={`فتح ملف ${row.account_name}`}
@@ -7542,6 +7544,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     {row.requested_program && (
                       <small>{row.requested_program}</small>
                     )}
+                    <em className={`b2b-contact-state ${b2bContactTone(row.contact_status)}`}>{row.contact_status || "لم يتم التواصل"}</em>
                   </div>
                 </div>
                 <div>
