@@ -483,10 +483,10 @@ test("starts partnerships with optional initial compatibility data", async () =>
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
   assert.match(page, /المرحلة الأولى · البيانات الأولية/);
-  assert.match(page, /عميل سابق","قاعدة بيانات سلوكيرا","طلب وارد/);
-  assert.match(page, /مذكرة تفاهم","شراكة تدريب","اتفاقية تسويق/);
+  assert.match(page, /عميل سابق[\s\S]{0,120}قاعدة بيانات سلوكيرا[\s\S]{0,120}طلب وارد/);
+  assert.match(page, /مذكرة تفاهم[\s\S]{0,120}شراكة تدريب[\s\S]{0,120}اتفاقية تسويق/);
   assert.match(page, /<option value="BOTH">جميع المجالات<\/option>/);
-  assert.match(page, /action:"create_partnership_initial"/);
+  assert.match(page, /action:\s*"create_partnership_initial"/);
   assert.match(b2b, /partnership_type TEXT/);
   assert.match(b2b, /contact_status TEXT/);
   assert.match(b2b, /stage:'?مرحلة الملاءمة'?|مرحلة الملاءمة/);
@@ -500,7 +500,7 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /لم يتم التواصل.*تم التواصل الأول.*في انتظار الرد.*تم تحديد اجتماع.*تم الاجتماع/s);
   assert.match(page, /محضر الاجتماع/);
   assert.match(page, /الحضور من سلوكيرا/);
-  assert.match(page, /اعتماد","رفض","تأجيل/);
+  assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
   assert.match(page, /إرسال النموذج.*تعبئة النموذج.*إرسال الاتفاقية.*توقيع الاتفاقية/s);
   assert.match(page, /partnership-decisions-overview/);
   assert.match(b2b, /update_partnership_pipeline/);
@@ -531,4 +531,15 @@ test("edits B2B organization and contact data with an audit trail", async () => 
   assert.match(b2b, /تعديل بيانات الجهة/);
   assert.match(page, /اسم ممثل الجهة/);
   assert.match(b2b, /contactName=String\(body\.contactName/);
+});
+
+test("keeps partnership intake out of business sales and shows organization logos", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(b2b, /ALTER TABLE b2b_accounts ADD COLUMN logo_data TEXT/);
+  assert.match(b2b, /workspace='partnerships'/);
+  assert.match(b2b, /COALESCE\(o\.workspace,'business'\)='business'/);
+  assert.match(page, /شعار الجهة/);
+  assert.match(page, /row\.logo_data/);
+  assert.match(page, /image\/png,image\/jpeg,image\/webp/);
 });

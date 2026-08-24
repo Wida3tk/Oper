@@ -6593,8 +6593,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});await load();if(keepOpen&&selected){const current=selected;setSelected({...current,...(body.action==="update_lifecycle"?{lifecycle_stage:body.stage}:{})});await loadActivities(current.account_id)}}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const loadActivities=async(accountId:unknown)=>{try{const data=await apiJson(`/api/b2b?accountId=${encodeURIComponent(String(accountId||""))}`);setActivities(data.activities||[]);setDocuments(data.documents||[]);setApprovals(data.approvals||[]);setMeetingMinutes(data.meetings||[])}catch(e){setError((e as Error).message)}};
-  const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});void loadActivities(row.account_id)};
-  const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
+  const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});void loadActivities(row.account_id)};
+  const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const addActivity=async()=>{if(!selected)return;setSaving(true);try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"log_activity",accountId:selected.account_id,opportunityId:selected.opportunity_id||selected.id,partnershipId:section==="partnerships"?(selected.partnership_id||""):"",activityType,details:activityDetails})});setActivityDetails("");await loadActivities(selected.account_id);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const removeEntity=async()=>{if(!selected||!canDelete)return;const name=String(selected.account_name||"هذه الجهة");if(!window.confirm(`سيتم حذف ${name} وجميع سجلاتها في B2B نهائيًا. هل تريد المتابعة؟`))return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({accountId:selected.account_id})});setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const today=new Date().toISOString().slice(0,10),totalValue=rows.reduce((sum,row)=>sum+Number(row.expected_value||row.value||0),0),followUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<=today).length;
@@ -6605,104 +6605,2047 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const overdueFollowUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<today).length;
   const agreementMilestones=[['data_form_sent_at','إرسال النموذج'],['data_form_completed_at','تعبئة النموذج'],['agreement_sent_at','إرسال الاتفاقية'],['agreement_signed_at','توقيع الاتفاقية']] as const;
   const moveLifecycle=(row:B2BRow,stage:string)=>void execute({action:"update_lifecycle",opportunityId:row.opportunity_id,partnershipId:row.partnership_id||"",stage},false);
-  return <div className="b2b-workspace">
-    <section className="b2b-hero"><div><span>{scope==="all"?"نظرة شاملة لجميع الفرق":"مساحة العمل المسندة إليك"}</span><h2>{section==="business"?"مبيعات الأعمال":"الشراكات"}</h2><p>{section==="business"?"كل جهة، تواصل، اجتماع وعرض في مسار واحد واضح.":"متابعة الاتفاقيات والتفعيل والتجديد دون خلطها بمالية الأفراد."}</p></div>{((section==="business"&&canManage)||(section==="partnerships"&&canCreatePartnership))&&<button onClick={()=>{if(section==="partnerships")setForm(current=>({...current,name:"",contactName:"",region:"",city:"",email:"",source:"",path:"",partnershipType:"",priority:"",ownerEmail:"",contactStatus:""}));setShowForm(true)}}><UserPlus size={17}/> إضافة جهة</button>}</section>
-    <div className="b2b-kpis">
-      <article><span>{section==="business"?"الجهات المسندة":"إجمالي الشراكات"}</span><b>{rows.length}</b><small>{scope==="all"?"ضمن جميع الفرق":"ضمن نطاق عملك"}</small></article>
-      <article><span>{section==="business"?"تم التواصل اليوم":"شراكات نشطة"}</span><b>{section==="business"?contactedToday:rows.filter(x=>x.status==="نشطة").length}</b><small>{section==="business"?`${contacted} جهة تم التواصل معها إجمالًا`:"قيد التفعيل والمتابعة"}</small></article>
-      <article><span>{section==="business"?"متابعات مستحقة":"تجديد خلال 60 يومًا"}</span><b>{section==="business"?followUps:rows.filter(x=>{const d=days(x.end_date);return d!==null&&d>=0&&d<=60}).length}</b><small>{section==="business"?`${awaitingSignature} بانتظار التوقيع`:"تحتاج تخطيطًا مبكرًا"}</small></article>
-      <article><span>{section==="business"?"طلبات التدريب المؤسسي":"قيمة الاتفاقيات"}</span><b>{section==="business"?trainingRequests:totalValue.toLocaleString("en-US")} {section!=="business"&&<small>ر.س</small>}</b><small>{section==="business"?"لا تتحول إلى شراكات":"مؤشر B2B مستقل"}</small></article>
-      <article className={overdueFollowUps?"attention":""}><span>متابعات متأخرة</span><b>{overdueFollowUps}</b><small>{overdueFollowUps?"تجاوزت تاريخ المتابعة القادمة":"جميع المتابعات ضمن موعدها"}</small></article>
-    </div>
-    {section==="business"&&<section className="b2b-funnel"><header><div><b>تقدم فرص الشراكة</b><span>طلبات التدريب المؤسسي تظهر في تصنيف مستقل ولا تدخل هذا المسار</span></div></header><div>{funnelStages.map((stage,index)=>{const partnershipRows=rows.filter(row=>row.opportunity_kind!=="corporate_training"),count=partnershipRows.filter(row=>funnelStages.indexOf(String(row.stage))>=index).length,percent=partnershipRows.length?Math.round(count/partnershipRows.length*100):0;return <button key={stage} onClick={()=>{setKindFilter("partnership");setStageFilter(stage)}}><span>{stage}</span><b>{count}</b><i><em style={{width:`${percent}%`}}/></i></button>})}</div></section>}
-    {error&&<p className="error">{error}</p>}
-    {showForm&&<section className="b2b-form-card"><header><div><b>{section==="business"?"إضافة جهة لمبيعات الأعمال":"إضافة جهة إلى الشراكات"}</b><span>{section==="partnerships"?"المرحلة الأولى · البيانات الأولية":formStep===1?"الخطوة 1 من 2 · بيانات الفرصة الأساسية":"الخطوة 2 من 2 · تفاصيل العقد والاعتماد"}</span></div><button aria-label="إغلاق النموذج" onClick={()=>{setShowForm(false);setFormStep(1)}}>×</button></header>
-      <div className="b2b-form-shell">
-        <aside className="b2b-form-sidebar" aria-label="مراحل إضافة الجهة">
-          <div className="b2b-form-sidebar-title"><span>خطوات الإضافة</span><b>{formStep} من 2</b></div>
-          <button type="button" className={formStep===1?"current":"complete"} onClick={()=>setFormStep(1)}><i>{formStep>1?<Check size={15}/>:"01"}</i><span><b>{section==="partnerships"?"البيانات الأولية":"بيانات الجهة"}</b><small>{section==="partnerships"?"بيانات تعريفية اختيارية لبدء مرحلة الملاءمة":"الجهة، مسؤول التواصل، المسار والإسناد"}</small></span></button>
-          <button type="button" disabled={section==="partnerships"||(section==="business"&&form.registrationStatus!=="موقعة")} className={formStep===2?"current":""} onClick={()=>{if(section==="business"&&form.registrationStatus==="موقعة")setFormStep(2)}}><i>02</i><span><b>{section==="partnerships"?"قرار الانتقال":"الاتفاقية والاعتماد"}</b><small>{section==="partnerships"?"التوقيع أو التأجيل · تُستكمل في المرحلة التالية":form.registrationStatus!=="موقعة"?"تُفتح عند اختيار موقعة":"التواريخ والقيمة وملف الاتفاقية"}</small></span></button>
-        </aside>
-        <div className="b2b-form-main">
-          <div className="b2b-form-section-head"><i>{formStep===1?"01":"02"}</i><div><h3>{formStep===1?(section==="partnerships"?"البيانات الأولية":"بيانات الجهة والفرصة"):"تفاصيل الاتفاقية"}</h3><p>{formStep===1?(section==="partnerships"?"ابدأ بالمعلومات المتاحة حاليًا؛ يمكن استكمال جميع الحقول لاحقًا.":"سجّل البيانات الأساسية وحدد المسؤول والمسار التشغيلي."):"أكمل بيانات التوقيع والاتفاقية قبل إنشاء الشراكة."}</p></div></div>
-      {formStep===1?(section==="partnerships"?<div className="b2b-form-grid partnership-initial-fields">
-        <label><span>اسم الجهة</span><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="اسم الجهة إن كان متاحًا"/></label>
-        <label><span>اسم ممثل الجهة</span><input value={form.contactName} onChange={e=>setForm({...form,contactName:e.target.value})} placeholder="اسم الشخص المسؤول لدى الجهة"/></label>
-        <label><span>المنطقة</span><select value={form.region} onChange={e=>setForm({...form,region:e.target.value,city:""})}><option value="">غير محدد</option>{Object.keys(B2B_LOCATIONS).map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>المدينة</span><select disabled={!form.region} value={form.city} onChange={e=>setForm({...form,city:e.target.value})}><option value="">غير محدد</option>{(B2B_LOCATIONS[form.region]||[]).map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>البريد الإلكتروني</span><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="name@example.com"/></label>
-        <label><span>المصدر</span><select value={form.source} onChange={e=>setForm({...form,source:e.target.value})}><option value="">غير محدد</option>{["عميل سابق","قاعدة بيانات سلوكيرا","طلب وارد"].map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>المجال</span><select value={form.path} onChange={e=>setForm({...form,path:e.target.value})}><option value="">غير محدد</option><option>ABA</option><option>OBM</option><option value="BOTH">جميع المجالات</option></select></label>
-        <label><span>نوع الشراكة</span><select value={form.partnershipType} onChange={e=>setForm({...form,partnershipType:e.target.value})}><option value="">غير محدد</option>{["مذكرة تفاهم","شراكة تدريب","اتفاقية تسويق"].map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>الأولوية</span><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}><option value="">غير محددة</option>{["عالية","متوسطة","منخفضة"].map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>الإسناد</span><select value={form.ownerEmail} onChange={e=>setForm({...form,ownerEmail:e.target.value})}><option value="">دون إسناد</option>{staff.map(x=><option key={String(x.email)} value={String(x.email)}>{x.display_name||x.email}</option>)}</select></label>
-        <label><span>حالة التواصل</span><select value={form.contactStatus} onChange={e=>setForm({...form,contactStatus:e.target.value})}><option value="">غير محددة</option>{["لم يتم التواصل","تم التواصل","بانتظار الرد","متابعة لاحقة","لا يوجد رد"].map(x=><option key={x}>{x}</option>)}</select></label>
-      </div>:<div className="b2b-form-grid">
-        {[['name','اسم الجهة *'],['contactName','الشخص المسؤول *'],['jobTitle','المسمى الوظيفي'],['phone','رقم الجوال'],['email','البريد الإلكتروني'],['activity','نشاط الجهة'],['source','مصدر الفرصة'],['expectedValue','القيمة المتوقعة'],['expectedCloseDate','تاريخ الإغلاق المتوقع'],['nextFollowUp','المتابعة القادمة'],['recommendedServices','الخدمات المقترحة']].map(([key,label])=><label key={key}><span>{label}</span><input type={key.includes('Date')||key==='nextFollowUp'?'date':key==='expectedValue'?'number':'text'} value={form[key]||""} onChange={e=>setForm({...form,[key]:e.target.value})}/></label>)}
-        <label><span>المنطقة</span><select value={form.region} onChange={e=>setForm({...form,region:e.target.value,city:""})}><option value="">اختر المنطقة</option>{Object.keys(B2B_LOCATIONS).map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>المدينة</span><select disabled={!form.region} value={form.city} onChange={e=>setForm({...form,city:e.target.value})}><option value="">اختر المدينة</option>{(B2B_LOCATIONS[form.region]||[]).map(x=><option key={x}>{x}</option>)}</select></label>
-        <label><span>نوع الجهة</span><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{["شركة","مركز","جمعية","جهة حكومية","جامعة","أخرى"].map(x=><option key={x}>{x}</option>)}</select></label><label><span>الأولوية</span><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>{["عالية","متوسطة","منخفضة"].map(x=><option key={x}>{x}</option>)}</select></label>
-        {section==="business"&&<><label><span>نوع الفرصة</span><select value={form.opportunityKind} onChange={e=>setForm({...form,opportunityKind:e.target.value})}><option value="partnership">فرصة شراكة</option><option value="corporate_training">طلب تدريب مؤسسي</option></select></label><label><span>حالة الفرصة</span><select value={form.registrationStatus} onChange={e=>setForm({...form,registrationStatus:e.target.value})}><option>فرصة جديدة</option><option>موقعة</option></select></label></>}
-        <label><span>مسار الجهة</span><select value={form.path} onChange={e=>setForm({...form,path:e.target.value})}><option>ABA</option><option>OBM</option></select></label><label><span>إسناد الموظف</span><select value={form.ownerEmail} onChange={e=>setForm({...form,ownerEmail:e.target.value})}><option value="">إسنادها لي</option>{staff.map(x=><option key={String(x.email)} value={String(x.email)}>{x.display_name||x.email}</option>)}</select></label>
-        {section==="business"&&form.opportunityKind==="corporate_training"&&<><label><span>اسم التدريب أو البرنامج *</span><input value={form.requestedProgram} onChange={e=>setForm({...form,requestedProgram:e.target.value})}/></label><label><span>عدد المتدربين *</span><input type="number" min="1" value={form.traineeCount} onChange={e=>setForm({...form,traineeCount:e.target.value})}/></label><label><span>التاريخ المتوقع للتنفيذ</span><input type="date" value={form.deliveryDate} onChange={e=>setForm({...form,deliveryDate:e.target.value})}/></label></>}
-      </div>):<div className="b2b-form-grid contract-step">{[['signedAt','تاريخ التوقيع *'],['startDate','بداية الاتفاقية *'],['endDate','نهاية الاتفاقية *'],['agreementNumber','رقم الاتفاقية'],['value','قيمة الاتفاقية'],['scope','نطاق الاتفاقية'],['services','الخدمات المتفق عليها'],['documentUrl','رابط العقد النهائي']].map(([key,label])=><label key={key}><span>{label}</span><input type={key.endsWith('At')||key.endsWith('Date')?'date':key==='value'?'number':'text'} value={agreement[key]||""} onChange={e=>setAgreement({...agreement,[key]:e.target.value})}/></label>)}</div>}
+  const readLogo=(file:File|undefined,target:"form"|"account")=>{if(!file)return;if(file.size>500000||!/^image\/(png|jpeg|webp)$/.test(file.type)){setError("الشعار يجب أن يكون PNG أو JPG أو WebP وحجمه أقل من 500KB");return}const reader=new FileReader();reader.onload=()=>{const logoData=String(reader.result||"");target==="form"?setForm(current=>({...current,logoData})):setAccountDraft(current=>({...current,logoData}))};reader.readAsDataURL(file)};
+  return (
+    <div className="b2b-workspace">
+      <section className="b2b-hero">
+        <div>
+          <span>
+            {scope === "all"
+              ? "نظرة شاملة لجميع الفرق"
+              : "مساحة العمل المسندة إليك"}
+          </span>
+          <h2>{section === "business" ? "مبيعات الأعمال" : "الشراكات"}</h2>
+          <p>
+            {section === "business"
+              ? "كل جهة، تواصل، اجتماع وعرض في مسار واحد واضح."
+              : "متابعة الاتفاقيات والتفعيل والتجديد دون خلطها بمالية الأفراد."}
+          </p>
         </div>
+        {((section === "business" && canManage) ||
+          (section === "partnerships" && canCreatePartnership)) && (
+          <button
+            onClick={() => {
+              if (section === "partnerships")
+                setForm((current) => ({
+                  ...current,
+                  name: "",
+                  contactName: "",
+                  region: "",
+                  city: "",
+                  email: "",
+                  source: "",
+                  path: "",
+                  partnershipType: "",
+                  priority: "",
+                  ownerEmail: "",
+                  contactStatus: "",
+                  logoData: "",
+                }));
+              setShowForm(true);
+            }}
+          >
+            <UserPlus size={17} /> إضافة جهة
+          </button>
+        )}
+      </section>
+      <div className="b2b-kpis">
+        <article>
+          <span>
+            {section === "business" ? "الجهات المسندة" : "إجمالي الشراكات"}
+          </span>
+          <b>{rows.length}</b>
+          <small>{scope === "all" ? "ضمن جميع الفرق" : "ضمن نطاق عملك"}</small>
+        </article>
+        <article>
+          <span>
+            {section === "business" ? "تم التواصل اليوم" : "شراكات نشطة"}
+          </span>
+          <b>
+            {section === "business"
+              ? contactedToday
+              : rows.filter((x) => x.status === "نشطة").length}
+          </b>
+          <small>
+            {section === "business"
+              ? `${contacted} جهة تم التواصل معها إجمالًا`
+              : "قيد التفعيل والمتابعة"}
+          </small>
+        </article>
+        <article>
+          <span>
+            {section === "business" ? "متابعات مستحقة" : "تجديد خلال 60 يومًا"}
+          </span>
+          <b>
+            {section === "business"
+              ? followUps
+              : rows.filter((x) => {
+                  const d = days(x.end_date);
+                  return d !== null && d >= 0 && d <= 60;
+                }).length}
+          </b>
+          <small>
+            {section === "business"
+              ? `${awaitingSignature} بانتظار التوقيع`
+              : "تحتاج تخطيطًا مبكرًا"}
+          </small>
+        </article>
+        <article>
+          <span>
+            {section === "business"
+              ? "طلبات التدريب المؤسسي"
+              : "قيمة الاتفاقيات"}
+          </span>
+          <b>
+            {section === "business"
+              ? trainingRequests
+              : totalValue.toLocaleString("en-US")}{" "}
+            {section !== "business" && <small>ر.س</small>}
+          </b>
+          <small>
+            {section === "business" ? "لا تتحول إلى شراكات" : "مؤشر B2B مستقل"}
+          </small>
+        </article>
+        <article className={overdueFollowUps ? "attention" : ""}>
+          <span>متابعات متأخرة</span>
+          <b>{overdueFollowUps}</b>
+          <small>
+            {overdueFollowUps
+              ? "تجاوزت تاريخ المتابعة القادمة"
+              : "جميع المتابعات ضمن موعدها"}
+          </small>
+        </article>
       </div>
-      <footer>{formStep===2&&<button className="secondary" onClick={()=>setFormStep(1)}>السابق</button>}<button disabled={saving||(section==="business"&&(!form.name||!form.contactName))} onClick={()=>{if(section==="partnerships"){void save({action:"create_partnership_initial",...form});return}const needsContract=form.registrationStatus==="موقعة";if(formStep===1&&needsContract){setFormStep(2);return}void save(formStep===2?{action:"create_partnership",...form,...agreement}:{action:"create_business",...form})}}>{section==="partnerships"?"حفظ البيانات الأولية":formStep===1&&form.registrationStatus!=="موقعة"?"إرسال الجهة للاعتماد":formStep===1?"التالي":"حفظ الشراكة"}</button></footer>
-    </section>}
-    {section==="partnerships"&&visibleRows.some(row=>row.fit_decision)&&<section className="partnership-decisions-overview"><header><div><b>قرارات الملاءمة وتقدم الاتفاقيات</b><span>الحالة الحالية ظاهرة دون الحاجة إلى فتح ملف الجهة</span></div></header><div>{visibleRows.filter(row=>row.fit_decision).map(row=><article key={String(row.id)} className={row.fit_decision==="اعتماد"?"approved":row.fit_decision==="رفض"?"rejected":"deferred"}><div><b>{row.account_name||"جهة دون اسم"}</b><span>{row.fit_decision} · {row.fit_reason||"دون ملاحظة"}</span></div>{row.fit_decision==="اعتماد"?<div className="partnership-card-progress">{agreementMilestones.map(([key,label])=><span key={key} className={row[key]?"done":""}><i>{row[key]?"✓":""}</i>{label}</span>)}</div>:<em>{row.fit_decision==="تأجيل"&&row.next_follow_up?`المتابعة: ${row.next_follow_up}`:"محفوظة في السجل"}</em>}</article>)}</div></section>}
-    <section className="b2b-list"><header><div><b>{section==="business"?"قائمة الجهات":"سجل الشراكات"}</b><span>{visibleRows.length} من {rows.length} جهة</span></div></header>
-      <div className="b2b-toolbar"><label><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث باسم الجهة أو المسؤول أو التدريب..."/></label>{section==="business"&&<select value={kindFilter} onChange={e=>setKindFilter(e.target.value)}><option value="الكل">كل الأنواع</option><option value="partnership">فرص الشراكة</option><option value="corporate_training">طلبات الجهات</option></select>}<select value={pathFilter} onChange={e=>setPathFilter(e.target.value)}><option>الكل</option><option>ABA</option><option>OBM</option></select><select value={stageFilter} onChange={e=>setStageFilter(e.target.value)}><option>الكل</option>{options.map(x=><option key={x}>{x}</option>)}</select>{(search||stageFilter!=="الكل"||pathFilter!=="الكل"||kindFilter!=="الكل")&&<button onClick={()=>{setSearch("");setStageFilter("الكل");setPathFilter("الكل");setKindFilter("الكل")}}>مسح التصفية</button>}</div>
-      {loading?<LiveState loading error="" empty={false}/>:visibleRows.length===0?<LiveState loading={false} error="" empty/>:section==="partnerships"?<div className="b2b-kanban" aria-label="لوحة دورة حياة الشراكات">{lifecycleStages.map((stage,index)=>{const stageRows=visibleRows.filter(row=>String(row.lifecycle_stage||"التفعيل والعمليات")===stage);return <section className={`b2b-kanban-column stage-${index+1}`} key={stage} onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move"}} onDrop={e=>{e.preventDefault();const row=rows.find(x=>String(x.id)===dragging);if(row&&String(row.lifecycle_stage)!==stage)moveLifecycle(row,stage);setDragging("")}}><header><span>0{index+1}</span><div><b>{stage}</b><small>{stageRows.length} شراكة</small></div></header><div>{stageRows.length===0?<p className="b2b-kanban-empty">اسحب بطاقة مكتملة المتطلبات إلى هنا</p>:stageRows.map(row=>{const remaining=days(row.end_date);return <article draggable={canConvert} onDragStart={e=>{setDragging(String(row.id));e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>setDragging("")} onClick={()=>openRow(row)} key={String(row.id)} className={dragging===String(row.id)?"dragging":""}><div className="kanban-card-top"><i>{String(row.account_name||"ج").slice(0,2)}</i><div><b>{row.account_name}</b><small>{row.account_type} · {row.path||"ABA"}</small></div><button aria-label={`فتح ملف ${row.account_name}`}><Eye size={15}/></button></div><div className="kanban-card-meta"><span>المسؤول <b>{row.contact_name||"غير محدد"}</b></span><span>الانتهاء <b>{row.end_date||"غير محدد"}</b></span></div><footer><em className={`b2b-status ${row.status==="نشطة"?"green":remaining!==null&&remaining<=60?"orange":"blue"}`}>{row.status}</em>{Number(row.pending_approvals||0)>0&&<strong>{row.pending_approvals} موافقات معلقة</strong>}</footer></article>})}</div></section>})}</div>:visibleRows.map(row=>{const remaining=days(row.end_date);return <article className="b2b-row" key={String(row.id)} onClick={()=>openRow(row)}>
-        <div className="b2b-identity"><i>{String(row.account_name||"ج").slice(0,2)}</i><div><b>{row.account_name}</b><span>{row.opportunity_kind==="corporate_training"?`طلب تدريب مؤسسي${row.trainee_count?` · ${row.trainee_count} متدرب`:""}`:`فرصة شراكة · ${row.account_type}`}</span>{row.requested_program&&<small>{row.requested_program}</small>}</div></div>
-        <div><span>الشخص المسؤول</span><b>{row.contact_name||"غير محدد"}</b><small>{row.contact_title||row.contact_phone||"—"}</small></div>
-        {section==="business"?<><div><span>المسار</span><b>{row.path||"ABA"}</b></div><div><span>{row.approval_status==="pending"?"حالة الاعتماد":"المرحلة"}</span>{row.approval_status==="pending"?<em className="b2b-status orange">بانتظار الاعتماد</em>:canManage?<select className="b2b-inline-stage" value={String(row.stage)} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void save({action:"update_stage",opportunityId:row.id,stage:e.target.value})}}>{(row.opportunity_kind==="corporate_training"?trainingStages:partnershipStages).map(x=><option key={x}>{x}</option>)}</select>:<em className={`b2b-status ${b2bStageColors[String(row.stage)]||"gray"}`}>{row.stage}</em>}</div><div>{row.approval_status==="pending"&&canReview?<div className="b2b-review-actions"><button onClick={e=>{e.stopPropagation();void save({action:"review_business",opportunityId:row.id,decision:"approved"})}}>اعتماد</button><button onClick={e=>{e.stopPropagation();void save({action:"review_business",opportunityId:row.id,decision:"rejected"})}}>رفض</button></div>:<><span>{row.opportunity_kind==="corporate_training"?"موعد التنفيذ":"المتابعة القادمة"}</span><b>{row.opportunity_kind==="corporate_training"?(row.delivery_date||"غير محدد"):(row.next_follow_up||"غير محددة")}</b></>}</div></>:<><div><span>المسار</span><b>{row.path||"ABA"}</b></div><div><span>حالة الشراكة</span><em className={`b2b-status ${row.status==="نشطة"?"green":remaining!==null&&remaining<=60?"orange":"blue"}`}>{row.status}</em></div><div><span>مدة الاتفاقية</span><b>{row.start_date} — {row.end_date}</b><small>{remaining===null?"":remaining<0?"منتهية":`${remaining} يوم متبقٍ`}</small></div></>}
-        <button className="b2b-details-button" type="button"><Eye size={14}/><span>التفاصيل</span></button>
-      </article>})}
-    </section>
-    {selected&&<><button className="b2b-overlay" aria-label="إغلاق" onClick={()=>setSelected(null)}/><aside className="b2b-drawer"><header><button onClick={()=>setSelected(null)}>×</button><span>{section==="business"?"ملف فرصة الأعمال":"ملف الشراكة"}</span><h2>{selected.account_name}</h2><p>{selected.account_type} · {selected.region||selected.city||"الموقع غير محدد"}</p></header><div className="b2b-drawer-body">
-      <section className="b2b-account-profile"><div className="b2b-progress-head"><div><h3>بيانات الجهة والتواصل</h3><p>البيانات الأساسية والمسؤول المعتمد للتواصل</p></div>{canManage&&<button type="button" className="b2b-edit-account" onClick={()=>setEditingAccount(!editingAccount)}>{editingAccount?"إلغاء":"تعديل البيانات"}</button>}</div>
-        {editingAccount?<div className="b2b-account-edit-grid">
-          <label><span>اسم الجهة *</span><input value={accountDraft.name||""} onChange={e=>setAccountDraft({...accountDraft,name:e.target.value})}/></label>
-          <label><span>نوع الجهة</span><input value={accountDraft.type||""} onChange={e=>setAccountDraft({...accountDraft,type:e.target.value})}/></label>
-          <label><span>المنطقة</span><select value={accountDraft.region||""} onChange={e=>setAccountDraft({...accountDraft,region:e.target.value,city:""})}><option value="">غير محددة</option>{Object.keys(B2B_LOCATIONS).map(x=><option key={x}>{x}</option>)}</select></label>
-          <label><span>المدينة</span><select value={accountDraft.city||""} onChange={e=>setAccountDraft({...accountDraft,city:e.target.value})}><option value="">غير محددة</option>{(B2B_LOCATIONS[accountDraft.region]||[]).map(x=><option key={x}>{x}</option>)}</select></label>
-          <label><span>المصدر</span><select value={accountDraft.source||""} onChange={e=>setAccountDraft({...accountDraft,source:e.target.value})}><option value="">غير محدد</option><option>إحالة من عميل سابق</option><option>قاعدة بيانات سلوكيرا</option><option>طلب وارد من الجهة</option></select></label>
-          <label><span>المجال</span><select value={accountDraft.path||""} onChange={e=>setAccountDraft({...accountDraft,path:e.target.value})}><option value="">غير محدد</option><option>ABA</option><option>OBM</option><option value="BOTH">جميع المجالات</option></select></label>
-          <label><span>نوع الشراكة</span><select value={accountDraft.partnershipType||""} onChange={e=>setAccountDraft({...accountDraft,partnershipType:e.target.value})}><option value="">غير محدد</option><option>مذكرة تفاهم</option><option>شراكة تدريب</option><option>اتفاقية تسويق</option></select></label>
-          <label><span>الأولوية</span><select value={accountDraft.priority||""} onChange={e=>setAccountDraft({...accountDraft,priority:e.target.value})}><option value="">غير محددة</option><option>عالية</option><option>متوسطة</option><option>منخفضة</option></select></label>
-          <label><span>الإسناد</span><select value={accountDraft.ownerEmail||""} onChange={e=>setAccountDraft({...accountDraft,ownerEmail:e.target.value})}><option value="">غير مسندة</option>{staff.map(person=><option key={String(person.email)} value={String(person.email)}>{String(person.name||person.email)}</option>)}</select></label>
-          <label><span>اسم مسؤول الجهة</span><input value={accountDraft.contactName||""} onChange={e=>setAccountDraft({...accountDraft,contactName:e.target.value})}/></label>
-          <label><span>المسمى الوظيفي</span><input value={accountDraft.jobTitle||""} onChange={e=>setAccountDraft({...accountDraft,jobTitle:e.target.value})}/></label>
-          <label><span>رقم الجوال</span><input dir="ltr" value={accountDraft.phone||""} onChange={e=>setAccountDraft({...accountDraft,phone:e.target.value})}/></label>
-          <label><span>البريد الإلكتروني</span><input dir="ltr" type="email" value={accountDraft.email||""} onChange={e=>setAccountDraft({...accountDraft,email:e.target.value})}/></label>
-          <button className="pipeline-save" disabled={saving||!accountDraft.name?.trim()} onClick={()=>void saveAccount()}><Check size={16}/> حفظ بيانات الجهة</button>
-        </div>:<dl><div><dt>اسم الجهة</dt><dd>{selected.account_name||"غير محدد"}</dd></div><div><dt>الموقع</dt><dd>{[selected.region,selected.city].filter(Boolean).join(" · ")||"—"}</dd></div><div><dt>المصدر</dt><dd>{selected.source||"—"}</dd></div><div><dt>المجال</dt><dd>{selected.path==="BOTH"?"جميع المجالات":selected.path||"—"}</dd></div><div><dt>المسؤول</dt><dd>{selected.contact_name||"غير محدد"}</dd></div><div><dt>المسمى</dt><dd>{selected.contact_title||"—"}</dd></div><div><dt>الجوال</dt><dd dir="ltr">{selected.contact_phone||"—"}</dd></div><div><dt>البريد</dt><dd>{selected.contact_email||"—"}</dd></div></dl>}
+      {section === "business" && (
+        <section className="b2b-funnel">
+          <header>
+            <div>
+              <b>تقدم فرص الشراكة</b>
+              <span>
+                طلبات التدريب المؤسسي تظهر في تصنيف مستقل ولا تدخل هذا المسار
+              </span>
+            </div>
+          </header>
+          <div>
+            {funnelStages.map((stage, index) => {
+              const partnershipRows = rows.filter(
+                  (row) => row.opportunity_kind !== "corporate_training",
+                ),
+                count = partnershipRows.filter(
+                  (row) => funnelStages.indexOf(String(row.stage)) >= index,
+                ).length,
+                percent = partnershipRows.length
+                  ? Math.round((count / partnershipRows.length) * 100)
+                  : 0;
+              return (
+                <button
+                  key={stage}
+                  onClick={() => {
+                    setKindFilter("partnership");
+                    setStageFilter(stage);
+                  }}
+                >
+                  <span>{stage}</span>
+                  <b>{count}</b>
+                  <i>
+                    <em style={{ width: `${percent}%` }} />
+                  </i>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {error && <p className="error">{error}</p>}
+      {showForm && (
+        <section className="b2b-form-card">
+          <header>
+            <div>
+              <b>
+                {section === "business"
+                  ? "إضافة جهة لمبيعات الأعمال"
+                  : "إضافة جهة إلى الشراكات"}
+              </b>
+              <span>
+                {section === "partnerships"
+                  ? "المرحلة الأولى · البيانات الأولية"
+                  : formStep === 1
+                    ? "الخطوة 1 من 2 · بيانات الفرصة الأساسية"
+                    : "الخطوة 2 من 2 · تفاصيل العقد والاعتماد"}
+              </span>
+            </div>
+            <button
+              aria-label="إغلاق النموذج"
+              onClick={() => {
+                setShowForm(false);
+                setFormStep(1);
+              }}
+            >
+              ×
+            </button>
+          </header>
+          <div className="b2b-form-shell">
+            <aside className="b2b-form-sidebar" aria-label="مراحل إضافة الجهة">
+              <div className="b2b-form-sidebar-title">
+                <span>خطوات الإضافة</span>
+                <b>{formStep} من 2</b>
+              </div>
+              <button
+                type="button"
+                className={formStep === 1 ? "current" : "complete"}
+                onClick={() => setFormStep(1)}
+              >
+                <i>{formStep > 1 ? <Check size={15} /> : "01"}</i>
+                <span>
+                  <b>
+                    {section === "partnerships"
+                      ? "البيانات الأولية"
+                      : "بيانات الجهة"}
+                  </b>
+                  <small>
+                    {section === "partnerships"
+                      ? "بيانات تعريفية اختيارية لبدء مرحلة الملاءمة"
+                      : "الجهة، مسؤول التواصل، المسار والإسناد"}
+                  </small>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={
+                  section === "partnerships" ||
+                  (section === "business" &&
+                    form.registrationStatus !== "موقعة")
+                }
+                className={formStep === 2 ? "current" : ""}
+                onClick={() => {
+                  if (
+                    section === "business" &&
+                    form.registrationStatus === "موقعة"
+                  )
+                    setFormStep(2);
+                }}
+              >
+                <i>02</i>
+                <span>
+                  <b>
+                    {section === "partnerships"
+                      ? "قرار الانتقال"
+                      : "الاتفاقية والاعتماد"}
+                  </b>
+                  <small>
+                    {section === "partnerships"
+                      ? "التوقيع أو التأجيل · تُستكمل في المرحلة التالية"
+                      : form.registrationStatus !== "موقعة"
+                        ? "تُفتح عند اختيار موقعة"
+                        : "التواريخ والقيمة وملف الاتفاقية"}
+                  </small>
+                </span>
+              </button>
+            </aside>
+            <div className="b2b-form-main">
+              <div className="b2b-form-section-head">
+                <i>{formStep === 1 ? "01" : "02"}</i>
+                <div>
+                  <h3>
+                    {formStep === 1
+                      ? section === "partnerships"
+                        ? "البيانات الأولية"
+                        : "بيانات الجهة والفرصة"
+                      : "تفاصيل الاتفاقية"}
+                  </h3>
+                  <p>
+                    {formStep === 1
+                      ? section === "partnerships"
+                        ? "ابدأ بالمعلومات المتاحة حاليًا؛ يمكن استكمال جميع الحقول لاحقًا."
+                        : "سجّل البيانات الأساسية وحدد المسؤول والمسار التشغيلي."
+                      : "أكمل بيانات التوقيع والاتفاقية قبل إنشاء الشراكة."}
+                  </p>
+                </div>
+              </div>
+              {formStep === 1 ? (
+                section === "partnerships" ? (
+                  <div className="b2b-form-grid partnership-initial-fields">
+                    <label>
+                      <span>اسم الجهة</span>
+                      <input
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        placeholder="اسم الجهة إن كان متاحًا"
+                      />
+                    </label>
+                    <label>
+                      <span>اسم ممثل الجهة</span>
+                      <input
+                        value={form.contactName}
+                        onChange={(e) =>
+                          setForm({ ...form, contactName: e.target.value })
+                        }
+                        placeholder="اسم الشخص المسؤول لدى الجهة"
+                      />
+                    </label>
+                    <label className="b2b-logo-field">
+                      <span>شعار الجهة</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(e) => readLogo(e.target.files?.[0], "form")}
+                      />
+                      {form.logoData && (
+                        <img src={form.logoData} alt="معاينة شعار الجهة" />
+                      )}
+                    </label>
+                    <label>
+                      <span>المنطقة</span>
+                      <select
+                        value={form.region}
+                        onChange={(e) =>
+                          setForm({ ...form, region: e.target.value, city: "" })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        {Object.keys(B2B_LOCATIONS).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>المدينة</span>
+                      <select
+                        disabled={!form.region}
+                        value={form.city}
+                        onChange={(e) =>
+                          setForm({ ...form, city: e.target.value })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        {(B2B_LOCATIONS[form.region] || []).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>البريد الإلكتروني</span>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                        placeholder="name@example.com"
+                      />
+                    </label>
+                    <label>
+                      <span>المصدر</span>
+                      <select
+                        value={form.source}
+                        onChange={(e) =>
+                          setForm({ ...form, source: e.target.value })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        {["عميل سابق", "قاعدة بيانات سلوكيرا", "طلب وارد"].map(
+                          (x) => (
+                            <option key={x}>{x}</option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      <span>المجال</span>
+                      <select
+                        value={form.path}
+                        onChange={(e) =>
+                          setForm({ ...form, path: e.target.value })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        <option>ABA</option>
+                        <option>OBM</option>
+                        <option value="BOTH">جميع المجالات</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>نوع الشراكة</span>
+                      <select
+                        value={form.partnershipType}
+                        onChange={(e) =>
+                          setForm({ ...form, partnershipType: e.target.value })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        {["مذكرة تفاهم", "شراكة تدريب", "اتفاقية تسويق"].map(
+                          (x) => (
+                            <option key={x}>{x}</option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      <span>الأولوية</span>
+                      <select
+                        value={form.priority}
+                        onChange={(e) =>
+                          setForm({ ...form, priority: e.target.value })
+                        }
+                      >
+                        <option value="">غير محددة</option>
+                        {["عالية", "متوسطة", "منخفضة"].map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>الإسناد</span>
+                      <select
+                        value={form.ownerEmail}
+                        onChange={(e) =>
+                          setForm({ ...form, ownerEmail: e.target.value })
+                        }
+                      >
+                        <option value="">دون إسناد</option>
+                        {staff.map((x) => (
+                          <option key={String(x.email)} value={String(x.email)}>
+                            {x.display_name || x.email}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>حالة التواصل</span>
+                      <select
+                        value={form.contactStatus}
+                        onChange={(e) =>
+                          setForm({ ...form, contactStatus: e.target.value })
+                        }
+                      >
+                        <option value="">غير محددة</option>
+                        {[
+                          "لم يتم التواصل",
+                          "تم التواصل",
+                          "بانتظار الرد",
+                          "متابعة لاحقة",
+                          "لا يوجد رد",
+                        ].map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="b2b-form-grid">
+                    {[
+                      ["name", "اسم الجهة *"],
+                      ["contactName", "الشخص المسؤول *"],
+                      ["jobTitle", "المسمى الوظيفي"],
+                      ["phone", "رقم الجوال"],
+                      ["email", "البريد الإلكتروني"],
+                      ["activity", "نشاط الجهة"],
+                      ["source", "مصدر الفرصة"],
+                      ["expectedValue", "القيمة المتوقعة"],
+                      ["expectedCloseDate", "تاريخ الإغلاق المتوقع"],
+                      ["nextFollowUp", "المتابعة القادمة"],
+                      ["recommendedServices", "الخدمات المقترحة"],
+                    ].map(([key, label]) => (
+                      <label key={key}>
+                        <span>{label}</span>
+                        <input
+                          type={
+                            key.includes("Date") || key === "nextFollowUp"
+                              ? "date"
+                              : key === "expectedValue"
+                                ? "number"
+                                : "text"
+                          }
+                          value={form[key] || ""}
+                          onChange={(e) =>
+                            setForm({ ...form, [key]: e.target.value })
+                          }
+                        />
+                      </label>
+                    ))}
+                    <label>
+                      <span>المنطقة</span>
+                      <select
+                        value={form.region}
+                        onChange={(e) =>
+                          setForm({ ...form, region: e.target.value, city: "" })
+                        }
+                      >
+                        <option value="">اختر المنطقة</option>
+                        {Object.keys(B2B_LOCATIONS).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>المدينة</span>
+                      <select
+                        disabled={!form.region}
+                        value={form.city}
+                        onChange={(e) =>
+                          setForm({ ...form, city: e.target.value })
+                        }
+                      >
+                        <option value="">اختر المدينة</option>
+                        {(B2B_LOCATIONS[form.region] || []).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>نوع الجهة</span>
+                      <select
+                        value={form.type}
+                        onChange={(e) =>
+                          setForm({ ...form, type: e.target.value })
+                        }
+                      >
+                        {[
+                          "شركة",
+                          "مركز",
+                          "جمعية",
+                          "جهة حكومية",
+                          "جامعة",
+                          "أخرى",
+                        ].map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>الأولوية</span>
+                      <select
+                        value={form.priority}
+                        onChange={(e) =>
+                          setForm({ ...form, priority: e.target.value })
+                        }
+                      >
+                        {["عالية", "متوسطة", "منخفضة"].map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {section === "business" && (
+                      <>
+                        <label>
+                          <span>نوع الفرصة</span>
+                          <select
+                            value={form.opportunityKind}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                opportunityKind: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="partnership">فرصة شراكة</option>
+                            <option value="corporate_training">
+                              طلب تدريب مؤسسي
+                            </option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>حالة الفرصة</span>
+                          <select
+                            value={form.registrationStatus}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                registrationStatus: e.target.value,
+                              })
+                            }
+                          >
+                            <option>فرصة جديدة</option>
+                            <option>موقعة</option>
+                          </select>
+                        </label>
+                      </>
+                    )}
+                    <label>
+                      <span>مسار الجهة</span>
+                      <select
+                        value={form.path}
+                        onChange={(e) =>
+                          setForm({ ...form, path: e.target.value })
+                        }
+                      >
+                        <option>ABA</option>
+                        <option>OBM</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>إسناد الموظف</span>
+                      <select
+                        value={form.ownerEmail}
+                        onChange={(e) =>
+                          setForm({ ...form, ownerEmail: e.target.value })
+                        }
+                      >
+                        <option value="">إسنادها لي</option>
+                        {staff.map((x) => (
+                          <option key={String(x.email)} value={String(x.email)}>
+                            {x.display_name || x.email}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {section === "business" &&
+                      form.opportunityKind === "corporate_training" && (
+                        <>
+                          <label>
+                            <span>اسم التدريب أو البرنامج *</span>
+                            <input
+                              value={form.requestedProgram}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  requestedProgram: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>عدد المتدربين *</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={form.traineeCount}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  traineeCount: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>التاريخ المتوقع للتنفيذ</span>
+                            <input
+                              type="date"
+                              value={form.deliveryDate}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  deliveryDate: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </>
+                      )}
+                  </div>
+                )
+              ) : (
+                <div className="b2b-form-grid contract-step">
+                  {[
+                    ["signedAt", "تاريخ التوقيع *"],
+                    ["startDate", "بداية الاتفاقية *"],
+                    ["endDate", "نهاية الاتفاقية *"],
+                    ["agreementNumber", "رقم الاتفاقية"],
+                    ["value", "قيمة الاتفاقية"],
+                    ["scope", "نطاق الاتفاقية"],
+                    ["services", "الخدمات المتفق عليها"],
+                    ["documentUrl", "رابط العقد النهائي"],
+                  ].map(([key, label]) => (
+                    <label key={key}>
+                      <span>{label}</span>
+                      <input
+                        type={
+                          key.endsWith("At") || key.endsWith("Date")
+                            ? "date"
+                            : key === "value"
+                              ? "number"
+                              : "text"
+                        }
+                        value={agreement[key] || ""}
+                        onChange={(e) =>
+                          setAgreement({ ...agreement, [key]: e.target.value })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <footer>
+            {formStep === 2 && (
+              <button className="secondary" onClick={() => setFormStep(1)}>
+                السابق
+              </button>
+            )}
+            <button
+              disabled={
+                saving ||
+                (section === "business" && (!form.name || !form.contactName))
+              }
+              onClick={() => {
+                if (section === "partnerships") {
+                  void save({ action: "create_partnership_initial", ...form });
+                  return;
+                }
+                const needsContract = form.registrationStatus === "موقعة";
+                if (formStep === 1 && needsContract) {
+                  setFormStep(2);
+                  return;
+                }
+                void save(
+                  formStep === 2
+                    ? { action: "create_partnership", ...form, ...agreement }
+                    : { action: "create_business", ...form },
+                );
+              }}
+            >
+              {section === "partnerships"
+                ? "حفظ البيانات الأولية"
+                : formStep === 1 && form.registrationStatus !== "موقعة"
+                  ? "إرسال الجهة للاعتماد"
+                  : formStep === 1
+                    ? "التالي"
+                    : "حفظ الشراكة"}
+            </button>
+          </footer>
+        </section>
+      )}
+      {section === "partnerships" &&
+        visibleRows.some((row) => row.fit_decision) && (
+          <section className="partnership-decisions-overview">
+            <header>
+              <div>
+                <b>قرارات الملاءمة وتقدم الاتفاقيات</b>
+                <span>الحالة الحالية ظاهرة دون الحاجة إلى فتح ملف الجهة</span>
+              </div>
+            </header>
+            <div>
+              {visibleRows
+                .filter((row) => row.fit_decision)
+                .map((row) => (
+                  <article
+                    key={String(row.id)}
+                    className={
+                      row.fit_decision === "اعتماد"
+                        ? "approved"
+                        : row.fit_decision === "رفض"
+                          ? "rejected"
+                          : "deferred"
+                    }
+                  >
+                    <div>
+                      <b>{row.account_name || "جهة دون اسم"}</b>
+                      <span>
+                        {row.fit_decision} · {row.fit_reason || "دون ملاحظة"}
+                      </span>
+                    </div>
+                    {row.fit_decision === "اعتماد" ? (
+                      <div className="partnership-card-progress">
+                        {agreementMilestones.map(([key, label]) => (
+                          <span key={key} className={row[key] ? "done" : ""}>
+                            <i>{row[key] ? "✓" : ""}</i>
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <em>
+                        {row.fit_decision === "تأجيل" && row.next_follow_up
+                          ? `المتابعة: ${row.next_follow_up}`
+                          : "محفوظة في السجل"}
+                      </em>
+                    )}
+                  </article>
+                ))}
+            </div>
+          </section>
+        )}
+      <section className="b2b-list">
+        <header>
+          <div>
+            <b>{section === "business" ? "قائمة الجهات" : "سجل الشراكات"}</b>
+            <span>
+              {visibleRows.length} من {rows.length} جهة
+            </span>
+          </div>
+        </header>
+        <div className="b2b-toolbar">
+          <label>
+            <Search size={16} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث باسم الجهة أو المسؤول أو التدريب..."
+            />
+          </label>
+          {section === "business" && (
+            <select
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value)}
+            >
+              <option value="الكل">كل الأنواع</option>
+              <option value="partnership">فرص الشراكة</option>
+              <option value="corporate_training">طلبات الجهات</option>
+            </select>
+          )}
+          <select
+            value={pathFilter}
+            onChange={(e) => setPathFilter(e.target.value)}
+          >
+            <option>الكل</option>
+            <option>ABA</option>
+            <option>OBM</option>
+          </select>
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+          >
+            <option>الكل</option>
+            {options.map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+          {(search ||
+            stageFilter !== "الكل" ||
+            pathFilter !== "الكل" ||
+            kindFilter !== "الكل") && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setStageFilter("الكل");
+                setPathFilter("الكل");
+                setKindFilter("الكل");
+              }}
+            >
+              مسح التصفية
+            </button>
+          )}
+        </div>
+        {loading ? (
+          <LiveState loading error="" empty={false} />
+        ) : visibleRows.length === 0 ? (
+          <LiveState loading={false} error="" empty />
+        ) : section === "partnerships" ? (
+          <div className="b2b-kanban" aria-label="لوحة دورة حياة الشراكات">
+            {lifecycleStages.map((stage, index) => {
+              const stageRows = visibleRows.filter(
+                (row) =>
+                  String(row.lifecycle_stage || "التفعيل والعمليات") === stage,
+              );
+              return (
+                <section
+                  className={`b2b-kanban-column stage-${index + 1}`}
+                  key={stage}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const row = rows.find((x) => String(x.id) === dragging);
+                    if (row && String(row.lifecycle_stage) !== stage)
+                      moveLifecycle(row, stage);
+                    setDragging("");
+                  }}
+                >
+                  <header>
+                    <span>0{index + 1}</span>
+                    <div>
+                      <b>{stage}</b>
+                      <small>{stageRows.length} شراكة</small>
+                    </div>
+                  </header>
+                  <div>
+                    {stageRows.length === 0 ? (
+                      <p className="b2b-kanban-empty">
+                        اسحب بطاقة مكتملة المتطلبات إلى هنا
+                      </p>
+                    ) : (
+                      stageRows.map((row) => {
+                        const remaining = days(row.end_date);
+                        return (
+                          <article
+                            draggable={canConvert}
+                            onDragStart={(e) => {
+                              setDragging(String(row.id));
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={() => setDragging("")}
+                            onClick={() => openRow(row)}
+                            key={String(row.id)}
+                            className={
+                              dragging === String(row.id) ? "dragging" : ""
+                            }
+                          >
+                            <div className="kanban-card-top">
+                              <i>
+                                {row.logo_data ? <img src={String(row.logo_data)} alt="" /> : String(row.account_name || "ج").slice(0, 2)}
+                              </i>
+                              <div>
+                                <b>{row.account_name}</b>
+                                <small>
+                                  {row.account_type} · {row.path || "ABA"}
+                                </small>
+                              </div>
+                              <button
+                                aria-label={`فتح ملف ${row.account_name}`}
+                              >
+                                <Eye size={15} />
+                              </button>
+                            </div>
+                            <div className="kanban-card-meta">
+                              <span>
+                                المسؤول <b>{row.contact_name || "غير محدد"}</b>
+                              </span>
+                              <span>
+                                الانتهاء <b>{row.end_date || "غير محدد"}</b>
+                              </span>
+                            </div>
+                            <footer>
+                              <em
+                                className={`b2b-status ${row.status === "نشطة" ? "green" : remaining !== null && remaining <= 60 ? "orange" : "blue"}`}
+                              >
+                                {row.status}
+                              </em>
+                              {Number(row.pending_approvals || 0) > 0 && (
+                                <strong>
+                                  {row.pending_approvals} موافقات معلقة
+                                </strong>
+                              )}
+                            </footer>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          visibleRows.map((row) => {
+            const remaining = days(row.end_date);
+            return (
+              <article
+                className="b2b-row"
+                key={String(row.id)}
+                onClick={() => openRow(row)}
+              >
+                <div className="b2b-identity">
+                  <i>{row.logo_data ? <img src={String(row.logo_data)} alt="" /> : String(row.account_name || "ج").slice(0, 2)}</i>
+                  <div>
+                    <b>{row.account_name}</b>
+                    <span>
+                      {row.opportunity_kind === "corporate_training"
+                        ? `طلب تدريب مؤسسي${row.trainee_count ? ` · ${row.trainee_count} متدرب` : ""}`
+                        : `فرصة شراكة · ${row.account_type}`}
+                    </span>
+                    {row.requested_program && (
+                      <small>{row.requested_program}</small>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span>الشخص المسؤول</span>
+                  <b>{row.contact_name || "غير محدد"}</b>
+                  <small>{row.contact_title || row.contact_phone || "—"}</small>
+                </div>
+                {section === "business" ? (
+                  <>
+                    <div>
+                      <span>المسار</span>
+                      <b>{row.path || "ABA"}</b>
+                    </div>
+                    <div>
+                      <span>
+                        {row.approval_status === "pending"
+                          ? "حالة الاعتماد"
+                          : "المرحلة"}
+                      </span>
+                      {row.approval_status === "pending" ? (
+                        <em className="b2b-status orange">بانتظار الاعتماد</em>
+                      ) : canManage ? (
+                        <select
+                          className="b2b-inline-stage"
+                          value={String(row.stage)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            void save({
+                              action: "update_stage",
+                              opportunityId: row.id,
+                              stage: e.target.value,
+                            });
+                          }}
+                        >
+                          {(row.opportunity_kind === "corporate_training"
+                            ? trainingStages
+                            : partnershipStages
+                          ).map((x) => (
+                            <option key={x}>{x}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <em
+                          className={`b2b-status ${b2bStageColors[String(row.stage)] || "gray"}`}
+                        >
+                          {row.stage}
+                        </em>
+                      )}
+                    </div>
+                    <div>
+                      {row.approval_status === "pending" && canReview ? (
+                        <div className="b2b-review-actions">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void save({
+                                action: "review_business",
+                                opportunityId: row.id,
+                                decision: "approved",
+                              });
+                            }}
+                          >
+                            اعتماد
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void save({
+                                action: "review_business",
+                                opportunityId: row.id,
+                                decision: "rejected",
+                              });
+                            }}
+                          >
+                            رفض
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span>
+                            {row.opportunity_kind === "corporate_training"
+                              ? "موعد التنفيذ"
+                              : "المتابعة القادمة"}
+                          </span>
+                          <b>
+                            {row.opportunity_kind === "corporate_training"
+                              ? row.delivery_date || "غير محدد"
+                              : row.next_follow_up || "غير محددة"}
+                          </b>
+                        </>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <span>المسار</span>
+                      <b>{row.path || "ABA"}</b>
+                    </div>
+                    <div>
+                      <span>حالة الشراكة</span>
+                      <em
+                        className={`b2b-status ${row.status === "نشطة" ? "green" : remaining !== null && remaining <= 60 ? "orange" : "blue"}`}
+                      >
+                        {row.status}
+                      </em>
+                    </div>
+                    <div>
+                      <span>مدة الاتفاقية</span>
+                      <b>
+                        {row.start_date} — {row.end_date}
+                      </b>
+                      <small>
+                        {remaining === null
+                          ? ""
+                          : remaining < 0
+                            ? "منتهية"
+                            : `${remaining} يوم متبقٍ`}
+                      </small>
+                    </div>
+                  </>
+                )}
+                <button className="b2b-details-button" type="button">
+                  <Eye size={14} />
+                  <span>التفاصيل</span>
+                </button>
+              </article>
+            );
+          })
+        )}
       </section>
-      {section==="partnerships"&&<section className="b2b-lifecycle-summary"><div className="b2b-progress-head"><div><h3>دورة حياة الشراكة</h3><p>الانتقال بين المراحل مرتبط بالمستندات والموافقات المطلوبة</p></div><em>{selected.lifecycle_stage||"الاستكشاف والتقييم"}</em></div><div className="lifecycle-track">{lifecycleStages.map((stage,index)=><span key={stage} className={lifecycleStages.indexOf(String(selected.lifecycle_stage||"الاستكشاف والتقييم"))>=index?"done":""}><i>{index+1}</i><b>{stage}</b></span>)}</div>{canConvert&&<label><span>نقل إلى مرحلة</span><select disabled={saving} value={String(selected.lifecycle_stage||"الاستكشاف والتقييم")} onChange={e=>void execute({action:"update_lifecycle",opportunityId:selected.opportunity_id,partnershipId:selected.partnership_id||"",stage:e.target.value})}>{lifecycleStages.map(x=><option key={x}>{x}</option>)}</select></label>}</section>}
-      {section==="partnerships"&&<section className="partnership-pipeline-panel"><div className="b2b-progress-head"><div><h3>مسار الجهة</h3><p>من التواصل الأول حتى قرار الملاءمة وتوقيع الاتفاقية</p></div><em>{pipelineDraft.fitDecision||pipelineDraft.contactStatus||"لم يتم التواصل"}</em></div>
-        <div className="pipeline-status-grid"><label><span>حالة التواصل</span><select value={pipelineDraft.contactStatus||""} onChange={e=>setPipelineDraft({...pipelineDraft,contactStatus:e.target.value})}><option>لم يتم التواصل</option><option>تم التواصل الأول</option><option>في انتظار الرد</option><option>تم تحديد اجتماع</option><option>تم الاجتماع</option></select></label>
-        {pipelineDraft.contactStatus==="تم تحديد اجتماع"&&<><label><span>تاريخ ووقت الاجتماع</span><input type="datetime-local" value={pipelineDraft.meetingScheduledAt||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingScheduledAt:e.target.value})}/></label><label><span>طريقة الاجتماع</span><select value={pipelineDraft.meetingMode||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingMode:e.target.value})}><option value="">غير محددة</option><option>حضوري</option><option>عن بُعد</option></select></label></>}</div>
-        {pipelineDraft.contactStatus==="تم الاجتماع"&&<div className="meeting-minutes-card"><header><div><b>محضر الاجتماع</b><span>سجل تنفيذي ثابت داخل ملف الجهة</span></div><ClipboardList size={20}/></header><div className="meeting-minutes-grid"><label><span>تاريخ ووقت الاجتماع الفعلي</span><input type="datetime-local" value={pipelineDraft.meetingCompletedAt||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingCompletedAt:e.target.value})}/></label><label><span>موضوع الاجتماع</span><input value={pipelineDraft.meetingTopic||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingTopic:e.target.value})}/></label><label><span>الحضور من سلوكيرا</span><input value={pipelineDraft.meetingAttendeesInternal||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingAttendeesInternal:e.target.value})}/></label><label><span>الحضور من الجهة</span><input value={pipelineDraft.meetingAttendeesExternal||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingAttendeesExternal:e.target.value})}/></label><label className="wide"><span>ملخص الاجتماع</span><textarea value={pipelineDraft.meetingSummary||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingSummary:e.target.value})}/></label><label><span>احتياج الجهة</span><textarea value={pipelineDraft.meetingNeeds||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingNeeds:e.target.value})}/></label><label><span>الفرص المقترحة</span><textarea value={pipelineDraft.meetingOpportunities||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingOpportunities:e.target.value})}/></label><label><span>القرارات المتفق عليها</span><textarea value={pipelineDraft.meetingDecisions||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingDecisions:e.target.value})}/></label><label><span>الخطوة القادمة</span><textarea value={pipelineDraft.meetingNextStep||""} onChange={e=>setPipelineDraft({...pipelineDraft,meetingNextStep:e.target.value})}/></label><label><span>تاريخ المتابعة</span><input type="date" value={pipelineDraft.nextFollowUp||""} onChange={e=>setPipelineDraft({...pipelineDraft,nextFollowUp:e.target.value})}/></label></div></div>}
-        {pipelineDraft.contactStatus==="تم الاجتماع"&&<div className="fit-decision-panel"><header><b>قرار الملاءمة</b><span>المرحلة المفصلية قبل بدء إجراءات الاتفاقية</span></header><div className="fit-choice">{["اعتماد","رفض","تأجيل"].map(x=><button type="button" key={x} className={pipelineDraft.fitDecision===x?`selected ${x==="اعتماد"?"approve":x==="رفض"?"reject":"defer"}`:""} onClick={()=>setPipelineDraft({...pipelineDraft,fitDecision:x})}>{x}</button>)}</div>{pipelineDraft.fitDecision&&<label><span>مبررات القرار *</span><textarea value={pipelineDraft.fitReason||""} onChange={e=>setPipelineDraft({...pipelineDraft,fitReason:e.target.value})} placeholder={`اكتب سبب ${pipelineDraft.fitDecision} الجهة...`}/></label>}{pipelineDraft.fitDecision==="تأجيل"&&<label><span>تاريخ إعادة المتابعة</span><input type="date" value={pipelineDraft.nextFollowUp||""} onChange={e=>setPipelineDraft({...pipelineDraft,nextFollowUp:e.target.value})}/></label>}</div>}
-        {pipelineDraft.fitDecision==="اعتماد"&&<div className="agreement-milestones"><header><b>تقدم الاتفاقية</b><span>حدّث الخطوات ليظهر تقدمها مباشرة على بطاقة الجهة</span></header>{agreementMilestones.map(([key,label],index)=><label key={key} className={pipelineDraft[key]?"complete":""}><i>{pipelineDraft[key]?<Check size={15}/>:index+1}</i><span>{label}</span><input type="date" value={pipelineDraft[key]||""} onChange={e=>setPipelineDraft({...pipelineDraft,[key]:e.target.value})}/></label>)}</div>}
-        {meetingMinutes.length>0&&<details className="meeting-minutes-history" open><summary>محاضر الاجتماعات السابقة <b>{meetingMinutes.length}</b></summary><div>{meetingMinutes.map((meeting,index)=><article key={String(meeting.id)}><header><b>اجتماع {meetingMinutes.length-index}</b><time>{String(meeting.meeting_at||meeting.created_at||"").replace("T"," ").slice(0,16)}</time></header><p>{meeting.topic||"دون عنوان"}</p>{meeting.summary&&<blockquote>{meeting.summary}</blockquote>}<dl><div><dt>حضور سلوكيرا</dt><dd>{meeting.attendees_internal||"—"}</dd></div><div><dt>حضور الجهة</dt><dd>{meeting.attendees_external||"—"}</dd></div><div><dt>القرارات</dt><dd>{meeting.decisions||"—"}</dd></div><div><dt>الخطوة القادمة</dt><dd>{meeting.next_step||"—"}</dd></div></dl><small>سجله {meeting.created_by_email}</small></article>)}</div></details>}
-        {canManage&&<button className="pipeline-save" disabled={saving} onClick={()=>void execute({action:"update_partnership_pipeline",opportunityId:selected.opportunity_id,...pipelineDraft})}><Check size={16}/> حفظ تحديث مسار الجهة والمحضر</button>}
-      </section>}
-      <B2BDocumentsPanel selected={selected} documents={documents} canManage={canManage} saving={saving} execute={execute}/>
-      {section==="partnerships"&&<B2BApprovalsPanel selected={selected} approvals={approvals} canApprove={canReview||canConvert} saving={saving} execute={execute}/>}
-      {section==="partnerships"&&selected.partnership_id&&<B2BFinancePanel selected={selected} canManage={canConvert} saving={saving} execute={execute}/>}
-      {section==="business"&&selected.opportunity_kind==="corporate_training"&&<section><h3>تفاصيل طلب الجهة</h3><dl><div><dt>التدريب المطلوب</dt><dd>{selected.requested_program||"غير محدد"}</dd></div><div><dt>عدد المتدربين</dt><dd>{selected.trainee_count||"—"}</dd></div><div><dt>موعد التنفيذ</dt><dd>{selected.delivery_date||"غير محدد"}</dd></div><div><dt>القيمة المتوقعة</dt><dd>{Number(selected.expected_value||0).toLocaleString("en-US")} ر.س</dd></div></dl></section>}
-      {section==="business"&&canManage&&selected.approval_status==="approved"&&<section><h3>تحديث مسار الفرصة</h3><label><span>المرحلة الحالية</span><select value={String(selected.stage)} onChange={e=>void save({action:"update_stage",opportunityId:selected.id,stage:e.target.value})}>{(selected.opportunity_kind==="corporate_training"?trainingStages:partnershipStages).map(x=><option key={x}>{x}</option>)}</select></label></section>}
-      <section className="b2b-progress"><div className="b2b-progress-head"><div><h3>سجل تقدم الأعمال</h3><p>جميع الخطوات التي تمت مع الجهة بالترتيب الزمني</p></div><em>{activities.length} تحديث</em></div>
-        {canManage&&<div className="b2b-activity-form"><select value={activityType} onChange={e=>setActivityType(e.target.value)}>{["تواصل أولي","اجتماع","عرض تعريفي","إرسال عرض السعر","متابعة العرض","تفاوض","موافقة مبدئية","توقيع الاتفاقية","ملاحظة"].map(x=><option key={x}>{x}</option>)}</select><input placeholder="أضف تفاصيل مختصرة..." value={activityDetails} onChange={e=>setActivityDetails(e.target.value)}/><button disabled={saving} onClick={()=>void addActivity()}><Plus size={14}/> حفظ الخطوة</button></div>}
-        <div className="b2b-timeline">{activities.length===0?<p className="b2b-no-activity">لا توجد خطوات مسجلة بعد.</p>:activities.map((item,index)=><article key={String(item.id)}><i>{index===0?"✓":""}</i><div><b>{item.activity_type}</b>{item.details&&<p>{item.details}</p>}<span>{String(item.actor_email||"")} · {new Intl.DateTimeFormat("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"}).format(new Date(String(item.created_at)))}</span></div></article>)}</div>
-      </section>
-      {section==="business"&&canConvert&&selected.opportunity_kind!=="corporate_training"&&<details className="b2b-convert"><summary>اعتماد التوقيع وتحويلها إلى شراكة</summary><div>{[['agreementNumber','رقم الاتفاقية'],['signedAt','تاريخ التوقيع *'],['startDate','بداية الاتفاقية *'],['endDate','نهاية الاتفاقية *'],['value','قيمة الاتفاقية'],['paymentTerms','شروط الدفع'],['scope','نطاق الاتفاقية'],['services','الخدمات المتفق عليها'],['renewalTerms','شروط التجديد'],['documentUrl','رابط مستند الاتفاقية']].map(([key,label])=><label key={key}><span>{label}</span><input type={key.endsWith('At')||key.endsWith('Date')?'date':key==='value'?'number':'text'} value={agreement[key]||""} onChange={e=>setAgreement({...agreement,[key]:e.target.value})}/></label>)}</div><button disabled={saving} onClick={()=>void save({action:"convert_to_partnership",opportunityId:selected.id,...agreement})}>تأكيد التوقيع وإنشاء الشراكة</button></details>}
-      {section==="partnerships"&&canConvert&&selected.partnership_id&&<section><h3>متابعة الشراكة</h3><label><span>الحالة</span><select value={String(selected.status)} onChange={e=>void execute({action:"update_partnership",partnershipId:selected.partnership_id,status:e.target.value})}>{options.map(x=><option key={x}>{x}</option>)}</select></label></section>}
-      {canDelete&&<section className="b2b-danger-zone"><div><h3>حذف الجهة</h3><p>يحذف بيانات الجهة وجميع الفرص والشراكات والتحديثات التابعة لها من B2B.</p></div><button disabled={saving} onClick={()=>void removeEntity()}>حذف الجهة نهائيًا</button></section>}
-    </div></aside></>}
-  </div>;
+      {selected && (
+        <>
+          <button
+            className="b2b-overlay"
+            aria-label="إغلاق"
+            onClick={() => setSelected(null)}
+          />
+          <aside className="b2b-drawer">
+            <header>
+              <button onClick={() => setSelected(null)}>×</button>
+              <span>
+                {section === "business" ? "ملف فرصة الأعمال" : "ملف الشراكة"}
+              </span>
+              <h2>{selected.account_name}</h2>
+              <p>
+                {selected.account_type} ·{" "}
+                {selected.region || selected.city || "الموقع غير محدد"}
+              </p>
+            </header>
+            <div className="b2b-drawer-body">
+              <section className="b2b-account-profile">
+                <div className="b2b-progress-head">
+                  <div>
+                    <h3>بيانات الجهة والتواصل</h3>
+                    <p>البيانات الأساسية والمسؤول المعتمد للتواصل</p>
+                  </div>
+                  {canManage && (
+                    <button
+                      type="button"
+                      className="b2b-edit-account"
+                      onClick={() => setEditingAccount(!editingAccount)}
+                    >
+                      {editingAccount ? "إلغاء" : "تعديل البيانات"}
+                    </button>
+                  )}
+                </div>
+                {editingAccount ? (
+                  <div className="b2b-account-edit-grid">
+                    <label>
+                      <span>اسم الجهة *</span>
+                      <input
+                        value={accountDraft.name || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            name: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="b2b-logo-field">
+                      <span>شعار الجهة</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(e) =>
+                          readLogo(e.target.files?.[0], "account")
+                        }
+                      />
+                      {accountDraft.logoData && (
+                        <>
+                          <img src={accountDraft.logoData} alt="شعار الجهة" />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAccountDraft({ ...accountDraft, logoData: "" })
+                            }
+                          >
+                            إزالة الشعار
+                          </button>
+                        </>
+                      )}
+                    </label>
+                    <label>
+                      <span>نوع الجهة</span>
+                      <input
+                        value={accountDraft.type || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            type: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>المنطقة</span>
+                      <select
+                        value={accountDraft.region || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            region: e.target.value,
+                            city: "",
+                          })
+                        }
+                      >
+                        <option value="">غير محددة</option>
+                        {Object.keys(B2B_LOCATIONS).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>المدينة</span>
+                      <select
+                        value={accountDraft.city || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            city: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير محددة</option>
+                        {(B2B_LOCATIONS[accountDraft.region] || []).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>المصدر</span>
+                      <select
+                        value={accountDraft.source || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            source: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        <option>إحالة من عميل سابق</option>
+                        <option>قاعدة بيانات سلوكيرا</option>
+                        <option>طلب وارد من الجهة</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>المجال</span>
+                      <select
+                        value={accountDraft.path || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            path: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        <option>ABA</option>
+                        <option>OBM</option>
+                        <option value="BOTH">جميع المجالات</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>نوع الشراكة</span>
+                      <select
+                        value={accountDraft.partnershipType || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            partnershipType: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير محدد</option>
+                        <option>مذكرة تفاهم</option>
+                        <option>شراكة تدريب</option>
+                        <option>اتفاقية تسويق</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>الأولوية</span>
+                      <select
+                        value={accountDraft.priority || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            priority: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير محددة</option>
+                        <option>عالية</option>
+                        <option>متوسطة</option>
+                        <option>منخفضة</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>الإسناد</span>
+                      <select
+                        value={accountDraft.ownerEmail || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            ownerEmail: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">غير مسندة</option>
+                        {staff.map((person) => (
+                          <option
+                            key={String(person.email)}
+                            value={String(person.email)}
+                          >
+                            {String(person.name || person.email)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>اسم مسؤول الجهة</span>
+                      <input
+                        value={accountDraft.contactName || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            contactName: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>المسمى الوظيفي</span>
+                      <input
+                        value={accountDraft.jobTitle || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            jobTitle: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>رقم الجوال</span>
+                      <input
+                        dir="ltr"
+                        value={accountDraft.phone || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            phone: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>البريد الإلكتروني</span>
+                      <input
+                        dir="ltr"
+                        type="email"
+                        value={accountDraft.email || ""}
+                        onChange={(e) =>
+                          setAccountDraft({
+                            ...accountDraft,
+                            email: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <button
+                      className="pipeline-save"
+                      disabled={saving || !accountDraft.name?.trim()}
+                      onClick={() => void saveAccount()}
+                    >
+                      <Check size={16} /> حفظ بيانات الجهة
+                    </button>
+                  </div>
+                ) : (
+                  <dl>
+                    <div>
+                      <dt>اسم الجهة</dt>
+                      <dd>{selected.account_name || "غير محدد"}</dd>
+                    </div>
+                    <div>
+                      <dt>الموقع</dt>
+                      <dd>
+                        {[selected.region, selected.city]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>المصدر</dt>
+                      <dd>{selected.source || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>المجال</dt>
+                      <dd>
+                        {selected.path === "BOTH"
+                          ? "جميع المجالات"
+                          : selected.path || "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>المسؤول</dt>
+                      <dd>{selected.contact_name || "غير محدد"}</dd>
+                    </div>
+                    <div>
+                      <dt>المسمى</dt>
+                      <dd>{selected.contact_title || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>الجوال</dt>
+                      <dd dir="ltr">{selected.contact_phone || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>البريد</dt>
+                      <dd>{selected.contact_email || "—"}</dd>
+                    </div>
+                  </dl>
+                )}
+              </section>
+              {section === "partnerships" && (
+                <section className="b2b-lifecycle-summary">
+                  <div className="b2b-progress-head">
+                    <div>
+                      <h3>دورة حياة الشراكة</h3>
+                      <p>
+                        الانتقال بين المراحل مرتبط بالمستندات والموافقات
+                        المطلوبة
+                      </p>
+                    </div>
+                    <em>{selected.lifecycle_stage || "الاستكشاف والتقييم"}</em>
+                  </div>
+                  <div className="lifecycle-track">
+                    {lifecycleStages.map((stage, index) => (
+                      <span
+                        key={stage}
+                        className={
+                          lifecycleStages.indexOf(
+                            String(
+                              selected.lifecycle_stage || "الاستكشاف والتقييم",
+                            ),
+                          ) >= index
+                            ? "done"
+                            : ""
+                        }
+                      >
+                        <i>{index + 1}</i>
+                        <b>{stage}</b>
+                      </span>
+                    ))}
+                  </div>
+                  {canConvert && (
+                    <label>
+                      <span>نقل إلى مرحلة</span>
+                      <select
+                        disabled={saving}
+                        value={String(
+                          selected.lifecycle_stage || "الاستكشاف والتقييم",
+                        )}
+                        onChange={(e) =>
+                          void execute({
+                            action: "update_lifecycle",
+                            opportunityId: selected.opportunity_id,
+                            partnershipId: selected.partnership_id || "",
+                            stage: e.target.value,
+                          })
+                        }
+                      >
+                        {lifecycleStages.map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </section>
+              )}
+              {section === "partnerships" && (
+                <section className="partnership-pipeline-panel">
+                  <div className="b2b-progress-head">
+                    <div>
+                      <h3>مسار الجهة</h3>
+                      <p>من التواصل الأول حتى قرار الملاءمة وتوقيع الاتفاقية</p>
+                    </div>
+                    <em>
+                      {pipelineDraft.fitDecision ||
+                        pipelineDraft.contactStatus ||
+                        "لم يتم التواصل"}
+                    </em>
+                  </div>
+                  <div className="pipeline-status-grid">
+                    <label>
+                      <span>حالة التواصل</span>
+                      <select
+                        value={pipelineDraft.contactStatus || ""}
+                        onChange={(e) =>
+                          setPipelineDraft({
+                            ...pipelineDraft,
+                            contactStatus: e.target.value,
+                          })
+                        }
+                      >
+                        <option>لم يتم التواصل</option>
+                        <option>تم التواصل الأول</option>
+                        <option>في انتظار الرد</option>
+                        <option>تم تحديد اجتماع</option>
+                        <option>تم الاجتماع</option>
+                      </select>
+                    </label>
+                    {pipelineDraft.contactStatus === "تم تحديد اجتماع" && (
+                      <>
+                        <label>
+                          <span>تاريخ ووقت الاجتماع</span>
+                          <input
+                            type="datetime-local"
+                            value={pipelineDraft.meetingScheduledAt || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingScheduledAt: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>طريقة الاجتماع</span>
+                          <select
+                            value={pipelineDraft.meetingMode || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingMode: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="">غير محددة</option>
+                            <option>حضوري</option>
+                            <option>عن بُعد</option>
+                          </select>
+                        </label>
+                      </>
+                    )}
+                  </div>
+                  {pipelineDraft.contactStatus === "تم الاجتماع" && (
+                    <div className="meeting-minutes-card">
+                      <header>
+                        <div>
+                          <b>محضر الاجتماع</b>
+                          <span>سجل تنفيذي ثابت داخل ملف الجهة</span>
+                        </div>
+                        <ClipboardList size={20} />
+                      </header>
+                      <div className="meeting-minutes-grid">
+                        <label>
+                          <span>تاريخ ووقت الاجتماع الفعلي</span>
+                          <input
+                            type="datetime-local"
+                            value={pipelineDraft.meetingCompletedAt || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingCompletedAt: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>موضوع الاجتماع</span>
+                          <input
+                            value={pipelineDraft.meetingTopic || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingTopic: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>الحضور من سلوكيرا</span>
+                          <input
+                            value={pipelineDraft.meetingAttendeesInternal || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingAttendeesInternal: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>الحضور من الجهة</span>
+                          <input
+                            value={pipelineDraft.meetingAttendeesExternal || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingAttendeesExternal: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="wide">
+                          <span>ملخص الاجتماع</span>
+                          <textarea
+                            value={pipelineDraft.meetingSummary || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingSummary: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>احتياج الجهة</span>
+                          <textarea
+                            value={pipelineDraft.meetingNeeds || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingNeeds: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>الفرص المقترحة</span>
+                          <textarea
+                            value={pipelineDraft.meetingOpportunities || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingOpportunities: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>القرارات المتفق عليها</span>
+                          <textarea
+                            value={pipelineDraft.meetingDecisions || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingDecisions: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>الخطوة القادمة</span>
+                          <textarea
+                            value={pipelineDraft.meetingNextStep || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                meetingNextStep: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>تاريخ المتابعة</span>
+                          <input
+                            type="date"
+                            value={pipelineDraft.nextFollowUp || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                nextFollowUp: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  {pipelineDraft.contactStatus === "تم الاجتماع" && (
+                    <div className="fit-decision-panel">
+                      <header>
+                        <b>قرار الملاءمة</b>
+                        <span>المرحلة المفصلية قبل بدء إجراءات الاتفاقية</span>
+                      </header>
+                      <div className="fit-choice">
+                        {["اعتماد", "رفض", "تأجيل"].map((x) => (
+                          <button
+                            type="button"
+                            key={x}
+                            className={
+                              pipelineDraft.fitDecision === x
+                                ? `selected ${x === "اعتماد" ? "approve" : x === "رفض" ? "reject" : "defer"}`
+                                : ""
+                            }
+                            onClick={() =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                fitDecision: x,
+                              })
+                            }
+                          >
+                            {x}
+                          </button>
+                        ))}
+                      </div>
+                      {pipelineDraft.fitDecision && (
+                        <label>
+                          <span>مبررات القرار *</span>
+                          <textarea
+                            value={pipelineDraft.fitReason || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                fitReason: e.target.value,
+                              })
+                            }
+                            placeholder={`اكتب سبب ${pipelineDraft.fitDecision} الجهة...`}
+                          />
+                        </label>
+                      )}
+                      {pipelineDraft.fitDecision === "تأجيل" && (
+                        <label>
+                          <span>تاريخ إعادة المتابعة</span>
+                          <input
+                            type="date"
+                            value={pipelineDraft.nextFollowUp || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                nextFollowUp: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+                  {pipelineDraft.fitDecision === "اعتماد" && (
+                    <div className="agreement-milestones">
+                      <header>
+                        <b>تقدم الاتفاقية</b>
+                        <span>
+                          حدّث الخطوات ليظهر تقدمها مباشرة على بطاقة الجهة
+                        </span>
+                      </header>
+                      {agreementMilestones.map(([key, label], index) => (
+                        <label
+                          key={key}
+                          className={pipelineDraft[key] ? "complete" : ""}
+                        >
+                          <i>
+                            {pipelineDraft[key] ? (
+                              <Check size={15} />
+                            ) : (
+                              index + 1
+                            )}
+                          </i>
+                          <span>{label}</span>
+                          <input
+                            type="date"
+                            value={pipelineDraft[key] || ""}
+                            onChange={(e) =>
+                              setPipelineDraft({
+                                ...pipelineDraft,
+                                [key]: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {meetingMinutes.length > 0 && (
+                    <details className="meeting-minutes-history" open>
+                      <summary>
+                        محاضر الاجتماعات السابقة <b>{meetingMinutes.length}</b>
+                      </summary>
+                      <div>
+                        {meetingMinutes.map((meeting, index) => (
+                          <article key={String(meeting.id)}>
+                            <header>
+                              <b>اجتماع {meetingMinutes.length - index}</b>
+                              <time>
+                                {String(
+                                  meeting.meeting_at ||
+                                    meeting.created_at ||
+                                    "",
+                                )
+                                  .replace("T", " ")
+                                  .slice(0, 16)}
+                              </time>
+                            </header>
+                            <p>{meeting.topic || "دون عنوان"}</p>
+                            {meeting.summary && (
+                              <blockquote>{meeting.summary}</blockquote>
+                            )}
+                            <dl>
+                              <div>
+                                <dt>حضور سلوكيرا</dt>
+                                <dd>{meeting.attendees_internal || "—"}</dd>
+                              </div>
+                              <div>
+                                <dt>حضور الجهة</dt>
+                                <dd>{meeting.attendees_external || "—"}</dd>
+                              </div>
+                              <div>
+                                <dt>القرارات</dt>
+                                <dd>{meeting.decisions || "—"}</dd>
+                              </div>
+                              <div>
+                                <dt>الخطوة القادمة</dt>
+                                <dd>{meeting.next_step || "—"}</dd>
+                              </div>
+                            </dl>
+                            <small>سجله {meeting.created_by_email}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                  {canManage && (
+                    <button
+                      className="pipeline-save"
+                      disabled={saving}
+                      onClick={() =>
+                        void execute({
+                          action: "update_partnership_pipeline",
+                          opportunityId: selected.opportunity_id,
+                          ...pipelineDraft,
+                        })
+                      }
+                    >
+                      <Check size={16} /> حفظ تحديث مسار الجهة والمحضر
+                    </button>
+                  )}
+                </section>
+              )}
+              <B2BDocumentsPanel
+                selected={selected}
+                documents={documents}
+                canManage={canManage}
+                saving={saving}
+                execute={execute}
+              />
+              {section === "partnerships" && (
+                <B2BApprovalsPanel
+                  selected={selected}
+                  approvals={approvals}
+                  canApprove={canReview || canConvert}
+                  saving={saving}
+                  execute={execute}
+                />
+              )}
+              {section === "partnerships" && selected.partnership_id && (
+                <B2BFinancePanel
+                  selected={selected}
+                  canManage={canConvert}
+                  saving={saving}
+                  execute={execute}
+                />
+              )}
+              {section === "business" &&
+                selected.opportunity_kind === "corporate_training" && (
+                  <section>
+                    <h3>تفاصيل طلب الجهة</h3>
+                    <dl>
+                      <div>
+                        <dt>التدريب المطلوب</dt>
+                        <dd>{selected.requested_program || "غير محدد"}</dd>
+                      </div>
+                      <div>
+                        <dt>عدد المتدربين</dt>
+                        <dd>{selected.trainee_count || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>موعد التنفيذ</dt>
+                        <dd>{selected.delivery_date || "غير محدد"}</dd>
+                      </div>
+                      <div>
+                        <dt>القيمة المتوقعة</dt>
+                        <dd>
+                          {Number(selected.expected_value || 0).toLocaleString(
+                            "en-US",
+                          )}{" "}
+                          ر.س
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                )}
+              {section === "business" &&
+                canManage &&
+                selected.approval_status === "approved" && (
+                  <section>
+                    <h3>تحديث مسار الفرصة</h3>
+                    <label>
+                      <span>المرحلة الحالية</span>
+                      <select
+                        value={String(selected.stage)}
+                        onChange={(e) =>
+                          void save({
+                            action: "update_stage",
+                            opportunityId: selected.id,
+                            stage: e.target.value,
+                          })
+                        }
+                      >
+                        {(selected.opportunity_kind === "corporate_training"
+                          ? trainingStages
+                          : partnershipStages
+                        ).map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </section>
+                )}
+              <section className="b2b-progress">
+                <div className="b2b-progress-head">
+                  <div>
+                    <h3>سجل تقدم الأعمال</h3>
+                    <p>جميع الخطوات التي تمت مع الجهة بالترتيب الزمني</p>
+                  </div>
+                  <em>{activities.length} تحديث</em>
+                </div>
+                {canManage && (
+                  <div className="b2b-activity-form">
+                    <select
+                      value={activityType}
+                      onChange={(e) => setActivityType(e.target.value)}
+                    >
+                      {[
+                        "تواصل أولي",
+                        "اجتماع",
+                        "عرض تعريفي",
+                        "إرسال عرض السعر",
+                        "متابعة العرض",
+                        "تفاوض",
+                        "موافقة مبدئية",
+                        "توقيع الاتفاقية",
+                        "ملاحظة",
+                      ].map((x) => (
+                        <option key={x}>{x}</option>
+                      ))}
+                    </select>
+                    <input
+                      placeholder="أضف تفاصيل مختصرة..."
+                      value={activityDetails}
+                      onChange={(e) => setActivityDetails(e.target.value)}
+                    />
+                    <button
+                      disabled={saving}
+                      onClick={() => void addActivity()}
+                    >
+                      <Plus size={14} /> حفظ الخطوة
+                    </button>
+                  </div>
+                )}
+                <div className="b2b-timeline">
+                  {activities.length === 0 ? (
+                    <p className="b2b-no-activity">لا توجد خطوات مسجلة بعد.</p>
+                  ) : (
+                    activities.map((item, index) => (
+                      <article key={String(item.id)}>
+                        <i>{index === 0 ? "✓" : ""}</i>
+                        <div>
+                          <b>{item.activity_type}</b>
+                          {item.details && <p>{item.details}</p>}
+                          <span>
+                            {String(item.actor_email || "")} ·{" "}
+                            {new Intl.DateTimeFormat("ar-SA-u-nu-latn", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                              timeZone: "Asia/Riyadh",
+                            }).format(new Date(String(item.created_at)))}
+                          </span>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+              {section === "business" &&
+                canConvert &&
+                selected.opportunity_kind !== "corporate_training" && (
+                  <details className="b2b-convert">
+                    <summary>اعتماد التوقيع وتحويلها إلى شراكة</summary>
+                    <div>
+                      {[
+                        ["agreementNumber", "رقم الاتفاقية"],
+                        ["signedAt", "تاريخ التوقيع *"],
+                        ["startDate", "بداية الاتفاقية *"],
+                        ["endDate", "نهاية الاتفاقية *"],
+                        ["value", "قيمة الاتفاقية"],
+                        ["paymentTerms", "شروط الدفع"],
+                        ["scope", "نطاق الاتفاقية"],
+                        ["services", "الخدمات المتفق عليها"],
+                        ["renewalTerms", "شروط التجديد"],
+                        ["documentUrl", "رابط مستند الاتفاقية"],
+                      ].map(([key, label]) => (
+                        <label key={key}>
+                          <span>{label}</span>
+                          <input
+                            type={
+                              key.endsWith("At") || key.endsWith("Date")
+                                ? "date"
+                                : key === "value"
+                                  ? "number"
+                                  : "text"
+                            }
+                            value={agreement[key] || ""}
+                            onChange={(e) =>
+                              setAgreement({
+                                ...agreement,
+                                [key]: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      disabled={saving}
+                      onClick={() =>
+                        void save({
+                          action: "convert_to_partnership",
+                          opportunityId: selected.id,
+                          ...agreement,
+                        })
+                      }
+                    >
+                      تأكيد التوقيع وإنشاء الشراكة
+                    </button>
+                  </details>
+                )}
+              {section === "partnerships" &&
+                canConvert &&
+                selected.partnership_id && (
+                  <section>
+                    <h3>متابعة الشراكة</h3>
+                    <label>
+                      <span>الحالة</span>
+                      <select
+                        value={String(selected.status)}
+                        onChange={(e) =>
+                          void execute({
+                            action: "update_partnership",
+                            partnershipId: selected.partnership_id,
+                            status: e.target.value,
+                          })
+                        }
+                      >
+                        {options.map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </section>
+                )}
+              {canDelete && (
+                <section className="b2b-danger-zone">
+                  <div>
+                    <h3>حذف الجهة</h3>
+                    <p>
+                      يحذف بيانات الجهة وجميع الفرص والشراكات والتحديثات التابعة
+                      لها من B2B.
+                    </p>
+                  </div>
+                  <button disabled={saving} onClick={() => void removeEntity()}>
+                    حذف الجهة نهائيًا
+                  </button>
+                </section>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+    </div>
+  );
 }
 
 const B2B_DOCUMENT_TYPES=["الملف التعريفي","اتفاقية السرية NDA","مسودة العقد","النموذج المالي","العقد النهائي","خطة العمل","تقرير أداء ربع سنوي","محضر اجتماع","تقرير التقييم النهائي","ملحق التجديد"];
