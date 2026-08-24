@@ -519,3 +519,14 @@ test("persists multiple B2B meeting minutes and unlocks approved lifecycle trans
   assert.match(page, /setMeetingMinutes\(data\.meetings\|\|\[\]\)/);
   assert.match(page, /canConvert=\{has\("b2b\.partnerships\.manage"\)\|\|has\("b2b\.manage"\)\}/);
 });
+
+test("edits B2B organization and contact data with an audit trail", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /تعديل البيانات/);
+  assert.match(page, /saveAccount/);
+  assert.match(page, /اسم مسؤول الجهة/);
+  assert.match(b2b, /action==="update_account"/);
+  assert.match(b2b, /UPDATE_B2B_ACCOUNT/);
+  assert.match(b2b, /تعديل بيانات الجهة/);
+});

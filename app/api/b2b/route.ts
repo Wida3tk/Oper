@@ -164,6 +164,24 @@ export async function POST(req:Request){
   if(!can(auth,"b2b.manage"))return Response.json({error:"ليس لديك صلاحية تعديل بيانات قطاع الأعمال"},{status:403});
   const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();await ensureSchema(db);
   const assertAccess=async(accountId:string)=>{const scope=scopeSql(auth);return db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first()};
+  if(action==="update_account"){
+    const accountId=String(body.accountId||"");
+    if(!accountId||!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const name=String(body.name||"").trim(),path=paths.includes(String(body.path))?String(body.path):"",ownerEmail=String(body.ownerEmail||"").trim().toLowerCase();
+    if(!name)return Response.json({error:"اسم الجهة مطلوب"},{status:400});
+    const before=await db.prepare("SELECT name,type,region,city,source,owner_email,priority,path,partnership_type FROM b2b_accounts WHERE id=?").bind(accountId).first();
+    const contact=await db.prepare("SELECT id FROM b2b_contacts WHERE account_id=? ORDER BY is_primary DESC,created_at LIMIT 1").bind(accountId).first<{id:string}>();
+    const changes=[
+      db.prepare("UPDATE b2b_accounts SET name=?,type=?,region=?,city=?,source=?,owner_email=?,priority=?,path=?,partnership_type=?,updated_at=? WHERE id=?").bind(name,String(body.type||""),String(body.region||""),String(body.city||""),String(body.source||""),ownerEmail,String(body.priority||""),path,String(body.partnershipType||""),now,accountId),
+      db.prepare("DELETE FROM b2b_assignments WHERE account_id=? AND team_id IS NULL").bind(accountId),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,activity_type,details,actor_email,created_at) VALUES(?,?, 'تعديل بيانات الجهة',?,?,?)").bind(id("B2BX"),accountId,`تم تحديث البيانات الأساسية للجهة ${name}`,auth.email,now),
+      db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_B2B_ACCOUNT','b2b_account',?,?,?)").bind(id("AUD"),auth.email,accountId,JSON.stringify({before,after:{name,type:body.type,region:body.region,city:body.city,source:body.source,ownerEmail,priority:body.priority,path,partnershipType:body.partnershipType}}),now),
+    ];
+    if(contact)changes.push(db.prepare("UPDATE b2b_contacts SET name=?,job_title=?,phone=?,email=?,updated_at=? WHERE id=?").bind(String(body.contactName||""),String(body.jobTitle||""),String(body.phone||""),String(body.email||"").trim().toLowerCase(),now,contact.id));
+    else changes.push(db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,is_primary,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?)").bind(id("B2BC"),accountId,String(body.contactName||""),String(body.jobTitle||""),String(body.phone||""),String(body.email||"").trim().toLowerCase(),now,now));
+    if(ownerEmail)changes.push(db.prepare("INSERT OR IGNORE INTO b2b_assignments(account_id,email,assigned_by_email,created_at) VALUES(?,?,?,?)").bind(accountId,ownerEmail,auth.email,now));
+    await db.batch(changes);return Response.json({ok:true,accountId});
+  }
   if(action==="create_business"){
     const name=String(body.name||"").trim(),type=String(body.type||"مركز"),contactName=String(body.contactName||"").trim(),phone=String(body.phone||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"ABA",opportunityKind=String(body.opportunityKind)==="corporate_training"?"corporate_training":"partnership",allowedStages=opportunityKind==="corporate_training"?trainingStages:partnershipStages;
     if(!name||!contactName)return Response.json({error:"اسم الجهة واسم الشخص المسؤول مطلوبان"},{status:400});
