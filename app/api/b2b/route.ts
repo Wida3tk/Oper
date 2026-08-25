@@ -9,7 +9,7 @@ const partnershipStatuses = ["بانتظار التفعيل","نشطة","تحت�
 const paths = ["ABA","OBM","BOTH"];
 const lifecycleStages = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مرفوض"];
 const documentTypes = ["الملف التعريفي","اتفاقية السرية NDA","مسودة العقد","النموذج المالي","العقد النهائي","خطة العمل","تقرير أداء ربع سنوي","محضر اجتماع","تقرير التقييم النهائي","ملحق التجديد"];
-const approvalTypes = ["مدير الشراكات","الإدارة القانونية","الإدارة المالية","الاعتماد النهائي"];
+const approvalTypes = ["مدير الشراكات","الإدارة القانونية"];
 const contactStatuses = ["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
 
 async function addColumn(db:ReturnType<typeof operationalDb>,sql:string){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
@@ -63,6 +63,17 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_decision TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_reason TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN agreement_prepared_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN organization_signed_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN whatsapp_group_created_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN partnership_shield_sent_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN social_announcement_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN total_offer_amount REAL NOT NULL DEFAULT 0");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN execution_trainee_count INTEGER NOT NULL DEFAULT 0");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN execution_program TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN execution_program_other TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN price_offer_prepared_at TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN financial_offer_sent_at TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_decided_by_email TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_decided_at TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN data_form_sent_at TEXT");
@@ -117,7 +128,8 @@ export async function GET(req: Request) {
     const {results}=await db.prepare(`SELECT COALESCE(p.id,o.id) id,p.id partnership_id,o.id opportunity_id,o.account_id,
       o.stage opportunity_stage,o.lifecycle_stage opportunity_lifecycle_stage,o.next_follow_up,o.expected_value,o.created_at opportunity_created_at,
       o.meeting_scheduled_at,o.meeting_mode,o.meeting_completed_at,o.meeting_attendees_internal,o.meeting_attendees_external,o.meeting_topic,o.meeting_summary,o.meeting_needs,o.meeting_opportunities,o.meeting_decisions,o.meeting_next_step,
-      o.fit_decision,o.fit_reason,o.fit_decided_by_email,o.fit_decided_at,o.data_form_sent_at,o.data_form_completed_at,o.agreement_sent_at,o.agreement_signed_at,
+      o.fit_decision,o.fit_reason,o.fit_decided_by_email,o.fit_decided_at,o.data_form_sent_at,o.data_form_completed_at,o.agreement_prepared_at,o.agreement_sent_at,o.organization_signed_at,o.agreement_signed_at,
+      o.whatsapp_group_created_at,o.partnership_shield_sent_at,o.social_announcement_at,o.total_offer_amount,o.execution_trainee_count,o.execution_program,o.execution_program_other,o.price_offer_prepared_at,o.financial_offer_sent_at,
       COALESCE(p.lifecycle_stage,o.lifecycle_stage,'الاستكشاف والتقييم') lifecycle_stage,
       p.agreement_number,p.signed_at,p.start_date,p.end_date,p.value,p.payment_terms,p.scope,p.services,p.renewal_terms,
       COALESCE(p.status,CASE WHEN o.approval_status='pending' THEN 'بانتظار الاعتماد' ELSE 'فرصة قائمة' END) status,
@@ -273,24 +285,33 @@ export async function POST(req:Request){
     if(contactStatus==="تم تحديد موعد اجتماع"&&!String(body.meetingScheduledAt||""))return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
     if(fitDecision&&!['اعتماد','رفض','تأجيل'].includes(fitDecision))return Response.json({error:"قرار الملاءمة غير صحيح"},{status:400});
     if(fitDecision&&!fitReason)return Response.json({error:"ملاحظات قرار الملاءمة مطلوبة"},{status:400});
+    if(fitDecision==="اعتماد"){
+      const managerApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='مدير الشراكات' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
+      if(!managerApproval)return Response.json({error:"يلزم اعتماد مدير الشراكات قبل الموافقة على الملاءمة"},{status:409});
+    }
+    if(String(body.agreementSignedAt||"")){
+      const legalApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='الإدارة القانونية' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
+      if(!legalApproval)return Response.json({error:"يلزم اعتماد الإدارة القانونية قبل تسجيل توقيع الطرفين"},{status:409});
+    }
     const meetingCompleted=String(body.meetingCompletedAt||"")||null,decisionChanged=fitDecision&&fitDecision!==String(row.fit_decision||""),meetingSignature=JSON.stringify([meetingCompleted,String(body.meetingTopic||""),String(body.meetingSummary||""),String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||"")]);
     const latestMeeting=meetingCompleted?await db.prepare("SELECT meeting_at,topic,summary,attendees_internal,attendees_external FROM b2b_meeting_minutes WHERE opportunity_id=? ORDER BY created_at DESC LIMIT 1").bind(opportunityId).first<Record<string,unknown>>():null;
     const latestSignature=latestMeeting?JSON.stringify([latestMeeting.meeting_at||null,latestMeeting.topic||"",latestMeeting.summary||"",latestMeeting.attendees_internal||"",latestMeeting.attendees_external||""]):"";
     const changes=[
       db.prepare("UPDATE b2b_accounts SET contact_status=?,updated_at=? WHERE id=?").bind(contactStatus,now,row.account_id),
-      db.prepare(`UPDATE b2b_opportunities SET stage=?,meeting_scheduled_at=?,meeting_mode=?,meeting_completed_at=?,meeting_attendees_internal=?,meeting_attendees_external=?,meeting_topic=?,meeting_summary=?,meeting_needs=?,meeting_opportunities=?,meeting_decisions=?,meeting_next_step=?,next_follow_up=?,fit_decision=?,fit_reason=?,fit_decided_by_email=CASE WHEN ? THEN ? ELSE fit_decided_by_email END,fit_decided_at=CASE WHEN ? THEN ? ELSE fit_decided_at END,data_form_sent_at=?,data_form_completed_at=?,agreement_sent_at=?,agreement_signed_at=?,updated_at=? WHERE id=?`).bind(contactStatus||'مرحلة الملاءمة',String(body.meetingScheduledAt||"")||null,String(body.meetingMode||"")||null,meetingCompleted,String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),String(body.meetingTopic||""),String(body.meetingSummary||""),String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,fitDecision,fitReason,decisionChanged?1:0,auth.email,decisionChanged?1:0,now,String(body.dataFormSentAt||"")||null,String(body.dataFormCompletedAt||"")||null,String(body.agreementSentAt||"")||null,String(body.agreementSignedAt||"")||null,now,opportunityId),
+      db.prepare(`UPDATE b2b_opportunities SET stage=?,meeting_scheduled_at=?,meeting_mode=?,meeting_completed_at=?,meeting_attendees_internal=?,meeting_attendees_external=?,meeting_topic=?,meeting_summary=?,meeting_needs=?,meeting_opportunities=?,meeting_decisions=?,meeting_next_step=?,next_follow_up=?,fit_decision=?,fit_reason=?,fit_decided_by_email=CASE WHEN ? THEN ? ELSE fit_decided_by_email END,fit_decided_at=CASE WHEN ? THEN ? ELSE fit_decided_at END,data_form_sent_at=?,data_form_completed_at=?,agreement_prepared_at=?,agreement_sent_at=?,organization_signed_at=?,agreement_signed_at=?,updated_at=? WHERE id=?`).bind(contactStatus||'مرحلة الملاءمة',String(body.meetingScheduledAt||"")||null,String(body.meetingMode||"")||null,meetingCompleted,String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),String(body.meetingTopic||""),String(body.meetingSummary||""),String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,fitDecision,fitReason,decisionChanged?1:0,auth.email,decisionChanged?1:0,now,String(body.dataFormSentAt||"")||null,String(body.dataFormCompletedAt||"")||null,String(body.agreementPreparedAt||"")||null,String(body.agreementSentAt||"")||null,String(body.organizationSignedAt||"")||null,String(body.agreementSignedAt||"")||null,now,opportunityId),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'تحديث مسار الشراكة',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,fitDecision?`حالة التواصل: ${contactStatus||'غير محددة'} · قرار الملاءمة: ${fitDecision} · ${fitReason}`:`حالة التواصل: ${contactStatus||'غير محددة'}${meetingCompleted?' · تم حفظ محضر الاجتماع':''}`,auth.email,now),
     ];
     if(decisionChanged&&fitDecision==="رفض")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='مرفوض',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='مرفوض',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
-    if(decisionChanged&&fitDecision==="اعتماد"&&row.lifecycle_stage==="مرفوض")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='الاستكشاف والتقييم',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='الاستكشاف والتقييم',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
+    if(decisionChanged&&fitDecision==="اعتماد")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفاوض والاتفاقية',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والاتفاقية',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
+    if(String(body.agreementSignedAt||""))changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفعيل والعمليات',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفعيل والعمليات',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
     if(meetingCompleted&&meetingSignature!==latestSignature)changes.push(db.prepare("INSERT INTO b2b_meeting_minutes(id,account_id,opportunity_id,meeting_at,meeting_mode,topic,attendees_internal,attendees_external,summary,needs,opportunities,decisions,next_step,next_follow_up,created_by_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id("B2BM"),row.account_id,opportunityId,meetingCompleted,String(body.meetingMode||""),String(body.meetingTopic||""),String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),String(body.meetingSummary||""),String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,auth.email,now));
     await db.batch(changes);return Response.json({ok:true,meetingAdded:Boolean(meetingCompleted&&meetingSignature!==latestSignature)});
   }
   if(action==="record_approval"){
     const accountId=String(body.accountId||""),opportunityId=String(body.opportunityId||"")||null,partnershipId=String(body.partnershipId||"")||null,approvalType=String(body.approvalType||""),decision=String(body.decision||""),note=String(body.note||"").trim();
     if(!accountId||!approvalTypes.includes(approvalType)||!["approved","rejected"].includes(decision))return Response.json({error:"بيانات الاعتماد غير صحيحة"},{status:400});
-    const managerAllowed=isAdmin(auth)||can(auth,"b2b.review"),financeAllowed=auth.roles.includes("finance")||isAdmin(auth)||can(auth,"b2b.partnerships.manage"),governanceAllowed=isAdmin(auth)||can(auth,"b2b.partnerships.manage");
-    if((approvalType==="مدير الشراكات"&&!managerAllowed)||(approvalType==="الإدارة المالية"&&!financeAllowed)||(["الإدارة القانونية","الاعتماد النهائي"].includes(approvalType)&&!governanceAllowed))return Response.json({error:"ليست لديك صلاحية هذا الاعتماد"},{status:403});
+    const managerAllowed=isAdmin(auth)||can(auth,"b2b.review"),governanceAllowed=isAdmin(auth)||can(auth,"b2b.partnerships.manage");
+    if((approvalType==="مدير الشراكات"&&!managerAllowed)||(approvalType==="الإدارة القانونية"&&!governanceAllowed))return Response.json({error:"ليست لديك صلاحية هذا الاعتماد"},{status:403});
     if(!await assertAccess(accountId)&&!isAdmin(auth))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     const existing=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type=? ORDER BY created_at DESC LIMIT 1").bind(accountId,approvalType).first<{id:string}>(),approvalId=existing?.id||id("B2BAp");
     await db.batch([
@@ -310,8 +331,8 @@ export async function POST(req:Request){
     const {results:approvals}=await db.prepare("SELECT approval_type,status FROM b2b_approvals WHERE account_id=?").bind(row.account_id).all<{approval_type:string;status:string}>(),approved=new Set(approvals.filter(x=>x.status==="approved").map(x=>x.approval_type));
     const missing:string[]=[];
     if(target==="التفاوض والاتفاقية"&&row.fit_decision!=="اعتماد")missing.push("اعتماد قرار الملاءمة");
-    if(target==="التفعيل والعمليات"){if(!docSet.has("مسودة العقد"))missing.push("مسودة العقد");if(!docSet.has("النموذج المالي"))missing.push("النموذج المالي");if(!approved.has("الإدارة القانونية"))missing.push("اعتماد القانونية");if(!approved.has("الإدارة المالية"))missing.push("اعتماد المالية")}
-    if(target==="قياس الأثر"){if(!docSet.has("خطة العمل"))missing.push("خطة العمل");if(!approved.has("الاعتماد النهائي"))missing.push("الاعتماد النهائي")}
+    if(target==="التفاوض والاتفاقية"&&!approved.has("مدير الشراكات"))missing.push("اعتماد مدير الشراكات");
+    if(target==="التفعيل والعمليات"&&!approved.has("الإدارة القانونية"))missing.push("اعتماد الإدارة القانونية");
     if(target==="التجديد أو الخروج"&&!row.end_date)missing.push("تاريخ انتهاء الاتفاقية");
     if(missing.length)return Response.json({error:`لا يمكن نقل الشراكة قبل استكمال: ${missing.join("، ")}`,missing},{status:409});
     const active=target==="قياس الأثر",previous=row.lifecycle_stage||row.opportunity_lifecycle_stage||"الاستكشاف والتقييم",changes=[
@@ -333,6 +354,17 @@ export async function POST(req:Request){
     [results[current],results[target]]=[results[target],results[current]];
     await db.batch(results.map((item,index)=>db.prepare("UPDATE b2b_opportunities SET sort_order=?,updated_at=? WHERE id=?").bind((index+1)*10,now,item.id)));
     return Response.json({ok:true});
+  }
+  if(action==="update_partnership_execution"){
+    const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id,lifecycle_stage FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string;lifecycle_stage:string}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const sentAt=String(body.financialOfferSentAt||"")||null,nextStage=sentAt?"قياس الأثر":row.lifecycle_stage;
+    await db.batch([
+      db.prepare("UPDATE b2b_opportunities SET whatsapp_group_created_at=?,partnership_shield_sent_at=?,social_announcement_at=?,total_offer_amount=?,execution_trainee_count=?,execution_program=?,execution_program_other=?,price_offer_prepared_at=?,financial_offer_sent_at=?,lifecycle_stage=?,lifecycle_updated_at=CASE WHEN ? IS NOT NULL THEN ? ELSE lifecycle_updated_at END,updated_at=? WHERE id=?").bind(String(body.whatsappGroupCreatedAt||"")||null,String(body.partnershipShieldSentAt||"")||null,String(body.socialAnnouncementAt||"")||null,Number(body.totalOfferAmount||0),Number(body.executionTraineeCount||0),String(body.executionProgram||""),String(body.executionProgramOther||""),String(body.priceOfferPreparedAt||"")||null,sentAt,nextStage,sentAt,now,now,opportunityId),
+      db.prepare("UPDATE b2b_partnerships SET lifecycle_stage=CASE WHEN ? IS NOT NULL THEN 'قياس الأثر' ELSE lifecycle_stage END,updated_at=? WHERE opportunity_id=?").bind(sentAt,now,opportunityId),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'تحديث التفعيل والتنفيذ',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,sentAt?"تم إرسال العرض المالي والانتقال إلى قياس الأثر":"تم تحديث خطوات التفعيل والتنفيذ",auth.email,now),
+    ]);
+    return Response.json({ok:true,stage:nextStage});
   }
   if(action==="update_partnership_finance"){
     if(!isAdmin(auth)&&!auth.roles.includes("finance")&&!can(auth,"b2b.partnerships.manage"))return Response.json({error:"التحديث المالي متاح للإدارة والمالية فقط"},{status:403});

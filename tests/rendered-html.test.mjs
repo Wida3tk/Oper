@@ -472,7 +472,7 @@ test("keeps B2B governance documents and finance isolated inside the partnership
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
   assert.match(page, /مركز المستندات/);
-  assert.match(page, /مسار الاعتماد/);
+  assert.match(page, /اعتماد المرحلة/);
   assert.match(page, /المؤشرات المالية للشراكة/);
   assert.match(page, /مستقلة تمامًا عن مبيعات وتحصيل الأفراد/);
   assert.match(b2b, /b2b_partnership_finance/);
@@ -501,11 +501,29 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /محضر الاجتماع/);
   assert.match(page, /الحضور من سلوكيرا/);
   assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
-  assert.match(page, /إرسال النموذج.*تعبئة النموذج.*إرسال الاتفاقية.*توقيع الاتفاقية/s);
+  assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
   assert.match(page, /partnership-decisions-overview/);
   assert.match(b2b, /update_partnership_pipeline/);
   assert.match(b2b, /fit_decided_by_email/);
   assert.match(css, /partnership-card-progress/);
+});
+
+test("automates the approved partnership through agreement activation and impact", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /إنشاء مجموعة التواصل عبر واتساب/);
+  assert.match(page, /إرسال درع الشراكة/);
+  assert.match(page, /الإعلان عن الشراكة عبر منصات التواصل/);
+  assert.match(page, /المبلغ الإجمالي المقدم/);
+  assert.match(page, /عدد المتدربين/);
+  assert.match(page, /إعداد عرض السعر/);
+  assert.match(page, /إرسال العرض المالي/);
+  assert.match(page, /update_partnership_execution/);
+  assert.match(b2b, /const approvalTypes = \["مدير الشراكات","الإدارة القانونية"\]/);
+  assert.match(b2b, /يلزم اعتماد مدير الشراكات قبل الموافقة على الملاءمة/);
+  assert.match(b2b, /يلزم اعتماد الإدارة القانونية قبل تسجيل توقيع الطرفين/);
+  assert.match(b2b, /financialOfferSentAt/);
+  assert.match(b2b, /nextStage=sentAt\?"قياس الأثر"/);
 });
 
 test("persists multiple B2B meeting minutes and unlocks approved lifecycle transitions", async () => {
@@ -619,5 +637,5 @@ test("keeps partnership decisions inside the card and isolates rejected organiza
   assert.match(page, /b2b-inline-contacts/);
   assert.match(page, /kanban-fit-decision/);
   assert.match(b2b, /lifecycle_stage='مرفوض'/);
-  assert.match(b2b, /fitDecision==="اعتماد"&&row\.lifecycle_stage==="مرفوض"/);
+  assert.match(b2b, /decisionChanged&&fitDecision==="اعتماد"/);
 });
