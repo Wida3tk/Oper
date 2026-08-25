@@ -351,7 +351,8 @@ export default function Home() {
   return <AuthGate />;
 }
 function AuthGate() {
-  const [checking, setChecking] = useState(true),
+  const [b2bPortal,setB2bPortal]=useState(false),
+    [checking, setChecking] = useState(true),
     [authenticated, setAuthenticated] = useState(false),
     [setup, setSetup] = useState(false),
     [email, setEmail] = useState(""),
@@ -359,6 +360,7 @@ function AuthGate() {
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
   useEffect(() => {
+    setB2bPortal(window.location.pathname.toLowerCase().replace(/\/$/, "") === "/b2b");
     fetch("/api/auth")
       .then(async (r) => {
         const data = await r.json();
@@ -399,7 +401,7 @@ function AuthGate() {
     }
   };
   if (checking) return <div className="auth-loading">جارٍ تجهيز النظام...</div>;
-  if (authenticated) return <OperationsApp />;
+  if (authenticated) return <OperationsApp b2bPortal={b2bPortal} />;
   return (
     <main className="login-page" dir="rtl">
       <section className="login-visual">
@@ -407,15 +409,14 @@ function AuthGate() {
           <BrandMark />
         </div>
         <div>
-          <em>مساحة عمل واحدة</em>
+          <em>{b2bPortal ? "بوابة فريق الشراكات" : "مساحة عمل واحدة"}</em>
           <h1>
-            كل رحلة عميل.
+            {b2bPortal ? "كل شراكة." : "كل رحلة عميل."}
             <br />
             واضحة وتحت السيطرة.
           </h1>
           <p>
-            تابع العملاء والبرامج والدفعات ومهام الفريق من نظام عمليات متكامل
-            وآمن.
+            {b2bPortal ? "تابع الجهات، حالات التواصل، الاتفاقيات ومراحل التفعيل ضمن نطاق عملك." : "تابع العملاء والبرامج والدفعات ومهام الفريق من نظام عمليات متكامل وآمن."}
           </p>
         </div>
         <small>بيئة محمية بواسطة Cloudflare Access</small>
@@ -467,8 +468,8 @@ function AuthGate() {
   );
 }
 
-function OperationsApp() {
-  const [view, setView] = useState<View>("dashboard"),
+function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
+  const [view, setView] = useState<View>(b2bPortal ? "b2b-partnerships" : "dashboard"),
     [query, setQuery] = useState(""),
     [people, setPeople] = useState(initialPeople),
     [selected, setSelected] = useState(initialPeople[0]),
@@ -480,8 +481,9 @@ function OperationsApp() {
     [mobileOpen, setMobileOpen] = useState(false),
     [accountOpen, setAccountOpen] = useState(false),
     [notificationsOpen, setNotificationsOpen] = useState(false),
-    [customerNotifications, setCustomerNotifications] = useState<Array<{id:string;created_at:string;actor_name:string;customer_id:string;customer_name:string;program_name?:string;order_number?:string}>>([]),
+    [customerNotifications, setCustomerNotifications] = useState<Array<{id:string;created_at:string;actor_name:string;customer_id:string;customer_name:string;program_name?:string;order_number?:string;read_at?:string}>>([]),
     [notificationsReadAt, setNotificationsReadAt] = useState(""),
+    [notificationQueueSignature, setNotificationQueueSignature] = useState(""),
     [successNotice, setSuccessNotice] = useState<{ id: number; message: string } | null>(null),
     [financeReviewFilter, setFinanceReviewFilter] = useState("الكل"),
     [currentUser, setCurrentUser] = useState({
@@ -493,6 +495,7 @@ function OperationsApp() {
   useEffect(() => {
     const stored = window.localStorage.getItem("sulukera_notifications_read_at") || "";
     setNotificationsReadAt(stored);
+    setNotificationQueueSignature(window.localStorage.getItem("sulukera_notification_queue_signature") || "");
     const loadNotifications = async () => {
       try {
         const data = await apiJson("/api/notifications");
@@ -663,7 +666,7 @@ function OperationsApp() {
   const visibleNavGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(([id]) => canOpen(id)),
+      items: group.items.filter(([id]) => canOpen(id) && (!b2bPortal || ["b2b-business","b2b-partnerships"].includes(id))),
     }))
     .filter((group) => group.items.length);
   const go = (id: View) => {
@@ -700,8 +703,9 @@ function OperationsApp() {
     { view: "assignment" as View, label: "بانتظار تفعيل المقررات", count: navCounts.assignment || 0 },
     { view: "finance" as View, label: "بانتظار الإجراء المالي", count: navCounts.finance || 0 },
   ].filter((item) => item.count > 0 && canOpen(item.view));
-  const unreadCustomerNotifications = customerNotifications.filter((item) => !notificationsReadAt || item.created_at > notificationsReadAt);
-  const notificationBadgeCount = unreadCustomerNotifications.length + headerNotifications.length;
+  const unreadCustomerNotifications = customerNotifications.filter((item) => !item.read_at && (!notificationsReadAt || item.created_at > notificationsReadAt));
+  const currentQueueSignature = headerNotifications.map(item=>`${item.view}:${item.count}`).join("|");
+  const notificationBadgeCount = unreadCustomerNotifications.length + (currentQueueSignature && currentQueueSignature !== notificationQueueSignature ? headerNotifications.reduce((sum,item)=>sum+item.count,0) : 0);
   return (
     <main className="shell" dir="rtl">
       {successNotice && (
@@ -889,18 +893,22 @@ function OperationsApp() {
                 const now = new Date().toISOString();
                 setNotificationsReadAt(now);
                 window.localStorage.setItem("sulukera_notifications_read_at", now);
+                setNotificationQueueSignature(currentQueueSignature);
+                window.localStorage.setItem("sulukera_notification_queue_signature", currentQueueSignature);
+                const unreadIds=unreadCustomerNotifications.map(item=>item.id);
+                if(unreadIds.length){setCustomerNotifications(items=>items.map(item=>unreadIds.includes(item.id)?{...item,read_at:now}:item));void fetch("/api/notifications",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:unreadIds})});}
               }}
             >
               <Bell size={18} />
               {notificationBadgeCount > 0 && <i>{notificationBadgeCount}</i>}
             </button>
             {notificationsOpen && (
-              <div className="notifications-menu">
-                <header><b>الإشعارات</b><span>آخر حركة للعملاء والمتابعات الحالية</span></header>
+              <><button className="notifications-backdrop" aria-label="إغلاق الإشعارات" onClick={()=>setNotificationsOpen(false)}/><div className="notifications-menu">
+                <header><div><b>الإشعارات</b><span>تم الاطلاع على آخر التحديثات</span></div><button type="button" aria-label="إغلاق الإشعارات" onClick={()=>setNotificationsOpen(false)}>×</button></header>
                 {customerNotifications.map((item) => (
                   <button className="customer-created-notification" key={item.id} onClick={() => { setQuery(item.customer_name); go("customers"); setNotificationsOpen(false); }}>
                     <span><b>أضاف {item.actor_name} عميلًا جديدًا</b><small>{item.customer_name} · {item.program_name || "دون برنامج"} · {new Date(item.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"short",timeStyle:"short"})}</small></span>
-                    <em>جديد</em>
+                    <em>{item.read_at?"تم الاطلاع":"جديد"}</em>
                   </button>
                 ))}
                 {headerNotifications.map((item) => (
@@ -910,7 +918,7 @@ function OperationsApp() {
                   </button>
                 ))}
                 {!customerNotifications.length && !headerNotifications.length && <p>لا توجد إشعارات جديدة حاليًا</p>}
-              </div>
+              </div></>
             )}
           </div>
           {has("customers.manage") && (
@@ -6575,7 +6583,7 @@ const b2bStageColors: Record<string,string> = {
   "جهة جديدة":"blue","تواصل أولي":"blue","تأهيل الاحتياج":"violet","اجتماع أو عرض تعريفي":"violet",
   "إعداد العرض":"amber","عرض مرسل":"amber","تفاوض":"orange","بانتظار التوقيع":"orange","تم التوقيع":"green","مغلقة":"gray",
 };
-const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مرفوض"];
+const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مؤجل","غير مناسب"];
 const B2B_CONTACT_STATUSES=["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
 const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":["تم تحديد اجتماع","تم تحديد موعد اجتماع"].includes(String(status))?"meeting":["في انتظار الرد","بانتظار رد الجهة"].includes(String(status))?"waiting":["تم التواصل الأول","تم التواصل الأولي"].includes(String(status))?"contacted":"new";
 const b2bPathLabel=(path:unknown)=>path==="BOTH"?"جميع المجالات":String(path||"ABA");
@@ -6593,10 +6601,11 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [meetingMinutes,setMeetingMinutes]=useState<B2BRow[]>([]),[contacts,setContacts]=useState<B2BRow[]>([]),[contactDraft,setContactDraft]=useState({name:"",jobTitle:"",phone:"",email:"",isPrimary:false});
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
   const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
+  const [columnStatuses,setColumnStatuses]=useState<Record<string,string>>({});
   const load=async()=>{setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
   useEffect(()=>{void load()},[section]);
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
-  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||""),stage=fit==="رفض"?"مرفوض":String(body.agreementSignedAt||"")?"التفعيل والعمليات":fit==="اعتماد"?"التفاوض والاتفاقية":current.lifecycle_stage;setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:stage})}if(body.action==="update_partnership_execution"&&current&&body.financialOfferSentAt)setSelected({...current,lifecycle_stage:"قياس الأثر"});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(current&&keepOpen)await Promise.all([load(),loadActivities(current.account_id)]);else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
+  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||""),stage=fit==="رفض"?"غير مناسب":fit==="تأجيل"?"مؤجل":String(body.agreementSignedAt||"")?"التفعيل والعمليات":fit==="اعتماد"?"التفاوض والاتفاقية":current.lifecycle_stage;setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:stage})}if(body.action==="update_partnership_execution"&&current&&body.financialOfferSentAt)setSelected({...current,lifecycle_stage:"قياس الأثر"});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(current&&keepOpen)await Promise.all([load(),loadActivities(current.account_id)]);else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
   const loadActivities=async(accountId:unknown)=>{try{const data=await apiJson(`/api/b2b?accountId=${encodeURIComponent(String(accountId||""))}`);setActivities(data.activities||[]);setDocuments(data.documents||[]);setApprovals(data.approvals||[]);setMeetingMinutes(data.meetings||[]);setContacts(data.contacts||[])}catch(e){setError((e as Error).message)}};
   const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementPreparedAt:String(row.agreement_prepared_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),organizationSignedAt:String(row.organization_signed_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});setExecutionDraft({whatsappGroupCreatedAt:String(row.whatsapp_group_created_at||"").slice(0,10),partnershipShieldSentAt:String(row.partnership_shield_sent_at||"").slice(0,10),socialAnnouncementAt:String(row.social_announcement_at||"").slice(0,10),totalOfferAmount:String(row.total_offer_amount||""),executionTraineeCount:String(row.execution_trainee_count||""),executionProgram:String(row.execution_program||""),executionProgramOther:String(row.execution_program_other||""),priceOfferPreparedAt:String(row.price_offer_prepared_at||"").slice(0,10),financialOfferSentAt:String(row.financial_offer_sent_at||"").slice(0,10)});void loadActivities(row.account_id)};
   const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
@@ -6610,7 +6619,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const overdueFollowUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<today).length;
   const agreementMilestones=[['data_form_sent_at','dataFormSentAt','تم إرسال النموذج'],['agreement_prepared_at','agreementPreparedAt','إعداد الاتفاقية'],['agreement_sent_at','agreementSentAt','تم إرسال الاتفاقية'],['organization_signed_at','organizationSignedAt','تم توقيع الجهة'],['agreement_signed_at','agreementSignedAt','تم توقيع الطرفين']] as const;
   const moveLifecycle=(row:B2BRow,stage:string)=>void execute({action:"update_lifecycle",opportunityId:row.opportunity_id,partnershipId:row.partnership_id||"",stage},false);
-  const reorderCard=(row:B2BRow,direction:"up"|"down",priority="الكل")=>void execute({action:"reorder_partnership_card",opportunityId:row.opportunity_id,direction,priority},false);
+  const reorderCard=(row:B2BRow,direction:"up"|"down",priority="الكل",contactStatus="الكل")=>void execute({action:"reorder_partnership_card",opportunityId:row.opportunity_id,direction,priority,contactStatus},false);
   const readLogo=(file:File|undefined,target:"form"|"account")=>{if(!file)return;if(file.size>500000||!/^image\/(png|jpeg|webp)$/.test(file.type)){setError("الشعار يجب أن يكون PNG أو JPG أو WebP وحجمه أقل من 500KB");return}const reader=new FileReader();reader.onload=()=>{const logoData=String(reader.result||"");target==="form"?setForm(current=>({...current,logoData})):setAccountDraft(current=>({...current,logoData}))};reader.readAsDataURL(file)};
   return (
     <div className="b2b-workspace">
@@ -7446,7 +7455,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   String(row.lifecycle_stage || "التفعيل والعمليات") === stage,
               );
               const priorityFilter=columnPriorities[stage]||"الكل";
-              const stageRows=allStageRows.filter(row=>priorityFilter==="الكل"||String(row.priority||"غير محددة")===priorityFilter);
+              const statusFilter=columnStatuses[stage]||"الكل";
+              const stageRows=allStageRows.filter(row=>(priorityFilter==="الكل"||String(row.priority||"غير محددة")===priorityFilter)&&(statusFilter==="الكل"||String(row.contact_status||"لم يتم التواصل")===statusFilter));
               return (
                 <section
                   className={`b2b-kanban-column stage-${index + 1}`}
@@ -7467,12 +7477,18 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <span>0{index + 1}</span>
                     <div>
                       <b>{stage}</b>
-                      <small>{stageRows.length}{priorityFilter!=="الكل"?` من ${allStageRows.length}`:""} شراكة</small>
+                      <small>{stageRows.length}{priorityFilter!=="الكل"||statusFilter!=="الكل"?` من ${allStageRows.length}`:""} شراكة</small>
                     </div>
                     <label className="kanban-priority-filter">
                       <span>الأولوية</span>
                       <select value={priorityFilter} onChange={(event)=>setColumnPriorities(current=>({...current,[stage]:event.target.value}))}>
                         <option>الكل</option><option>عالية</option><option>متوسطة</option><option>منخفضة</option><option>غير محددة</option>
+                      </select>
+                    </label>
+                    <label className="kanban-priority-filter status-filter">
+                      <span>الحالة</span>
+                      <select value={statusFilter} onChange={(event)=>setColumnStatuses(current=>({...current,[stage]:event.target.value}))}>
+                        <option>الكل</option>{B2B_CONTACT_STATUSES.map(status=><option key={status}>{status}</option>)}
                       </select>
                     </label>
                   </header>
@@ -7530,10 +7546,18 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                             {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && (
                               <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
                             )}
+                            <div className="b2b-card-dates">
+                              <span>أضيفت <b>{new Date(String(row.opportunity_created_at)).toLocaleDateString("ar-SA-u-nu-latn")}</b></span>
+                              <span>أول تواصل <b>{row.first_contact_at?new Date(String(row.first_contact_at)).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ"}</b></span>
+                              {row.lifecycle_updated_at&&<span>آخر انتقال <b>{new Date(String(row.lifecycle_updated_at)).toLocaleDateString("ar-SA-u-nu-latn")}</b></span>}
+                            </div>
+                            <div className="b2b-stage-dates">
+                              {[["الاجتماع",row.meeting_completed_at],["إرسال النموذج",row.data_form_sent_at],["إعداد الاتفاقية",row.agreement_prepared_at],["إرسال الاتفاقية",row.agreement_sent_at],["توقيع الجهة",row.organization_signed_at],["توقيع الطرفين",row.agreement_signed_at],["مجموعة واتساب",row.whatsapp_group_created_at],["درع الشراكة",row.partnership_shield_sent_at],["إعلان الشراكة",row.social_announcement_at],["العرض المالي",row.financial_offer_sent_at]].filter(([,date])=>Boolean(date)).map(([label,date])=><span key={String(label)}><b>{label}</b>{new Date(String(date)).toLocaleDateString("ar-SA-u-nu-latn")}</span>)}
+                            </div>
                             <div className="kanban-card-order" onClick={(event)=>event.stopPropagation()}>
                               <span>ترتيب البطاقة</span>
-                              <button disabled={stageRows[0]?.id===row.id} onClick={()=>reorderCard(row,"up",priorityFilter)} aria-label={`رفع ${row.account_name}`}>↑</button>
-                              <button disabled={stageRows[stageRows.length-1]?.id===row.id} onClick={()=>reorderCard(row,"down",priorityFilter)} aria-label={`خفض ${row.account_name}`}>↓</button>
+                              <button disabled={stageRows[0]?.id===row.id} onClick={()=>reorderCard(row,"up",priorityFilter,statusFilter)} aria-label={`رفع ${row.account_name}`}>↑</button>
+                              <button disabled={stageRows[stageRows.length-1]?.id===row.id} onClick={()=>reorderCard(row,"down",priorityFilter,statusFilter)} aria-label={`خفض ${row.account_name}`}>↓</button>
                             </div>
                           </article>
                         );
@@ -7711,16 +7735,18 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                 <div className="drawer-lifecycle">
                   <div className="drawer-lifecycle-title">
                     <span>دورة حياة الشراكة</span>
-                    <b>{selected.fit_decision === "رفض" ? "مرفوض" : selected.lifecycle_stage || "الاستكشاف والتقييم"}</b>
+                    <b>{selected.fit_decision === "رفض" ? "غير مناسب" : selected.fit_decision === "تأجيل" ? "مؤجل" : selected.lifecycle_stage || "الاستكشاف والتقييم"}</b>
                   </div>
                   <div className={`drawer-lifecycle-track ${selected.fit_decision === "رفض" ? "rejected" : ""}`}>
                     {(selected.fit_decision === "اعتماد"
-                      ? lifecycleStages.filter((stage) => stage !== "مرفوض")
+                      ? lifecycleStages.filter((stage) => !["غير مناسب","مؤجل"].includes(stage))
                       : selected.fit_decision === "رفض"
-                        ? ["الاستكشاف والتقييم", "مرفوض"]
+                        ? ["الاستكشاف والتقييم", "غير مناسب"]
+                        : selected.fit_decision === "تأجيل"
+                          ? ["الاستكشاف والتقييم", "مؤجل"]
                         : ["الاستكشاف والتقييم"]
                     ).map((stage, index, shownStages) => (
-                      <span key={stage} className={shownStages.indexOf(String(selected.lifecycle_stage || "الاستكشاف والتقييم")) >= index || stage === "مرفوض" ? "done" : ""}>
+                      <span key={stage} className={shownStages.indexOf(String(selected.lifecycle_stage || "الاستكشاف والتقييم")) >= index || ["غير مناسب","مؤجل"].includes(stage) ? "done" : ""}>
                         <i>{index + 1}</i><b>{stage}</b>
                       </span>
                     ))}
@@ -7729,7 +7755,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <label className="drawer-lifecycle-select">
                       <span>تحديث المرحلة</span>
                       <select disabled={saving} value={String(selected.lifecycle_stage || "الاستكشاف والتقييم")} onChange={(e)=>void execute({action:"update_lifecycle",opportunityId:selected.opportunity_id,partnershipId:selected.partnership_id||"",stage:e.target.value})}>
-                        {lifecycleStages.filter((stage)=>stage!=="مرفوض").map((stage)=><option key={stage}>{stage}</option>)}
+                        {lifecycleStages.filter((stage)=>!["غير مناسب","مؤجل"].includes(stage)).map((stage)=><option key={stage}>{stage}</option>)}
                       </select>
                     </label>
                   )}

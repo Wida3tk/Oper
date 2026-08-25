@@ -7,7 +7,7 @@ const trainingStages = ["جهة مسندة","تم التواصل","تم تحدي
 const businessStages = [...new Set([...partnershipStages,...trainingStages])];
 const partnershipStatuses = ["بانتظار التفعيل","نشطة","تحتاج متابعة","تجديد قريب","قيد التجديد","منتهية","ملغاة"];
 const paths = ["ABA","OBM","BOTH"];
-const lifecycleStages = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مرفوض"];
+const lifecycleStages = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مؤجل","غير مناسب"];
 const documentTypes = ["الملف التعريفي","اتفاقية السرية NDA","مسودة العقد","النموذج المالي","العقد النهائي","خطة العمل","تقرير أداء ربع سنوي","محضر اجتماع","تقرير التقييم النهائي","ملحق التجديد"];
 const approvalTypes = ["مدير الشراكات","الإدارة القانونية"];
 const contactStatuses = ["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
@@ -96,7 +96,9 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   ]);
   await db.batch([
     db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفاوض والاتفاقية' WHERE lifecycle_stage='التفاوض والهيكلة'"),
-    db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والاتفاقية' WHERE lifecycle_stage='التفاوض والهيكلة'")
+    db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والاتفاقية' WHERE lifecycle_stage='التفاوض والهيكلة'"),
+    db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='غير مناسب' WHERE lifecycle_stage='مرفوض'"),
+    db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='غير مناسب' WHERE lifecycle_stage='مرفوض'")
   ]);
 }
 
@@ -126,7 +128,7 @@ export async function GET(req: Request) {
   const section=params.get("section")||"business";
   if(section==="partnerships"){
     const {results}=await db.prepare(`SELECT COALESCE(p.id,o.id) id,p.id partnership_id,o.id opportunity_id,o.account_id,
-      o.stage opportunity_stage,o.lifecycle_stage opportunity_lifecycle_stage,o.next_follow_up,o.expected_value,o.created_at opportunity_created_at,
+      o.stage opportunity_stage,o.lifecycle_stage opportunity_lifecycle_stage,o.lifecycle_updated_at,o.next_follow_up,o.expected_value,o.created_at opportunity_created_at,
       o.meeting_scheduled_at,o.meeting_mode,o.meeting_completed_at,o.meeting_attendees_internal,o.meeting_attendees_external,o.meeting_topic,o.meeting_summary,o.meeting_needs,o.meeting_opportunities,o.meeting_decisions,o.meeting_next_step,
       o.fit_decision,o.fit_reason,o.fit_decided_by_email,o.fit_decided_at,o.data_form_sent_at,o.data_form_completed_at,o.agreement_prepared_at,o.agreement_sent_at,o.organization_signed_at,o.agreement_signed_at,
       o.whatsapp_group_created_at,o.partnership_shield_sent_at,o.social_announcement_at,o.total_offer_amount,o.execution_trainee_count,o.execution_program,o.execution_program_other,o.price_offer_prepared_at,o.financial_offer_sent_at,
@@ -139,6 +141,7 @@ export async function GET(req: Request) {
       (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
       (SELECT COUNT(*) FROM b2b_documents d WHERE d.opportunity_id=o.id OR (p.id IS NOT NULL AND d.partnership_id=p.id)) document_count,
       (SELECT COUNT(*) FROM b2b_approvals ap WHERE (ap.opportunity_id=o.id OR (p.id IS NOT NULL AND ap.partnership_id=p.id)) AND ap.status='pending') pending_approvals,
+      (SELECT MIN(x.created_at) FROM b2b_activities x WHERE x.account_id=a.id AND (x.activity_type IN ('تم التواصل','تحديث مسار الشراكة') OR x.details LIKE '%تم التواصل%')) first_contact_at,
       f.coupon_code,f.discount_percent,f.commission_percent,f.gross_sales,f.coordination_cost,f.commission_due,f.commission_paid,f.payout_status
       FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id
       LEFT JOIN b2b_partnerships p ON p.opportunity_id=o.id
@@ -301,7 +304,8 @@ export async function POST(req:Request){
       db.prepare(`UPDATE b2b_opportunities SET stage=?,meeting_scheduled_at=?,meeting_mode=?,meeting_completed_at=?,meeting_attendees_internal=?,meeting_attendees_external=?,meeting_topic=?,meeting_summary=?,meeting_needs=?,meeting_opportunities=?,meeting_decisions=?,meeting_next_step=?,next_follow_up=?,fit_decision=?,fit_reason=?,fit_decided_by_email=CASE WHEN ? THEN ? ELSE fit_decided_by_email END,fit_decided_at=CASE WHEN ? THEN ? ELSE fit_decided_at END,data_form_sent_at=?,data_form_completed_at=?,agreement_prepared_at=?,agreement_sent_at=?,organization_signed_at=?,agreement_signed_at=?,updated_at=? WHERE id=?`).bind(contactStatus||'مرحلة الملاءمة',String(body.meetingScheduledAt||"")||null,String(body.meetingMode||"")||null,meetingCompleted,String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),String(body.meetingTopic||""),String(body.meetingSummary||""),String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,fitDecision,fitReason,decisionChanged?1:0,auth.email,decisionChanged?1:0,now,String(body.dataFormSentAt||"")||null,String(body.dataFormCompletedAt||"")||null,String(body.agreementPreparedAt||"")||null,String(body.agreementSentAt||"")||null,String(body.organizationSignedAt||"")||null,String(body.agreementSignedAt||"")||null,now,opportunityId),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'تحديث مسار الشراكة',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,fitDecision?`حالة التواصل: ${contactStatus||'غير محددة'} · قرار الملاءمة: ${fitDecision} · ${fitReason}`:`حالة التواصل: ${contactStatus||'غير محددة'}${meetingCompleted?' · تم حفظ محضر الاجتماع':''}`,auth.email,now),
     ];
-    if(decisionChanged&&fitDecision==="رفض")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='مرفوض',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='مرفوض',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
+    if(decisionChanged&&fitDecision==="رفض")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='غير مناسب',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='غير مناسب',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
+    if(decisionChanged&&fitDecision==="تأجيل")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='مؤجل',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='مؤجل',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
     if(decisionChanged&&fitDecision==="اعتماد")changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفاوض والاتفاقية',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفاوض والاتفاقية',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
     if(String(body.agreementSignedAt||""))changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفعيل والعمليات',lifecycle_updated_at=?,sort_order=0 WHERE id=?").bind(now,opportunityId),db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفعيل والعمليات',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId));
     if(meetingCompleted&&meetingSignature!==latestSignature)changes.push(db.prepare("INSERT INTO b2b_meeting_minutes(id,account_id,opportunity_id,meeting_at,meeting_mode,topic,attendees_internal,attendees_external,summary,needs,opportunities,decisions,next_step,next_follow_up,created_by_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id("B2BM"),row.account_id,opportunityId,meetingCompleted,String(body.meetingMode||""),String(body.meetingTopic||""),String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),String(body.meetingSummary||""),String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,auth.email,now));
@@ -343,12 +347,12 @@ export async function POST(req:Request){
     await db.batch(changes);return Response.json({ok:true,stage:target});
   }
   if(action==="reorder_partnership_card"){
-    const opportunityId=String(body.opportunityId||""),direction=String(body.direction||""),priority=String(body.priority||"الكل");
+    const opportunityId=String(body.opportunityId||""),direction=String(body.direction||""),priority=String(body.priority||"الكل"),contactStatus=String(body.contactStatus||"الكل");
     if(!opportunityId||!["up","down"].includes(direction))return Response.json({error:"اتجاه الترتيب غير صحيح"},{status:400});
     const row=await db.prepare("SELECT account_id,lifecycle_stage FROM b2b_opportunities WHERE id=? AND opportunity_kind='partnership'").bind(opportunityId).first<{account_id:string;lifecycle_stage:string}>();
     if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
-    const priorityScope=priority!=="الكل"?" AND COALESCE(a.priority,'غير محددة')=?":"",binds=priority!=="الكل"?[row.lifecycle_stage||"الاستكشاف والتقييم",priority]:[row.lifecycle_stage||"الاستكشاف والتقييم"];
-    const {results}=await db.prepare(`SELECT o.id FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id WHERE o.opportunity_kind='partnership' AND COALESCE(o.lifecycle_stage,'الاستكشاف والتقييم')=?${priorityScope} ORDER BY CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...binds).all<{id:string}>();
+    const priorityScope=priority!=="الكل"?" AND COALESCE(a.priority,'غير محددة')=?":"",statusScope=contactStatus!=="الكل"?" AND COALESCE(a.contact_status,'لم يتم التواصل')=?":"",binds=[row.lifecycle_stage||"الاستكشاف والتقييم",...(priority!=="الكل"?[priority]:[]),...(contactStatus!=="الكل"?[contactStatus]:[])];
+    const {results}=await db.prepare(`SELECT o.id FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id WHERE o.opportunity_kind='partnership' AND COALESCE(o.lifecycle_stage,'الاستكشاف والتقييم')=?${priorityScope}${statusScope} ORDER BY CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...binds).all<{id:string}>();
     const current=results.findIndex(item=>item.id===opportunityId),target=direction==="up"?current-1:current+1;
     if(current<0||target<0||target>=results.length)return Response.json({ok:true,unchanged:true});
     [results[current],results[target]]=[results[target],results[current]];

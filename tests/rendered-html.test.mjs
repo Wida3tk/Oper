@@ -636,6 +636,34 @@ test("keeps partnership decisions inside the card and isolates rejected organiza
   assert.match(page, /آخر التحديثات/);
   assert.match(page, /b2b-inline-contacts/);
   assert.match(page, /kanban-fit-decision/);
-  assert.match(b2b, /lifecycle_stage='مرفوض'/);
+  assert.match(b2b, /lifecycle_stage='غير مناسب'/);
   assert.match(b2b, /decisionChanged&&fitDecision==="اعتماد"/);
+});
+
+test("adds scalable partnership filters deferred outcomes and dated cards", async () => {
+  const page=await read("../app/page.tsx");
+  const b2b=await read("../app/api/b2b/route.ts");
+  const css=await read("../app/globals.css");
+  assert.match(page,/columnPriorities/);
+  assert.match(page,/columnStatuses/);
+  assert.match(page,/أول تواصل/);
+  assert.match(page,/آخر انتقال/);
+  assert.match(page,/b2b-stage-dates/);
+  assert.match(page,/مؤجل/);
+  assert.match(page,/غير مناسب/);
+  assert.match(b2b,/first_contact_at/);
+  assert.match(b2b,/fitDecision==="تأجيل"/);
+  assert.match(css,/grid-auto-columns:minmax\(280px,1fr\)/);
+});
+
+test("provides a dedicated B2B login path and persistent notification reads", async()=>{
+  const page=await read("../app/page.tsx");
+  const notifications=await read("../app/api/notifications/route.ts");
+  assert.match(page,/=== "\/b2b"/);
+  assert.match(page,/بوابة فريق الشراكات/);
+  assert.match(page,/b2bPortal \? "b2b-partnerships"/);
+  assert.match(page,/sulukera_notification_queue_signature/);
+  assert.match(page,/تم الاطلاع/);
+  assert.match(notifications,/notification_reads/);
+  assert.match(notifications,/export async function POST/);
 });
