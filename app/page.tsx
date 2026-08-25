@@ -6617,6 +6617,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const visibleRows=rows.filter(row=>{const q=search.trim().toLowerCase();return(!q||[row.account_name,row.contact_name,row.contact_phone,row.city,row.requested_program].some(value=>String(value||"").toLowerCase().includes(q)))&&(stageFilter==="الكل"||String(row.stage||row.status)===stageFilter)&&(pathFilter==="الكل"||String(row.path)===pathFilter)&&(kindFilter==="الكل"||String(row.opportunity_kind||"partnership")===kindFilter)});
   const funnelStages=["جهة مسندة","تم التواصل","تم الاجتماع","أُرسل العرض","بانتظار التوقيع","تم التوقيع"];
   const days=(value:unknown)=>value?Math.ceil((new Date(String(value)).getTime()-Date.now())/86400000):null;
+  const daysSince=(value:unknown)=>value?Math.max(0,Math.floor((Date.now()-new Date(String(value)).getTime())/86400000)):null;
   const overdueFollowUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<today).length;
   const managerApproved=approvals.some(row=>row.approval_type==="مدير الشراكات"&&row.status==="approved");
   const agreementMilestones=[['data_form_sent_at','dataFormSentAt','تم إرسال النموذج'],['agreement_prepared_at','agreementPreparedAt','إعداد الاتفاقية'],['agreement_sent_at','agreementSentAt','تم إرسال الاتفاقية'],['organization_signed_at','organizationSignedAt','تم توقيع الجهة'],['agreement_signed_at','agreementSignedAt','تم توقيع الطرفين']] as const;
@@ -7549,12 +7550,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
                             )}
                             <div className="b2b-card-dates">
-                              <span>أضيفت <b>{new Date(String(row.opportunity_created_at)).toLocaleDateString("ar-SA-u-nu-latn")}</b></span>
-                              <span>أول تواصل <b>{row.first_contact_at?new Date(String(row.first_contact_at)).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ"}</b></span>
-                              {row.lifecycle_updated_at&&<span>آخر انتقال <b>{new Date(String(row.lifecycle_updated_at)).toLocaleDateString("ar-SA-u-nu-latn")}</b></span>}
-                            </div>
-                            <div className="b2b-stage-dates">
-                              {[["الاجتماع",row.meeting_completed_at],["إرسال النموذج",row.data_form_sent_at],["إعداد الاتفاقية",row.agreement_prepared_at],["إرسال الاتفاقية",row.agreement_sent_at],["توقيع الجهة",row.organization_signed_at],["توقيع الطرفين",row.agreement_signed_at],["مجموعة واتساب",row.whatsapp_group_created_at],["درع الشراكة",row.partnership_shield_sent_at],["إعلان الشراكة",row.social_announcement_at],["العرض المالي",row.financial_offer_sent_at]].filter(([,date])=>Boolean(date)).map(([label,date])=><span key={String(label)}><b>{label}</b>{new Date(String(date)).toLocaleDateString("ar-SA-u-nu-latn")}</span>)}
+                              <span>تاريخ أول تواصل <b>{row.first_contact_at?new Date(String(row.first_contact_at)).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ"}</b></span>
+                              <span>مدة الحالة <b>{row.first_contact_at?`منذ ${daysSince(row.first_contact_at)} يوم`:"بانتظار التواصل"}</b></span>
                             </div>
                             <div className="kanban-card-order" onClick={(event)=>event.stopPropagation()}>
                               <span>ترتيب البطاقة</span>

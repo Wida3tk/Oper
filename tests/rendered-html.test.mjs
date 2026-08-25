@@ -658,13 +658,23 @@ test("adds scalable partnership filters deferred outcomes and dated cards", asyn
   assert.match(page,/columnPriorities/);
   assert.match(page,/columnStatuses/);
   assert.match(page,/أول تواصل/);
-  assert.match(page,/آخر انتقال/);
-  assert.match(page,/b2b-stage-dates/);
+  assert.match(page,/مدة الحالة/);
   assert.match(page,/مؤجل/);
   assert.match(page,/غير مناسب/);
   assert.match(b2b,/first_contact_at/);
   assert.match(b2b,/fitDecision==="تأجيل"/);
   assert.match(css,/grid-auto-columns:minmax\(280px,1fr\)/);
+});
+
+test("shows the shared partnership workspace with a compact employee lifecycle", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(b2b, /employeeStages=\["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","غير مناسب","مؤجل"\]/);
+  assert.match(b2b, /scope:"all"/);
+  assert.match(page, /تاريخ أول تواصل/);
+  assert.match(page, /مدة الحالة/);
+  assert.match(page, /منذ \$\{daysSince\(row\.first_contact_at\)\} يوم/);
+  assert.doesNotMatch(page, /آخر انتقال <b>/);
 });
 
 test("provides a dedicated B2B login path and persistent notification reads", async()=>{

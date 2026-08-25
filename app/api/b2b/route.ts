@@ -117,9 +117,9 @@ export async function GET(req: Request) {
   const auth = await authorize(req,["b2b"]); if(!auth.ok) return auth.response;
   if(!can(auth,"b2b.view")) return Response.json({error:"ليس لديك صلاحية عرض قطاع الأعمال"},{status:403});
   const db=operationalDb(); await ensureSchemaOnce(db);
-  const params=new URL(req.url).searchParams,accountId=params.get("accountId")||"",scope=scopeSql(auth);
+  const params=new URL(req.url).searchParams,accountId=params.get("accountId")||"",assignedScope=scopeSql(auth),viewScope={sql:"",bind:[] as string[]};
   if(accountId){
-    const allowed=await db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first();
+    const allowed=await db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${viewScope.sql}`).bind(accountId,...viewScope.bind).first();
     if(!allowed)return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     const [{results:activities},{results:documents},{results:approvals},{results:meetings},{results:contacts}]=await Promise.all([
       db.prepare("SELECT id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at FROM b2b_activities WHERE account_id=? ORDER BY created_at DESC").bind(accountId).all(),
@@ -147,17 +147,19 @@ export async function GET(req: Request) {
       (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
       (SELECT COUNT(*) FROM b2b_documents d WHERE d.opportunity_id=o.id OR (p.id IS NOT NULL AND d.partnership_id=p.id)) document_count,
       (SELECT COUNT(*) FROM b2b_approvals ap WHERE (ap.opportunity_id=o.id OR (p.id IS NOT NULL AND ap.partnership_id=p.id)) AND ap.status='pending') pending_approvals,
-      (SELECT MIN(x.created_at) FROM b2b_activities x WHERE x.account_id=a.id AND (x.activity_type IN ('تم التواصل','تحديث مسار الشراكة') OR x.details LIKE '%تم التواصل%')) first_contact_at,
+      (SELECT MIN(x.created_at) FROM b2b_activities x WHERE x.account_id=a.id AND ((x.activity_type='تحديث حالة التواصل' AND x.details<>'لم يتم التواصل') OR x.activity_type IN ('تم التواصل','تواصل أولي','اتصال','واتساب','بريد إلكتروني'))) first_contact_at,
       f.coupon_code,f.discount_percent,f.commission_percent,f.gross_sales,f.coordination_cost,f.commission_due,f.commission_paid,f.payout_status
       FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id
       LEFT JOIN b2b_partnerships p ON p.opportunity_id=o.id
       LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
-      LEFT JOIN b2b_partnership_finance f ON f.partnership_id=p.id WHERE 1=1${scope.sql}
+      LEFT JOIN b2b_partnership_finance f ON f.partnership_id=p.id WHERE 1=1${viewScope.sql}
       AND o.opportunity_kind='partnership'
-      ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...scope.bind).all();
-    return Response.json({partnerships:results,statuses:partnershipStatuses,lifecycleStages,staff,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
+      ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...viewScope.bind).all();
+    const employeeStages=["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","غير مناسب","مؤجل"],visibleStages=isAdmin(auth)?lifecycleStages:employeeStages;
+    const visibleResults=isAdmin(auth)?results:results.map(row=>({...row,lifecycle_stage:["قياس الأثر","التجديد أو الخروج"].includes(String(row.lifecycle_stage))?"التفعيل والعمليات":row.lifecycle_stage}));
+    return Response.json({partnerships:visibleResults,statuses:partnershipStatuses,lifecycleStages:visibleStages,staff,scope:"all",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
   }
-  const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
+  const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${assignedScope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:assignedScope.bind}:assignedScope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(a.owner_email) LIMIT 1) owner_name,a.priority,a.path,a.team_id,a.contact_status,a.logo_data,
     c.id contact_id,c.name contact_name,c.job_title contact_title,c.phone contact_phone,c.email contact_email,c.contact_role,c.preferred_channel,
     (SELECT COUNT(*) FROM b2b_activities x WHERE x.opportunity_id=o.id) activity_count,
