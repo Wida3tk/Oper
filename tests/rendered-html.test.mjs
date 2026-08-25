@@ -510,6 +510,10 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /حفظ حالة التواصل/);
   assert.match(page, /حفظ محضر الاجتماع/);
   assert.doesNotMatch(page, /حفظ تحديث مسار الجهة والمحضر/);
+  assert.match(page, /selected\.lifecycle_stage\) === "التفاوض والاتفاقية"/);
+  assert.match(page, /activities\.slice\(0,3\)/);
+  assert.match(page, /عرض المزيد/);
+  assert.doesNotMatch(page, /<h3>آخر التحديثات<\/h3>/);
   assert.match(b2b, /fit_decided_by_email/);
   assert.match(css, /partnership-card-progress/);
 });

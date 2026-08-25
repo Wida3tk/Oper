@@ -290,6 +290,8 @@ export async function POST(req:Request){
   if(action==="update_partnership_contact"){
     const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string}>();
     if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const managerApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='مدير الشراكات' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
+    if(!managerApproval)return Response.json({error:"يلزم اعتماد مدير الشراكات قبل بدء التواصل"},{status:409});
     const contactStatus=contactStatuses.includes(String(body.contactStatus))?String(body.contactStatus):"لم يتم التواصل",meetingScheduledAt=String(body.meetingScheduledAt||"")||null;
     if(contactStatus==="تم تحديد موعد اجتماع"&&!meetingScheduledAt)return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
     await db.batch([
@@ -302,6 +304,8 @@ export async function POST(req:Request){
   if(action==="add_partnership_meeting"){
     const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string}>();
     if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const managerApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='مدير الشراكات' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
+    if(!managerApproval)return Response.json({error:"يلزم اعتماد مدير الشراكات قبل تسجيل الاجتماع"},{status:409});
     const meetingAt=String(body.meetingCompletedAt||"");
     if(!meetingAt)return Response.json({error:"تاريخ ووقت الاجتماع الفعلي مطلوبان لحفظ المحضر"},{status:400});
     const meetingId=id("B2BM"),topic=String(body.meetingTopic||"").trim(),summary=String(body.meetingSummary||"").trim();

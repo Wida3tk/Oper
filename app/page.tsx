@@ -6600,6 +6600,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [executionDraft,setExecutionDraft]=useState<Record<string,string>>({});
   const [meetingMinutes,setMeetingMinutes]=useState<B2BRow[]>([]),[contacts,setContacts]=useState<B2BRow[]>([]),[contactDraft,setContactDraft]=useState({name:"",jobTitle:"",phone:"",email:"",isPrimary:false});
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
+  const [showAllActivities,setShowAllActivities]=useState(false);
   const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
   const [columnStatuses,setColumnStatuses]=useState<Record<string,string>>({});
   const load=async(silent=false)=>{if(!silent)setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{if(!silent)setLoading(false)}};
@@ -6607,7 +6608,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_contact"&&current)setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||"")});if(body.action==="add_partnership_meeting"&&current)setSelected({...current,contact_status:"تم الاجتماع"});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||""),stage=fit==="رفض"?"غير مناسب":fit==="تأجيل"?"مؤجل":String(body.agreementSignedAt||"")?"التفعيل والعمليات":fit==="اعتماد"?"التفاوض والاتفاقية":current.lifecycle_stage;setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:stage})}if(body.action==="update_partnership_execution"&&current&&body.financialOfferSentAt)setSelected({...current,lifecycle_stage:"قياس الأثر"});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(body.action==="add_partnership_meeting")setPipelineDraft(previous=>({...previous,meetingCompletedAt:"",meetingTopic:"",meetingAttendeesInternal:"",meetingAttendeesExternal:"",meetingSummary:"",meetingNeeds:"",meetingOpportunities:"",meetingDecisions:"",meetingNextStep:""}));if(current&&keepOpen){await loadActivities(current.account_id);void load(true)}else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
   const loadActivities=async(accountId:unknown)=>{try{const data=await apiJson(`/api/b2b?accountId=${encodeURIComponent(String(accountId||""))}`);setActivities(data.activities||[]);setDocuments(data.documents||[]);setApprovals(data.approvals||[]);setMeetingMinutes(data.meetings||[]);setContacts(data.contacts||[])}catch(e){setError((e as Error).message)}};
-  const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementPreparedAt:String(row.agreement_prepared_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),organizationSignedAt:String(row.organization_signed_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});setExecutionDraft({whatsappGroupCreatedAt:String(row.whatsapp_group_created_at||"").slice(0,10),partnershipShieldSentAt:String(row.partnership_shield_sent_at||"").slice(0,10),socialAnnouncementAt:String(row.social_announcement_at||"").slice(0,10),totalOfferAmount:String(row.total_offer_amount||""),executionTraineeCount:String(row.execution_trainee_count||""),executionProgram:String(row.execution_program||""),executionProgramOther:String(row.execution_program_other||""),priceOfferPreparedAt:String(row.price_offer_prepared_at||"").slice(0,10),financialOfferSentAt:String(row.financial_offer_sent_at||"").slice(0,10)});void loadActivities(row.account_id)};
+  const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setShowAllActivities(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementPreparedAt:String(row.agreement_prepared_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),organizationSignedAt:String(row.organization_signed_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});setExecutionDraft({whatsappGroupCreatedAt:String(row.whatsapp_group_created_at||"").slice(0,10),partnershipShieldSentAt:String(row.partnership_shield_sent_at||"").slice(0,10),socialAnnouncementAt:String(row.social_announcement_at||"").slice(0,10),totalOfferAmount:String(row.total_offer_amount||""),executionTraineeCount:String(row.execution_trainee_count||""),executionProgram:String(row.execution_program||""),executionProgramOther:String(row.execution_program_other||""),priceOfferPreparedAt:String(row.price_offer_prepared_at||"").slice(0,10),financialOfferSentAt:String(row.financial_offer_sent_at||"").slice(0,10)});void loadActivities(row.account_id)};
   const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const addActivity=async()=>{if(!selected)return;setSaving(true);try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"log_activity",accountId:selected.account_id,opportunityId:selected.opportunity_id||selected.id,partnershipId:section==="partnerships"?(selected.partnership_id||""):"",activityType,details:activityDetails})});setActivityDetails("");await loadActivities(selected.account_id);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const removeEntity=async()=>{if(!selected||!canDelete)return;const name=String(selected.account_name||"هذه الجهة");if(!window.confirm(`سيتم حذف ${name} وجميع سجلاتها في B2B نهائيًا. هل تريد المتابعة؟`))return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({accountId:selected.account_id})});setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
@@ -6617,6 +6618,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const funnelStages=["جهة مسندة","تم التواصل","تم الاجتماع","أُرسل العرض","بانتظار التوقيع","تم التوقيع"];
   const days=(value:unknown)=>value?Math.ceil((new Date(String(value)).getTime()-Date.now())/86400000):null;
   const overdueFollowUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<today).length;
+  const managerApproved=approvals.some(row=>row.approval_type==="مدير الشراكات"&&row.status==="approved");
   const agreementMilestones=[['data_form_sent_at','dataFormSentAt','تم إرسال النموذج'],['agreement_prepared_at','agreementPreparedAt','إعداد الاتفاقية'],['agreement_sent_at','agreementSentAt','تم إرسال الاتفاقية'],['organization_signed_at','organizationSignedAt','تم توقيع الجهة'],['agreement_signed_at','agreementSignedAt','تم توقيع الطرفين']] as const;
   const moveLifecycle=(row:B2BRow,stage:string)=>void execute({action:"update_lifecycle",opportunityId:row.opportunity_id,partnershipId:row.partnership_id||"",stage},false);
   const reorderCard=(row:B2BRow,direction:"up"|"down",priority="الكل",contactStatus="الكل")=>void execute({action:"reorder_partnership_card",opportunityId:row.opportunity_id,direction,priority,contactStatus},false);
@@ -7763,12 +7765,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
               )}
             </header>
             <div className="b2b-drawer-body">
-              {section === "partnerships" && (
-                <section className="b2b-latest-updates">
-                  <div className="b2b-progress-head"><div><h3>آخر التحديثات</h3><p>أحدث ما تم على ملف الجهة</p></div><em>{activities.length} تحديث</em></div>
-                  <div>{activities.slice(0,3).map((item)=><article key={String(item.id)}><i/><span><b>{item.activity_type}</b><small>{item.details || "تم تحديث الملف"}</small></span><time>{String(item.created_at||"").replace("T"," ").slice(0,16)}</time></article>)}{activities.length===0&&<p>لا توجد تحديثات مسجلة بعد.</p>}</div>
-                </section>
-              )}
               <section className="b2b-account-profile">
                 <div className="b2b-progress-head">
                   <div>
@@ -8070,6 +8066,15 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   <div className="b2b-contact-add"><input value={contactDraft.name} onChange={e=>setContactDraft({...contactDraft,name:e.target.value})} placeholder="اسم الممثل"/><input value={contactDraft.jobTitle} onChange={e=>setContactDraft({...contactDraft,jobTitle:e.target.value})} placeholder="المسمى الوظيفي"/><input dir="ltr" value={contactDraft.phone} onChange={e=>setContactDraft({...contactDraft,phone:e.target.value})} placeholder="رقم الجوال"/><input dir="ltr" type="email" value={contactDraft.email} onChange={e=>setContactDraft({...contactDraft,email:e.target.value})} placeholder="البريد الإلكتروني"/><label><input type="checkbox" checked={contactDraft.isPrimary} onChange={e=>setContactDraft({...contactDraft,isPrimary:e.target.checked})}/> ممثل أساسي</label><button disabled={saving||!contactDraft.name.trim()} onClick={async()=>{await execute({action:"save_contact",accountId:selected.account_id,...contactDraft});setContactDraft({name:"",jobTitle:"",phone:"",email:"",isPrimary:false})}}><Plus size={14}/> إضافة ممثل</button></div>
                 </div>
               </section>
+              {section === "partnerships" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") === "الاستكشاف والتقييم" && (
+                <B2BApprovalsPanel
+                  selected={selected}
+                  approvals={approvals}
+                  canApprove={canReview || canConvert}
+                  saving={saving}
+                  execute={execute}
+                />
+              )}
               {section === "partnerships" && (
                 <section className="partnership-pipeline-panel">
                   <div className="b2b-progress-head">
@@ -8087,6 +8092,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <label>
                       <span>حالة التواصل</span>
                       <select
+                        disabled={!managerApproved}
                         value={pipelineDraft.contactStatus || ""}
                         onChange={(e) =>
                           setPipelineDraft({
@@ -8135,7 +8141,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   {canManage && (
                     <button
                       className="pipeline-save secondary"
-                      disabled={saving}
+                      disabled={saving || !managerApproved}
                       onClick={() => void execute({
                         action: "update_partnership_contact",
                         opportunityId: selected.opportunity_id,
@@ -8148,6 +8154,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       <Check size={16} /> حفظ حالة التواصل
                     </button>
                   )}
+                  {!managerApproved && <p className="pipeline-gate-note">اعتماد مدير الشراكات مطلوب قبل بدء التواصل.</p>}
                   {pipelineDraft.contactStatus === "تم الاجتماع" && (
                     <div className="meeting-minutes-card">
                       <header>
@@ -8365,7 +8372,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       )}
                     </div>
                   )}
-                  {pipelineDraft.fitDecision === "اعتماد" && (
+                  {pipelineDraft.fitDecision === "اعتماد" && String(selected.lifecycle_stage) === "التفاوض والاتفاقية" && (
                     <div className="agreement-milestones">
                       <header>
                         <b>تقدم الاتفاقية</b>
@@ -8465,7 +8472,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   )}
                 </section>
               )}
-              {section === "partnerships" && (
+              {section === "partnerships" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") !== "الاستكشاف والتقييم" && (
                 <B2BApprovalsPanel
                   selected={selected}
                   approvals={approvals}
@@ -8604,7 +8611,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   {activities.length === 0 ? (
                     <p className="b2b-no-activity">لا توجد خطوات مسجلة بعد.</p>
                   ) : (
-                    activities.map((item, index) => (
+                    (showAllActivities ? activities : activities.slice(0,3)).map((item, index) => (
                       <article key={String(item.id)}>
                         <i>{index === 0 ? "✓" : ""}</i>
                         <div>
@@ -8623,6 +8630,15 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     ))
                   )}
                 </div>
+                {activities.length > 3 && (
+                  <button
+                    type="button"
+                    className="b2b-show-more"
+                    onClick={() => setShowAllActivities(value => !value)}
+                  >
+                    {showAllActivities ? "عرض أقل" : `عرض المزيد (${activities.length - 3})`}
+                  </button>
+                )}
               </section>
               {section === "business" &&
                 canConvert &&
