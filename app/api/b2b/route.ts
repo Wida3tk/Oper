@@ -60,6 +60,7 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN meeting_opportunities TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN meeting_decisions TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN meeting_next_step TEXT");
+  await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_decision TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_reason TEXT");
   await addColumn(db,"ALTER TABLE b2b_opportunities ADD COLUMN fit_decided_by_email TEXT");
@@ -132,7 +133,7 @@ export async function GET(req: Request) {
       LEFT JOIN b2b_contacts c ON c.account_id=a.id AND c.is_primary=1
       LEFT JOIN b2b_partnership_finance f ON f.partnership_id=p.id WHERE 1=1${scope.sql}
       AND o.opportunity_kind='partnership'
-      ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,o.updated_at DESC`).bind(...scope.bind).all();
+      ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...scope.bind).all();
     return Response.json({partnerships:results,statuses:partnershipStatuses,lifecycleStages,staff,scope:isAdmin(auth)?"all":"assigned",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${scope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:scope.bind}:scope;
@@ -312,11 +313,24 @@ export async function POST(req:Request){
     if(target==="التجديد أو الخروج"&&!row.end_date)missing.push("تاريخ انتهاء الاتفاقية");
     if(missing.length)return Response.json({error:`لا يمكن نقل الشراكة قبل استكمال: ${missing.join("، ")}`,missing},{status:409});
     const active=target==="قياس الأثر",previous=row.lifecycle_stage||row.opportunity_lifecycle_stage||"الاستكشاف والتقييم",changes=[
-      db.prepare("UPDATE b2b_opportunities SET lifecycle_stage=?,lifecycle_updated_at=?,updated_at=? WHERE id=?").bind(target,now,now,row.opportunity_id),
+      db.prepare("UPDATE b2b_opportunities SET lifecycle_stage=?,sort_order=COALESCE((SELECT MAX(sort_order)+10 FROM b2b_opportunities WHERE lifecycle_stage=?),10),lifecycle_updated_at=?,updated_at=? WHERE id=?").bind(target,target,now,now,row.opportunity_id),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,'تحديث دورة الحياة',?,?,?)").bind(id("B2BX"),row.account_id,row.opportunity_id,row.partnership_id||null,`${previous} ← ${target}`,auth.email,now),
     ];
     if(row.partnership_id)changes.push(db.prepare("UPDATE b2b_partnerships SET lifecycle_stage=?,status=CASE WHEN ? THEN 'نشطة' ELSE status END,activated_at=CASE WHEN ? THEN COALESCE(activated_at,?) ELSE activated_at END,updated_at=? WHERE id=?").bind(target,active?1:0,active?1:0,now,now,row.partnership_id));
     await db.batch(changes);return Response.json({ok:true,stage:target});
+  }
+  if(action==="reorder_partnership_card"){
+    const opportunityId=String(body.opportunityId||""),direction=String(body.direction||""),priority=String(body.priority||"الكل");
+    if(!opportunityId||!["up","down"].includes(direction))return Response.json({error:"اتجاه الترتيب غير صحيح"},{status:400});
+    const row=await db.prepare("SELECT account_id,lifecycle_stage FROM b2b_opportunities WHERE id=? AND opportunity_kind='partnership'").bind(opportunityId).first<{account_id:string;lifecycle_stage:string}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const priorityScope=priority!=="الكل"?" AND COALESCE(a.priority,'غير محددة')=?":"",binds=priority!=="الكل"?[row.lifecycle_stage||"الاستكشاف والتقييم",priority]:[row.lifecycle_stage||"الاستكشاف والتقييم"];
+    const {results}=await db.prepare(`SELECT o.id FROM b2b_opportunities o JOIN b2b_accounts a ON a.id=o.account_id WHERE o.opportunity_kind='partnership' AND COALESCE(o.lifecycle_stage,'الاستكشاف والتقييم')=?${priorityScope} ORDER BY CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...binds).all<{id:string}>();
+    const current=results.findIndex(item=>item.id===opportunityId),target=direction==="up"?current-1:current+1;
+    if(current<0||target<0||target>=results.length)return Response.json({ok:true,unchanged:true});
+    [results[current],results[target]]=[results[target],results[current]];
+    await db.batch(results.map((item,index)=>db.prepare("UPDATE b2b_opportunities SET sort_order=?,updated_at=? WHERE id=?").bind((index+1)*10,now,item.id)));
+    return Response.json({ok:true});
   }
   if(action==="update_partnership_finance"){
     if(!isAdmin(auth)&&!auth.roles.includes("finance")&&!can(auth,"b2b.partnerships.manage"))return Response.json({error:"التحديث المالي متاح للإدارة والمالية فقط"},{status:403});

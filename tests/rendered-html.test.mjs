@@ -580,7 +580,7 @@ test("supports multiple organization representatives with one primary contact", 
 test("shows the Sulukera owner and a visual organization status signal", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
-  assert.match(page, /مسؤول سلوكيرا/);
+  assert.match(page, /منسق الشراكة/);
   assert.match(page, /b2b-contact-signal/);
   assert.match(page, /row\.owner_name \|\| "غير مسند"/);
   assert.match(b2b, /owner_name/);
@@ -597,4 +597,15 @@ test("keeps partnership intake lightweight and schedules contact meetings", asyn
   assert.match(page, /selected\.partnership_id \|\| selected\.agreement_signed_at/);
   assert.match(b2b, /contactStatuses/);
   assert.match(b2b, /meeting_scheduled_at,workspace/);
+});
+
+test("filters and manually orders partnership cards by priority", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /columnPriorities/);
+  assert.match(page, /kanban-priority-filter/);
+  assert.match(page, /kanban-card-order/);
+  assert.match(page, /منسق الشراكة/);
+  assert.match(b2b, /sort_order INTEGER/);
+  assert.match(b2b, /reorder_partnership_card/);
 });

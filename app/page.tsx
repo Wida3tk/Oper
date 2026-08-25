@@ -6591,6 +6591,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [pipelineDraft,setPipelineDraft]=useState<Record<string,string>>({});
   const [meetingMinutes,setMeetingMinutes]=useState<B2BRow[]>([]),[contacts,setContacts]=useState<B2BRow[]>([]),[contactDraft,setContactDraft]=useState({name:"",jobTitle:"",phone:"",email:"",isPrimary:false});
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
+  const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
   const load=async()=>{setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
   useEffect(()=>{void load()},[section]);
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
@@ -6608,6 +6609,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const overdueFollowUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<today).length;
   const agreementMilestones=[['data_form_sent_at','إرسال النموذج'],['data_form_completed_at','تعبئة النموذج'],['agreement_sent_at','إرسال الاتفاقية'],['agreement_signed_at','توقيع الاتفاقية']] as const;
   const moveLifecycle=(row:B2BRow,stage:string)=>void execute({action:"update_lifecycle",opportunityId:row.opportunity_id,partnershipId:row.partnership_id||"",stage},false);
+  const reorderCard=(row:B2BRow,direction:"up"|"down",priority="الكل")=>void execute({action:"reorder_partnership_card",opportunityId:row.opportunity_id,direction,priority},false);
   const readLogo=(file:File|undefined,target:"form"|"account")=>{if(!file)return;if(file.size>500000||!/^image\/(png|jpeg|webp)$/.test(file.type)){setError("الشعار يجب أن يكون PNG أو JPG أو WebP وحجمه أقل من 500KB");return}const reader=new FileReader();reader.onload=()=>{const logoData=String(reader.result||"");target==="form"?setForm(current=>({...current,logoData})):setAccountDraft(current=>({...current,logoData}))};reader.readAsDataURL(file)};
   return (
     <div className="b2b-workspace">
@@ -7440,10 +7442,12 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
         ) : section === "partnerships" ? (
           <div className="b2b-kanban" aria-label="لوحة دورة حياة الشراكات">
             {lifecycleStages.map((stage, index) => {
-              const stageRows = visibleRows.filter(
+              const allStageRows = visibleRows.filter(
                 (row) =>
                   String(row.lifecycle_stage || "التفعيل والعمليات") === stage,
               );
+              const priorityFilter=columnPriorities[stage]||"الكل";
+              const stageRows=allStageRows.filter(row=>priorityFilter==="الكل"||String(row.priority||"غير محددة")===priorityFilter);
               return (
                 <section
                   className={`b2b-kanban-column stage-${index + 1}`}
@@ -7464,8 +7468,14 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <span>0{index + 1}</span>
                     <div>
                       <b>{stage}</b>
-                      <small>{stageRows.length} شراكة</small>
+                      <small>{stageRows.length}{priorityFilter!=="الكل"?` من ${allStageRows.length}`:""} شراكة</small>
                     </div>
+                    <label className="kanban-priority-filter">
+                      <span>الأولوية</span>
+                      <select value={priorityFilter} onChange={(event)=>setColumnPriorities(current=>({...current,[stage]:event.target.value}))}>
+                        <option>الكل</option><option>عالية</option><option>متوسطة</option><option>منخفضة</option><option>غير محددة</option>
+                      </select>
+                    </label>
                   </header>
                   <div>
                     {stageRows.length === 0 ? (
@@ -7512,13 +7522,18 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                                 ممثل الجهة <b>{row.contact_name || "غير محدد"}</b>
                               </span>
                               <span>
-                                مسؤول سلوكيرا <b>{row.owner_name || "غير مسند"}</b>
+                                منسق الشراكة <b>{row.owner_name || "غير مسند"}</b>
                               </span>
                             </div>
                             <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><span>حالة الجهة</span><b>{row.contact_status || "لم يتم التواصل"}</b></div>
                             {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && (
                               <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
                             )}
+                            <div className="kanban-card-order" onClick={(event)=>event.stopPropagation()}>
+                              <span>ترتيب البطاقة</span>
+                              <button disabled={stageRows[0]?.id===row.id} onClick={()=>reorderCard(row,"up",priorityFilter)} aria-label={`رفع ${row.account_name}`}>↑</button>
+                              <button disabled={stageRows[stageRows.length-1]?.id===row.id} onClick={()=>reorderCard(row,"down",priorityFilter)} aria-label={`خفض ${row.account_name}`}>↓</button>
+                            </div>
                           </article>
                         );
                       })
@@ -7657,7 +7672,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && <small className="b2b-card-meeting-date">{new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>}
                     </div>
                     <div>
-                      <span>مسؤول سلوكيرا</span>
+                      <span>منسق الشراكة</span>
                       <b>{row.owner_name || "غير مسند"}</b>
                     </div>
                   </>
@@ -7686,7 +7701,9 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
               </span>
               <h2>{selected.account_name}</h2>
               <p>
-                {selected.account_type} ·{" "}
+                {section === "business" && selected.account_type
+                  ? `${selected.account_type} · `
+                  : ""}
                 {selected.region || selected.city || "الموقع غير محدد"}
               </p>
             </header>
@@ -7744,18 +7761,20 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                         </>
                       )}
                     </label>}
-                    <label>
-                      <span>نوع الجهة</span>
-                      <input
-                        value={accountDraft.type || ""}
-                        onChange={(e) =>
-                          setAccountDraft({
-                            ...accountDraft,
-                            type: e.target.value,
-                          })
-                        }
-                      />
-                    </label>
+                    {section === "business" && (
+                      <label>
+                        <span>نوع الجهة</span>
+                        <input
+                          value={accountDraft.type || ""}
+                          onChange={(e) =>
+                            setAccountDraft({
+                              ...accountDraft,
+                              type: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    )}
                     <label>
                       <span>المنطقة</span>
                       <select
