@@ -609,3 +609,15 @@ test("filters and manually orders partnership cards by priority", async () => {
   assert.match(b2b, /sort_order INTEGER/);
   assert.match(b2b, /reorder_partnership_card/);
 });
+
+test("keeps partnership decisions inside the card and isolates rejected organizations", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /1 من 1/);
+  assert.match(page, /drawer-lifecycle/);
+  assert.match(page, /آخر التحديثات/);
+  assert.match(page, /b2b-inline-contacts/);
+  assert.match(page, /kanban-fit-decision/);
+  assert.match(b2b, /lifecycle_stage='مرفوض'/);
+  assert.match(b2b, /fitDecision==="اعتماد"&&row\.lifecycle_stage==="مرفوض"/);
+});

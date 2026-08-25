@@ -6575,7 +6575,7 @@ const b2bStageColors: Record<string,string> = {
   "جهة جديدة":"blue","تواصل أولي":"blue","تأهيل الاحتياج":"violet","اجتماع أو عرض تعريفي":"violet",
   "إعداد العرض":"amber","عرض مرسل":"amber","تفاوض":"orange","بانتظار التوقيع":"orange","تم التوقيع":"green","مغلقة":"gray",
 };
-const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
+const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج","مرفوض"];
 const B2B_CONTACT_STATUSES=["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
 const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":["تم تحديد اجتماع","تم تحديد موعد اجتماع"].includes(String(status))?"meeting":["في انتظار الرد","بانتظار رد الجهة"].includes(String(status))?"waiting":["تم التواصل الأول","تم التواصل الأولي"].includes(String(status))?"contacted":"new";
 const b2bPathLabel=(path:unknown)=>path==="BOTH"?"جميع المجالات":String(path||"ABA");
@@ -6595,7 +6595,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const load=async()=>{setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
   useEffect(()=>{void load()},[section]);
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
-  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(current&&keepOpen)await Promise.all([load(),loadActivities(current.account_id)]);else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
+  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||"");setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:fit==="رفض"?"مرفوض":fit==="اعتماد"&&current.lifecycle_stage==="مرفوض"?"الاستكشاف والتقييم":current.lifecycle_stage})}try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(current&&keepOpen)await Promise.all([load(),loadActivities(current.account_id)]);else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
   const loadActivities=async(accountId:unknown)=>{try{const data=await apiJson(`/api/b2b?accountId=${encodeURIComponent(String(accountId||""))}`);setActivities(data.activities||[]);setDocuments(data.documents||[]);setApprovals(data.approvals||[]);setMeetingMinutes(data.meetings||[]);setContacts(data.contacts||[])}catch(e){setError((e as Error).message)}};
   const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});void loadActivities(row.account_id)};
   const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
@@ -6795,7 +6795,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
             <aside className="b2b-form-sidebar" aria-label="مراحل إضافة الجهة">
               <div className="b2b-form-sidebar-title">
                 <span>خطوات الإضافة</span>
-                <b>{formStep} من 2</b>
+                <b>{section === "partnerships" ? "1 من 1" : `${formStep} من 2`}</b>
               </div>
               <button
                 type="button"
@@ -6816,6 +6816,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   </small>
                 </span>
               </button>
+              {section !== "partnerships" && (
               <button
                 type="button"
                 disabled={
@@ -6835,19 +6836,16 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                 <i>02</i>
                 <span>
                   <b>
-                    {section === "partnerships"
-                      ? "قرار الانتقال"
-                      : "الاتفاقية والاعتماد"}
+                    الاتفاقية والاعتماد
                   </b>
                   <small>
-                    {section === "partnerships"
-                      ? "التوقيع أو التأجيل · تُستكمل في المرحلة التالية"
-                      : form.registrationStatus !== "موقعة"
+                    {form.registrationStatus !== "موقعة"
                         ? "تُفتح عند اختيار موقعة"
                         : "التواريخ والقيمة وملف الاتفاقية"}
                   </small>
                 </span>
               </button>
+              )}
             </aside>
             <div className="b2b-form-main">
               <div className="b2b-form-section-head">
@@ -7526,6 +7524,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               </span>
                             </div>
                             <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><span>حالة الجهة</span><b>{row.contact_status || "لم يتم التواصل"}</b></div>
+                            {row.fit_decision && <div className={`kanban-fit-decision ${row.fit_decision === "اعتماد" ? "approved" : row.fit_decision === "رفض" ? "rejected" : "deferred"}`}><span>قرار الملاءمة</span><b>{row.fit_decision}</b></div>}
+                            {row.fit_decision === "اعتماد" && <div className="kanban-agreement-progress">{agreementMilestones.map(([key,label])=><span key={key} className={row[key]?"done":""} title={label}/>)}</div>}
                             {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && (
                               <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
                             )}
@@ -7706,13 +7706,47 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   : ""}
                 {selected.region || selected.city || "الموقع غير محدد"}
               </p>
+              {section === "partnerships" && (
+                <div className="drawer-lifecycle">
+                  <div className="drawer-lifecycle-title">
+                    <span>دورة حياة الشراكة</span>
+                    <b>{selected.fit_decision === "رفض" ? "مرفوض" : selected.lifecycle_stage || "الاستكشاف والتقييم"}</b>
+                  </div>
+                  <div className={`drawer-lifecycle-track ${selected.fit_decision === "رفض" ? "rejected" : ""}`}>
+                    {(selected.fit_decision === "اعتماد"
+                      ? lifecycleStages.filter((stage) => stage !== "مرفوض")
+                      : selected.fit_decision === "رفض"
+                        ? ["الاستكشاف والتقييم", "مرفوض"]
+                        : ["الاستكشاف والتقييم"]
+                    ).map((stage, index, shownStages) => (
+                      <span key={stage} className={shownStages.indexOf(String(selected.lifecycle_stage || "الاستكشاف والتقييم")) >= index || stage === "مرفوض" ? "done" : ""}>
+                        <i>{index + 1}</i><b>{stage}</b>
+                      </span>
+                    ))}
+                  </div>
+                  {canConvert && selected.fit_decision === "اعتماد" && (
+                    <label className="drawer-lifecycle-select">
+                      <span>تحديث المرحلة</span>
+                      <select disabled={saving} value={String(selected.lifecycle_stage || "الاستكشاف والتقييم")} onChange={(e)=>void execute({action:"update_lifecycle",opportunityId:selected.opportunity_id,partnershipId:selected.partnership_id||"",stage:e.target.value})}>
+                        {lifecycleStages.filter((stage)=>stage!=="مرفوض").map((stage)=><option key={stage}>{stage}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
             </header>
             <div className="b2b-drawer-body">
+              {section === "partnerships" && (
+                <section className="b2b-latest-updates">
+                  <div className="b2b-progress-head"><div><h3>آخر التحديثات</h3><p>أحدث ما تم على ملف الجهة</p></div><em>{activities.length} تحديث</em></div>
+                  <div>{activities.slice(0,3).map((item)=><article key={String(item.id)}><i/><span><b>{item.activity_type}</b><small>{item.details || "تم تحديث الملف"}</small></span><time>{String(item.created_at||"").replace("T"," ").slice(0,16)}</time></article>)}{activities.length===0&&<p>لا توجد تحديثات مسجلة بعد.</p>}</div>
+                </section>
+              )}
               <section className="b2b-account-profile">
                 <div className="b2b-progress-head">
                   <div>
-                    <h3>بيانات الجهة والتواصل</h3>
-                    <p>البيانات الأساسية والمسؤول المعتمد للتواصل</p>
+                    <h3>البيانات الأولية</h3>
+                    <p>بيانات الجهة وممثلوها ومنسق الشراكة</p>
                   </div>
                   {canManage && (
                     <button
@@ -8003,68 +8037,12 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     </div>
                   </dl>
                 )}
+                <div className="b2b-inline-contacts">
+                  <div className="b2b-progress-head"><div><h3>ممثلو الجهة</h3><p>جهات التواصل المرتبطة بالبيانات الأولية</p></div><em>{contacts.length} ممثل</em></div>
+                  <div className="b2b-contact-list">{contacts.map(contact=><article key={String(contact.id)}><div><b>{contact.name}</b><span>{contact.job_title||"دون مسمى"}</span><small dir="ltr">{[contact.phone,contact.email].filter(Boolean).join(" · ")||"دون بيانات تواصل"}</small></div>{Number(contact.is_primary)===1?<em>أساسي</em>:<button disabled={saving} onClick={()=>void execute({action:"save_contact",accountId:selected.account_id,contactId:contact.id,name:contact.name,jobTitle:contact.job_title||"",phone:contact.phone||"",email:contact.email||"",isPrimary:true})}>تعيين كأساسي</button>}<button className="remove" disabled={saving||contacts.length<=1} onClick={()=>void execute({action:"delete_contact",accountId:selected.account_id,contactId:contact.id})}>حذف</button></article>)}</div>
+                  <div className="b2b-contact-add"><input value={contactDraft.name} onChange={e=>setContactDraft({...contactDraft,name:e.target.value})} placeholder="اسم الممثل"/><input value={contactDraft.jobTitle} onChange={e=>setContactDraft({...contactDraft,jobTitle:e.target.value})} placeholder="المسمى الوظيفي"/><input dir="ltr" value={contactDraft.phone} onChange={e=>setContactDraft({...contactDraft,phone:e.target.value})} placeholder="رقم الجوال"/><input dir="ltr" type="email" value={contactDraft.email} onChange={e=>setContactDraft({...contactDraft,email:e.target.value})} placeholder="البريد الإلكتروني"/><label><input type="checkbox" checked={contactDraft.isPrimary} onChange={e=>setContactDraft({...contactDraft,isPrimary:e.target.checked})}/> ممثل أساسي</label><button disabled={saving||!contactDraft.name.trim()} onClick={async()=>{await execute({action:"save_contact",accountId:selected.account_id,...contactDraft});setContactDraft({name:"",jobTitle:"",phone:"",email:"",isPrimary:false})}}><Plus size={14}/> إضافة ممثل</button></div>
+                </div>
               </section>
-              <section className="b2b-contacts-panel">
-                <div className="b2b-progress-head"><div><h3>ممثلو الجهة</h3><p>أضف أكثر من ممثل وحدد الشخص الأساسي الظاهر في البطاقة</p></div><em>{contacts.length} ممثل</em></div>
-                <div className="b2b-contact-list">{contacts.map(contact=><article key={String(contact.id)}><div><b>{contact.name}</b><span>{contact.job_title||"دون مسمى"}</span><small dir="ltr">{[contact.phone,contact.email].filter(Boolean).join(" · ")||"دون بيانات تواصل"}</small></div>{Number(contact.is_primary)===1?<em>أساسي</em>:<button disabled={saving} onClick={()=>void execute({action:"save_contact",accountId:selected.account_id,contactId:contact.id,name:contact.name,jobTitle:contact.job_title||"",phone:contact.phone||"",email:contact.email||"",isPrimary:true})}>تعيين كأساسي</button>}<button className="remove" disabled={saving||contacts.length<=1} onClick={()=>void execute({action:"delete_contact",accountId:selected.account_id,contactId:contact.id})}>حذف</button></article>)}</div>
-                <div className="b2b-contact-add"><input value={contactDraft.name} onChange={e=>setContactDraft({...contactDraft,name:e.target.value})} placeholder="اسم الممثل"/><input value={contactDraft.jobTitle} onChange={e=>setContactDraft({...contactDraft,jobTitle:e.target.value})} placeholder="المسمى الوظيفي"/><input dir="ltr" value={contactDraft.phone} onChange={e=>setContactDraft({...contactDraft,phone:e.target.value})} placeholder="رقم الجوال"/><input dir="ltr" type="email" value={contactDraft.email} onChange={e=>setContactDraft({...contactDraft,email:e.target.value})} placeholder="البريد الإلكتروني"/><label><input type="checkbox" checked={contactDraft.isPrimary} onChange={e=>setContactDraft({...contactDraft,isPrimary:e.target.checked})}/> ممثل أساسي</label><button disabled={saving||!contactDraft.name.trim()} onClick={async()=>{await execute({action:"save_contact",accountId:selected.account_id,...contactDraft});setContactDraft({name:"",jobTitle:"",phone:"",email:"",isPrimary:false})}}><Plus size={14}/> إضافة ممثل</button></div>
-              </section>
-              {section === "partnerships" && (
-                <section className="b2b-lifecycle-summary">
-                  <div className="b2b-progress-head">
-                    <div>
-                      <h3>دورة حياة الشراكة</h3>
-                      <p>
-                        الانتقال بين المراحل مرتبط بالمستندات والموافقات
-                        المطلوبة
-                      </p>
-                    </div>
-                    <em>{selected.lifecycle_stage || "الاستكشاف والتقييم"}</em>
-                  </div>
-                  <div className="lifecycle-track">
-                    {lifecycleStages.map((stage, index) => (
-                      <span
-                        key={stage}
-                        className={
-                          lifecycleStages.indexOf(
-                            String(
-                              selected.lifecycle_stage || "الاستكشاف والتقييم",
-                            ),
-                          ) >= index
-                            ? "done"
-                            : ""
-                        }
-                      >
-                        <i>{index + 1}</i>
-                        <b>{stage}</b>
-                      </span>
-                    ))}
-                  </div>
-                  {canConvert && (
-                    <label>
-                      <span>نقل إلى مرحلة</span>
-                      <select
-                        disabled={saving}
-                        value={String(
-                          selected.lifecycle_stage || "الاستكشاف والتقييم",
-                        )}
-                        onChange={(e) =>
-                          void execute({
-                            action: "update_lifecycle",
-                            opportunityId: selected.opportunity_id,
-                            partnershipId: selected.partnership_id || "",
-                            stage: e.target.value,
-                          })
-                        }
-                      >
-                        {lifecycleStages.map((x) => (
-                          <option key={x}>{x}</option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                </section>
-              )}
               {section === "partnerships" && (
                 <section className="partnership-pipeline-panel">
                   <div className="b2b-progress-head">
