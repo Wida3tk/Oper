@@ -102,6 +102,12 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
   ]);
 }
 
+let schemaReady:Promise<void>|null=null;
+function ensureSchemaOnce(db:ReturnType<typeof operationalDb>){
+  if(!schemaReady)schemaReady=ensureSchema(db).catch(error=>{schemaReady=null;throw error});
+  return schemaReady;
+}
+
 function isAdmin(auth:{roles:string[]}){return auth.roles.includes("admin")}
 function scopeSql(auth:{email:string;roles:string[]},alias="a"){
   return isAdmin(auth)?{sql:"",bind:[]}:{sql:` AND (${alias}.owner_email=? OR EXISTS(SELECT 1 FROM b2b_assignments ba WHERE ba.account_id=${alias}.id AND ba.email=?))`,bind:[auth.email,auth.email]};
@@ -110,7 +116,7 @@ function scopeSql(auth:{email:string;roles:string[]},alias="a"){
 export async function GET(req: Request) {
   const auth = await authorize(req,["b2b"]); if(!auth.ok) return auth.response;
   if(!can(auth,"b2b.view")) return Response.json({error:"ليس لديك صلاحية عرض قطاع الأعمال"},{status:403});
-  const db=operationalDb(); await ensureSchema(db);
+  const db=operationalDb(); await ensureSchemaOnce(db);
   const params=new URL(req.url).searchParams,accountId=params.get("accountId")||"",scope=scopeSql(auth);
   if(accountId){
     const allowed=await db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first();
@@ -167,7 +173,7 @@ export async function DELETE(req:Request){
   const auth=await authorize(req,["b2b"]);if(!auth.ok)return auth.response;
   if(!isAdmin(auth))return Response.json({error:"حذف الجهات متاح لحساب الإدارة فقط"},{status:403});
   const body=await req.json() as Record<string,unknown>,accountId=String(body.accountId||"");if(!accountId)return Response.json({error:"معرّف الجهة مطلوب"},{status:400});
-  const db=operationalDb();await ensureSchema(db);const account=await db.prepare("SELECT id,name,type,path,owner_email FROM b2b_accounts WHERE id=?").bind(accountId).first<Record<string,unknown>>();if(!account)return Response.json({error:"الجهة غير موجودة"},{status:404});const now=new Date().toISOString();
+  const db=operationalDb();await ensureSchemaOnce(db);const account=await db.prepare("SELECT id,name,type,path,owner_email FROM b2b_accounts WHERE id=?").bind(accountId).first<Record<string,unknown>>();if(!account)return Response.json({error:"الجهة غير موجودة"},{status:404});const now=new Date().toISOString();
   const counts=await db.prepare(`SELECT (SELECT COUNT(*) FROM b2b_opportunities WHERE account_id=?) opportunities,(SELECT COUNT(*) FROM b2b_partnerships WHERE account_id=?) partnerships,(SELECT COUNT(*) FROM b2b_activities WHERE account_id=?) activities`).bind(accountId,accountId,accountId).first();
   await db.batch([
     db.prepare("DELETE FROM b2b_activities WHERE account_id=?").bind(accountId),
@@ -187,7 +193,7 @@ export async function DELETE(req:Request){
 export async function POST(req:Request){
   const auth=await authorize(req,["b2b"]);if(!auth.ok)return auth.response;
   if(!can(auth,"b2b.manage"))return Response.json({error:"ليس لديك صلاحية تعديل بيانات قطاع الأعمال"},{status:403});
-  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();await ensureSchema(db);
+  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();await ensureSchemaOnce(db);
   const assertAccess=async(accountId:string)=>{const scope=scopeSql(auth);return db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first()};
   if(action==="save_contact"){
     const accountId=String(body.accountId||""),contactId=String(body.contactId||""),name=String(body.name||"").trim(),jobTitle=String(body.jobTitle||"").trim(),phone=String(body.phone||"").trim(),email=String(body.email||"").trim().toLowerCase(),isPrimary=body.isPrimary===true;
@@ -280,6 +286,32 @@ export async function POST(req:Request){
       db.prepare("INSERT INTO b2b_documents(id,account_id,opportunity_id,partnership_id,document_type,title,url,quarter_label,uploaded_by_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id("B2BD"),accountId,opportunityId,partnershipId,documentType,title,url,String(body.quarterLabel||"")||null,auth.email,now),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"إضافة مستند",documentType,auth.email,now),
     ]);return Response.json({ok:true});
+  }
+  if(action==="update_partnership_contact"){
+    const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const contactStatus=contactStatuses.includes(String(body.contactStatus))?String(body.contactStatus):"لم يتم التواصل",meetingScheduledAt=String(body.meetingScheduledAt||"")||null;
+    if(contactStatus==="تم تحديد موعد اجتماع"&&!meetingScheduledAt)return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
+    await db.batch([
+      db.prepare("UPDATE b2b_accounts SET contact_status=?,updated_at=? WHERE id=?").bind(contactStatus,now,row.account_id),
+      db.prepare("UPDATE b2b_opportunities SET stage=?,meeting_scheduled_at=?,meeting_mode=?,next_follow_up=?,updated_at=? WHERE id=?").bind(contactStatus,meetingScheduledAt,String(body.meetingMode||"")||null,String(body.nextFollowUp||"")||null,now,opportunityId),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'تحديث حالة التواصل',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,contactStatus,auth.email,now),
+    ]);
+    return Response.json({ok:true,contactStatus});
+  }
+  if(action==="add_partnership_meeting"){
+    const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    const meetingAt=String(body.meetingCompletedAt||"");
+    if(!meetingAt)return Response.json({error:"تاريخ ووقت الاجتماع الفعلي مطلوبان لحفظ المحضر"},{status:400});
+    const meetingId=id("B2BM"),topic=String(body.meetingTopic||"").trim(),summary=String(body.meetingSummary||"").trim();
+    await db.batch([
+      db.prepare("INSERT INTO b2b_meeting_minutes(id,account_id,opportunity_id,meeting_at,meeting_mode,topic,attendees_internal,attendees_external,summary,needs,opportunities,decisions,next_step,next_follow_up,created_by_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(meetingId,row.account_id,opportunityId,meetingAt,String(body.meetingMode||""),topic,String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),summary,String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,auth.email,now),
+      db.prepare("UPDATE b2b_accounts SET contact_status='تم الاجتماع',updated_at=? WHERE id=?").bind(now,row.account_id),
+      db.prepare("UPDATE b2b_opportunities SET stage='تم الاجتماع',meeting_completed_at=?,meeting_mode=?,meeting_attendees_internal=?,meeting_attendees_external=?,meeting_topic=?,meeting_summary=?,meeting_needs=?,meeting_opportunities=?,meeting_decisions=?,meeting_next_step=?,next_follow_up=?,updated_at=? WHERE id=?").bind(meetingAt,String(body.meetingMode||"")||null,String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||""),topic,summary,String(body.meetingNeeds||""),String(body.meetingOpportunities||""),String(body.meetingDecisions||""),String(body.meetingNextStep||""),String(body.nextFollowUp||"")||null,now,opportunityId),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'إضافة محضر اجتماع',?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,topic||"تم حفظ محضر اجتماع جديد",auth.email,now),
+    ]);
+    return Response.json({ok:true,meetingId});
   }
   if(action==="update_partnership_pipeline"){
     const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id,fit_decision,lifecycle_stage FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string;fit_decision?:string;lifecycle_stage?:string}>();

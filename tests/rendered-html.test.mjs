@@ -504,6 +504,12 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
   assert.match(page, /partnership-decisions-overview/);
   assert.match(b2b, /update_partnership_pipeline/);
+  assert.match(b2b, /update_partnership_contact/);
+  assert.match(b2b, /add_partnership_meeting/);
+  assert.match(b2b, /ensureSchemaOnce/);
+  assert.match(page, /حفظ حالة التواصل/);
+  assert.match(page, /حفظ محضر الاجتماع/);
+  assert.doesNotMatch(page, /حفظ تحديث مسار الجهة والمحضر/);
   assert.match(b2b, /fit_decided_by_email/);
   assert.match(css, /partnership-card-progress/);
 });

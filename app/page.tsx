@@ -6602,10 +6602,10 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
   const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
   const [columnStatuses,setColumnStatuses]=useState<Record<string,string>>({});
-  const load=async()=>{setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
+  const load=async(silent=false)=>{if(!silent)setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{if(!silent)setLoading(false)}};
   useEffect(()=>{void load()},[section]);
   const save=async(body:Record<string,unknown>)=>{setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});setShowForm(false);setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
-  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||""),stage=fit==="رفض"?"غير مناسب":fit==="تأجيل"?"مؤجل":String(body.agreementSignedAt||"")?"التفعيل والعمليات":fit==="اعتماد"?"التفاوض والاتفاقية":current.lifecycle_stage;setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:stage})}if(body.action==="update_partnership_execution"&&current&&body.financialOfferSentAt)setSelected({...current,lifecycle_stage:"قياس الأثر"});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(current&&keepOpen)await Promise.all([load(),loadActivities(current.account_id)]);else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
+  const execute=async(body:Record<string,unknown>,keepOpen=true)=>{setSaving(true);setError("");const current=selected;if(body.action==="record_approval"){const approvalType=String(body.approvalType),decision=String(body.decision);setApprovals(previous=>[{id:`optimistic-${approvalType}`,approval_type:approvalType,status:decision,decided_by_name:"تم التحديث",decided_at:new Date().toISOString()},...previous.filter(row=>row.approval_type!==approvalType)])}if(body.action==="update_lifecycle"&&current)setSelected({...current,lifecycle_stage:String(body.stage)});if(body.action==="update_partnership_contact"&&current)setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||"")});if(body.action==="add_partnership_meeting"&&current)setSelected({...current,contact_status:"تم الاجتماع"});if(body.action==="update_partnership_pipeline"&&current){const fit=String(body.fitDecision||""),stage=fit==="رفض"?"غير مناسب":fit==="تأجيل"?"مؤجل":String(body.agreementSignedAt||"")?"التفعيل والعمليات":fit==="اعتماد"?"التفاوض والاتفاقية":current.lifecycle_stage;setSelected({...current,contact_status:String(body.contactStatus||current.contact_status||""),fit_decision:fit,fit_reason:String(body.fitReason||""),lifecycle_stage:stage})}if(body.action==="update_partnership_execution"&&current&&body.financialOfferSentAt)setSelected({...current,lifecycle_stage:"قياس الأثر"});try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(body.action==="add_partnership_meeting")setPipelineDraft(previous=>({...previous,meetingCompletedAt:"",meetingTopic:"",meetingAttendeesInternal:"",meetingAttendeesExternal:"",meetingSummary:"",meetingNeeds:"",meetingOpportunities:"",meetingDecisions:"",meetingNextStep:""}));if(current&&keepOpen){await loadActivities(current.account_id);void load(true)}else await load()}catch(e){setError((e as Error).message);if(current){setSelected(current);await loadActivities(current.account_id)}}finally{setSaving(false)}};
   const loadActivities=async(accountId:unknown)=>{try{const data=await apiJson(`/api/b2b?accountId=${encodeURIComponent(String(accountId||""))}`);setActivities(data.activities||[]);setDocuments(data.documents||[]);setApprovals(data.approvals||[]);setMeetingMinutes(data.meetings||[]);setContacts(data.contacts||[])}catch(e){setError((e as Error).message)}};
   const openRow=(row:B2BRow)=>{setSelected(row);setEditingAccount(false);setAccountDraft({name:String(row.account_name||""),type:String(row.account_type||""),region:String(row.region||""),city:String(row.city||""),source:String(row.source||""),priority:String(row.priority||""),path:String(row.path||""),partnershipType:String(row.partnership_type||""),ownerEmail:String(row.owner_email||""),contactName:String(row.contact_name||""),jobTitle:String(row.contact_title||""),phone:String(row.contact_phone||""),email:String(row.contact_email||""),logoData:String(row.logo_data||"")});setPipelineDraft({contactStatus:String(row.contact_status||""),meetingScheduledAt:String(row.meeting_scheduled_at||"").slice(0,16),meetingMode:String(row.meeting_mode||""),meetingCompletedAt:String(row.meeting_completed_at||"").slice(0,16),meetingAttendeesInternal:String(row.meeting_attendees_internal||""),meetingAttendeesExternal:String(row.meeting_attendees_external||""),meetingTopic:String(row.meeting_topic||""),meetingSummary:String(row.meeting_summary||""),meetingNeeds:String(row.meeting_needs||""),meetingOpportunities:String(row.meeting_opportunities||""),meetingDecisions:String(row.meeting_decisions||""),meetingNextStep:String(row.meeting_next_step||""),nextFollowUp:String(row.next_follow_up||"").slice(0,10),fitDecision:String(row.fit_decision||""),fitReason:String(row.fit_reason||""),dataFormSentAt:String(row.data_form_sent_at||"").slice(0,10),dataFormCompletedAt:String(row.data_form_completed_at||"").slice(0,10),agreementPreparedAt:String(row.agreement_prepared_at||"").slice(0,10),agreementSentAt:String(row.agreement_sent_at||"").slice(0,10),organizationSignedAt:String(row.organization_signed_at||"").slice(0,10),agreementSignedAt:String(row.agreement_signed_at||"").slice(0,10)});setExecutionDraft({whatsappGroupCreatedAt:String(row.whatsapp_group_created_at||"").slice(0,10),partnershipShieldSentAt:String(row.partnership_shield_sent_at||"").slice(0,10),socialAnnouncementAt:String(row.social_announcement_at||"").slice(0,10),totalOfferAmount:String(row.total_offer_amount||""),executionTraineeCount:String(row.execution_trainee_count||""),executionProgram:String(row.execution_program||""),executionProgramOther:String(row.execution_program_other||""),priceOfferPreparedAt:String(row.price_offer_prepared_at||"").slice(0,10),financialOfferSentAt:String(row.financial_offer_sent_at||"").slice(0,10)});void loadActivities(row.account_id)};
   const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
@@ -8132,6 +8132,22 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       </>
                     )}
                   </div>
+                  {canManage && (
+                    <button
+                      className="pipeline-save secondary"
+                      disabled={saving}
+                      onClick={() => void execute({
+                        action: "update_partnership_contact",
+                        opportunityId: selected.opportunity_id,
+                        contactStatus: pipelineDraft.contactStatus,
+                        meetingScheduledAt: pipelineDraft.meetingScheduledAt,
+                        meetingMode: pipelineDraft.meetingMode,
+                        nextFollowUp: pipelineDraft.nextFollowUp,
+                      })}
+                    >
+                      <Check size={16} /> حفظ حالة التواصل
+                    </button>
+                  )}
                   {pipelineDraft.contactStatus === "تم الاجتماع" && (
                     <div className="meeting-minutes-card">
                       <header>
@@ -8265,6 +8281,29 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                           />
                         </label>
                       </div>
+                      {canManage && (
+                        <button
+                          className="pipeline-save"
+                          disabled={saving}
+                          onClick={() => void execute({
+                              action: "add_partnership_meeting",
+                              opportunityId: selected.opportunity_id,
+                              meetingCompletedAt: pipelineDraft.meetingCompletedAt,
+                              meetingMode: pipelineDraft.meetingMode,
+                              meetingTopic: pipelineDraft.meetingTopic,
+                              meetingAttendeesInternal: pipelineDraft.meetingAttendeesInternal,
+                              meetingAttendeesExternal: pipelineDraft.meetingAttendeesExternal,
+                              meetingSummary: pipelineDraft.meetingSummary,
+                              meetingNeeds: pipelineDraft.meetingNeeds,
+                              meetingOpportunities: pipelineDraft.meetingOpportunities,
+                              meetingDecisions: pipelineDraft.meetingDecisions,
+                              meetingNextStep: pipelineDraft.meetingNextStep,
+                              nextFollowUp: pipelineDraft.nextFollowUp,
+                            })}
+                        >
+                          <ClipboardList size={16} /> حفظ محضر الاجتماع
+                        </button>
+                      )}
                     </div>
                   )}
                   {pipelineDraft.contactStatus === "تم الاجتماع" && (
@@ -8421,7 +8460,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                         })
                       }
                     >
-                      <Check size={16} /> حفظ تحديث مسار الجهة والمحضر
+                      <Check size={16} /> حفظ قرار الملاءمة ومسار الاتفاقية
                     </button>
                   )}
                 </section>
