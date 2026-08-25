@@ -6576,7 +6576,8 @@ const b2bStageColors: Record<string,string> = {
   "إعداد العرض":"amber","عرض مرسل":"amber","تفاوض":"orange","بانتظار التوقيع":"orange","تم التوقيع":"green","مغلقة":"gray",
 };
 const B2B_LIFECYCLE = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
-const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":status==="تم تحديد اجتماع"?"meeting":status==="في انتظار الرد"?"waiting":status==="تم التواصل الأول"?"contacted":"new";
+const B2B_CONTACT_STATUSES=["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
+const b2bContactTone=(status:unknown)=>status==="تم الاجتماع"?"done":["تم تحديد اجتماع","تم تحديد موعد اجتماع"].includes(String(status))?"meeting":["في انتظار الرد","بانتظار رد الجهة"].includes(String(status))?"waiting":["تم التواصل الأول","تم التواصل الأولي"].includes(String(status))?"contacted":"new";
 const b2bPathLabel=(path:unknown)=>path==="BOTH"?"جميع المجالات":String(path||"ABA");
 const B2B_LOCATIONS: Record<string,string[]> = {
   "الرياض":["الرياض","الخرج","الدرعية","المجمعة"],"مكة المكرمة":["مكة المكرمة","جدة","الطائف","رابغ"],"المدينة المنورة":["المدينة المنورة","ينبع","العلا"],
@@ -6585,7 +6586,7 @@ const B2B_LOCATIONS: Record<string,string[]> = {
 };
 function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partnerships";canManage:boolean;canConvert:boolean}) {
   const [rows,setRows]=useState<B2BRow[]>([]),[options,setOptions]=useState<string[]>([]),[partnershipStages,setPartnershipStages]=useState<string[]>([]),[trainingStages,setTrainingStages]=useState<string[]>([]),[lifecycleStages,setLifecycleStages]=useState<string[]>(B2B_LIFECYCLE),[staff,setStaff]=useState<B2BRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[showForm,setShowForm]=useState(false),[formStep,setFormStep]=useState(1),[selected,setSelected]=useState<B2BRow|null>(null),[saving,setSaving]=useState(false),[activities,setActivities]=useState<B2BRow[]>([]),[documents,setDocuments]=useState<B2BRow[]>([]),[approvals,setApprovals]=useState<B2BRow[]>([]),[activityType,setActivityType]=useState("تم التواصل"),[activityDetails,setActivityDetails]=useState(""),[scope,setScope]=useState("assigned"),[canReview,setCanReview]=useState(false),[canCreatePartnership,setCanCreatePartnership]=useState(false),[canDelete,setCanDelete]=useState(false),[search,setSearch]=useState(""),[stageFilter,setStageFilter]=useState("الكل"),[pathFilter,setPathFilter]=useState("الكل"),[kindFilter,setKindFilter]=useState("الكل"),[dragging,setDragging]=useState<string>("");
-  const [form,setForm]=useState<Record<string,string>>({name:"",type:"مركز",contactName:"",jobTitle:"",phone:"",email:"",region:"",city:"",activity:"",source:"",priority:"متوسطة",path:"ABA",ownerEmail:"",partnershipType:"",contactStatus:"",opportunityKind:"partnership",registrationStatus:"فرصة جديدة",traineeCount:"",requestedProgram:"",deliveryDate:"",expectedValue:"",expectedCloseDate:"",nextFollowUp:"",recommendedServices:""});
+  const [form,setForm]=useState<Record<string,string>>({name:"",type:"مركز",contactName:"",jobTitle:"",phone:"",email:"",region:"",regionOther:"",city:"",activity:"",source:"",sourceOther:"",priority:"متوسطة",path:"ABA",ownerEmail:"",partnershipType:"",contactStatus:"لم يتم التواصل",meetingScheduledAt:"",opportunityKind:"partnership",registrationStatus:"فرصة جديدة",traineeCount:"",requestedProgram:"",deliveryDate:"",expectedValue:"",expectedCloseDate:"",nextFollowUp:"",recommendedServices:""});
   const [agreement,setAgreement]=useState<Record<string,string>>({agreementNumber:"",signedAt:"",startDate:"",endDate:"",value:"",paymentTerms:"",scope:"",services:"",renewalTerms:"",documentUrl:""});
   const [pipelineDraft,setPipelineDraft]=useState<Record<string,string>>({});
   const [meetingMinutes,setMeetingMinutes]=useState<B2BRow[]>([]),[contacts,setContacts]=useState<B2BRow[]>([]),[contactDraft,setContactDraft]=useState({name:"",jobTitle:"",phone:"",email:"",isPrimary:false});
@@ -6641,8 +6642,10 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   partnershipType: "",
                   priority: "",
                   ownerEmail: "",
-                  contactStatus: "",
-                  logoData: "",
+                  contactStatus: "لم يتم التواصل",
+                  regionOther: "",
+                  sourceOther: "",
+                  meetingScheduledAt: "",
                 }));
               setShowForm(true);
             }}
@@ -6887,17 +6890,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                         placeholder="اسم الشخص المسؤول لدى الجهة"
                       />
                     </label>
-                    <label className="b2b-logo-field">
-                      <span>شعار الجهة</span>
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        onChange={(e) => readLogo(e.target.files?.[0], "form")}
-                      />
-                      {form.logoData && (
-                        <img src={form.logoData} alt="معاينة شعار الجهة" />
-                      )}
-                    </label>
                     <label>
                       <span>المنطقة</span>
                       <select
@@ -6910,22 +6902,29 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                         {Object.keys(B2B_LOCATIONS).map((x) => (
                           <option key={x}>{x}</option>
                         ))}
+                        <option value="أخرى">أخرى</option>
                       </select>
                     </label>
+                    {form.region === "أخرى" && (
+                      <label>
+                        <span>اكتب المنطقة</span>
+                        <input
+                          value={form.regionOther || ""}
+                          onChange={(e) => setForm({ ...form, regionOther: e.target.value })}
+                          placeholder="اسم المنطقة"
+                        />
+                      </label>
+                    )}
                     <label>
                       <span>المدينة</span>
-                      <select
-                        disabled={!form.region}
-                        value={form.city}
-                        onChange={(e) =>
-                          setForm({ ...form, city: e.target.value })
-                        }
-                      >
-                        <option value="">غير محدد</option>
-                        {(B2B_LOCATIONS[form.region] || []).map((x) => (
-                          <option key={x}>{x}</option>
-                        ))}
-                      </select>
+                      {form.region === "أخرى" ? (
+                        <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="اسم المدينة" />
+                      ) : (
+                        <select disabled={!form.region} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}>
+                          <option value="">غير محدد</option>
+                          {(B2B_LOCATIONS[form.region] || []).map((x) => <option key={x}>{x}</option>)}
+                        </select>
+                      )}
                     </label>
                     <label>
                       <span>البريد الإلكتروني</span>
@@ -6952,8 +6951,15 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                             <option key={x}>{x}</option>
                           ),
                         )}
+                        <option value="أخرى">أخرى</option>
                       </select>
                     </label>
+                    {form.source === "أخرى" && (
+                      <label>
+                        <span>اكتب المصدر</span>
+                        <input value={form.sourceOther || ""} onChange={(e) => setForm({ ...form, sourceOther: e.target.value })} placeholder="مصدر الجهة" />
+                      </label>
+                    )}
                     <label>
                       <span>المجال</span>
                       <select
@@ -7022,18 +7028,17 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                           setForm({ ...form, contactStatus: e.target.value })
                         }
                       >
-                        <option value="">غير محددة</option>
-                        {[
-                          "لم يتم التواصل",
-                          "تم التواصل",
-                          "بانتظار الرد",
-                          "متابعة لاحقة",
-                          "لا يوجد رد",
-                        ].map((x) => (
+                        {B2B_CONTACT_STATUSES.map((x) => (
                           <option key={x}>{x}</option>
                         ))}
                       </select>
                     </label>
+                    {form.contactStatus === "تم تحديد موعد اجتماع" && (
+                      <label>
+                        <span>تاريخ ووقت الاجتماع</span>
+                        <input type="datetime-local" value={form.meetingScheduledAt || ""} onChange={(e) => setForm({ ...form, meetingScheduledAt: e.target.value })} />
+                      </label>
+                    )}
                   </div>
                 ) : (
                   <div className="b2b-form-grid">
@@ -7285,7 +7290,12 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
               }
               onClick={() => {
                 if (section === "partnerships") {
-                  void save({ action: "create_partnership_initial", ...form });
+                  void save({
+                    action: "create_partnership_initial",
+                    ...form,
+                    region: form.region === "أخرى" ? form.regionOther : form.region,
+                    source: form.source === "أخرى" ? form.sourceOther : form.source,
+                  });
                   return;
                 }
                 const needsContract = form.registrationStatus === "موقعة";
@@ -7506,6 +7516,9 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               </span>
                             </div>
                             <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><span>حالة الجهة</span><b>{row.contact_status || "لم يتم التواصل"}</b></div>
+                            {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && (
+                              <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
+                            )}
                           </article>
                         );
                       })
@@ -7641,6 +7654,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <div>
                       <span>حالة الجهة</span>
                       <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><b>{row.contact_status || "لم يتم التواصل"}</b></div>
+                      {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && <small className="b2b-card-meeting-date">{new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>}
                     </div>
                     <div>
                       <span>مسؤول سلوكيرا</span>
@@ -7707,7 +7721,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                         }
                       />
                     </label>
-                    <label className="b2b-logo-field">
+                    {(selected.partnership_id || selected.agreement_signed_at || selected.signed_at) && <label className="b2b-logo-field">
                       <span>شعار الجهة</span>
                       <input
                         type="file"
@@ -7729,7 +7743,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                           </button>
                         </>
                       )}
-                    </label>
+                    </label>}
                     <label>
                       <span>نوع الجهة</span>
                       <input
@@ -8057,14 +8071,10 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                           })
                         }
                       >
-                        <option>لم يتم التواصل</option>
-                        <option>تم التواصل الأول</option>
-                        <option>في انتظار الرد</option>
-                        <option>تم تحديد اجتماع</option>
-                        <option>تم الاجتماع</option>
+                        {B2B_CONTACT_STATUSES.map((status) => <option key={status}>{status}</option>)}
                       </select>
                     </label>
-                    {pipelineDraft.contactStatus === "تم تحديد اجتماع" && (
+                    {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(pipelineDraft.contactStatus) && (
                       <>
                         <label>
                           <span>تاريخ ووقت الاجتماع</span>

@@ -585,3 +585,16 @@ test("shows the Sulukera owner and a visual organization status signal", async (
   assert.match(page, /row\.owner_name \|\| "غير مسند"/);
   assert.match(b2b, /owner_name/);
 });
+
+test("keeps partnership intake lightweight and schedules contact meetings", async () => {
+  const page = await read("../app/page.tsx");
+  const b2b = await read("../app/api/b2b/route.ts");
+  assert.match(page, /B2B_CONTACT_STATUSES/);
+  assert.match(page, /تم تحديد موعد اجتماع/);
+  assert.match(page, /regionOther/);
+  assert.match(page, /sourceOther/);
+  assert.match(page, /b2b-card-meeting-date/);
+  assert.match(page, /selected\.partnership_id \|\| selected\.agreement_signed_at/);
+  assert.match(b2b, /contactStatuses/);
+  assert.match(b2b, /meeting_scheduled_at,workspace/);
+});

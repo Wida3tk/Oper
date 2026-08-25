@@ -10,6 +10,7 @@ const paths = ["ABA","OBM","BOTH"];
 const lifecycleStages = ["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","قياس الأثر","التجديد أو الخروج"];
 const documentTypes = ["الملف التعريفي","اتفاقية السرية NDA","مسودة العقد","النموذج المالي","العقد النهائي","خطة العمل","تقرير أداء ربع سنوي","محضر اجتماع","تقرير التقييم النهائي","ملحق التجديد"];
 const approvalTypes = ["مدير الشراكات","الإدارة القانونية","الإدارة المالية","الاعتماد النهائي"];
+const contactStatuses = ["لم يتم التواصل","تم التواصل الأولي","تم تحديد موعد اجتماع","تم الاجتماع","بانتظار رد الجهة"];
 
 async function addColumn(db:ReturnType<typeof operationalDb>,sql:string){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
 async function ensureSchema(db:ReturnType<typeof operationalDb>) {
@@ -228,15 +229,14 @@ export async function POST(req:Request){
   }
   if(action==="create_partnership_initial"){
     if(!isAdmin(auth)&&!can(auth,"b2b.partnerships.create"))return Response.json({error:"ليس لديك صلاحية إضافة جهة إلى الشراكات"},{status:403});
-    const name=String(body.name||"").trim(),contactName=String(body.contactName||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"",ownerEmail=String(body.ownerEmail||"").trim().toLowerCase(),logoData=String(body.logoData||"");
-    if(logoData&&(!/^data:image\/(png|jpe?g|webp);base64,/i.test(logoData)||logoData.length>750000))return Response.json({error:"الشعار يجب أن يكون صورة PNG أو JPG أو WebP وحجمه أقل من 500KB"},{status:400});
+    const name=String(body.name||"").trim(),contactName=String(body.contactName||"").trim(),email=String(body.email||"").trim().toLowerCase(),path=paths.includes(String(body.path))?String(body.path):"",ownerEmail=String(body.ownerEmail||"").trim().toLowerCase(),contactStatus=contactStatuses.includes(String(body.contactStatus))?String(body.contactStatus):"لم يتم التواصل",meetingScheduledAt=String(body.meetingScheduledAt||"")||null;
+    if(contactStatus==="تم تحديد موعد اجتماع"&&!meetingScheduledAt)return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
     const accountId=id("B2BA"),contactId=id("B2BC"),opportunityId=id("B2BO"),changes=[
-      db.prepare("INSERT INTO b2b_accounts(id,name,type,region,city,activity,source,owner_email,priority,status,created_by_email,created_at,updated_at,path,partnership_type,contact_status) VALUES(?,?,?,?,?,?,?,?,?,'فرصة أولية',?,?,?,?,?,?)").bind(accountId,name,"",String(body.region||""),String(body.city||""),"",String(body.source||""),ownerEmail,String(body.priority||""),auth.email,now,now,path,String(body.partnershipType||""),String(body.contactStatus||"")),
+      db.prepare("INSERT INTO b2b_accounts(id,name,type,region,city,activity,source,owner_email,priority,status,created_by_email,created_at,updated_at,path,partnership_type,contact_status) VALUES(?,?,?,?,?,?,?,?,?,'فرصة أولية',?,?,?,?,?,?)").bind(accountId,name,"",String(body.region||""),String(body.city||""),"",String(body.source||""),ownerEmail,String(body.priority||""),auth.email,now,now,path,String(body.partnershipType||""),contactStatus),
       db.prepare("INSERT INTO b2b_contacts(id,account_id,name,job_title,phone,email,contact_role,preferred_channel,is_primary,created_at,updated_at) VALUES(?,?,?,'','',?,'مسؤول الجهة','',1,?,?)").bind(contactId,accountId,contactName,email,now,now),
-      db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at,opportunity_kind,lifecycle_stage,lifecycle_updated_at,workspace) VALUES(?,?,'مرحلة الملاءمة',?,?,?,'approved',?,?,'partnership','الاستكشاف والتقييم',?,'partnerships')").bind(opportunityId,accountId,auth.email,now,now,auth.email,now,now),
+      db.prepare("INSERT INTO b2b_opportunities(id,account_id,stage,created_by_email,created_at,updated_at,approval_status,approved_by_email,approved_at,opportunity_kind,lifecycle_stage,lifecycle_updated_at,meeting_scheduled_at,workspace) VALUES(?,?,'مرحلة الملاءمة',?,?,?,'approved',?,?,'partnership','الاستكشاف والتقييم',?,?,'partnerships')").bind(opportunityId,accountId,auth.email,now,now,auth.email,now,now,meetingScheduledAt),
       db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,'إضافة بيانات أولية','تم إنشاء سجل أولي للجهة في مرحلة الملاءمة',?,?)").bind(id("B2BX"),accountId,opportunityId,auth.email,now),
     ];
-    if(logoData)changes.push(db.prepare("UPDATE b2b_accounts SET logo_data=? WHERE id=?").bind(logoData,accountId));
     if(ownerEmail)changes.push(db.prepare("INSERT OR IGNORE INTO b2b_assignments(account_id,email,assigned_by_email,created_at) VALUES(?,?,?,?)").bind(accountId,ownerEmail,auth.email,now));
     await db.batch(changes);return Response.json({ok:true,id:opportunityId,stage:"مرحلة الملاءمة"});
   }
@@ -268,7 +268,8 @@ export async function POST(req:Request){
   if(action==="update_partnership_pipeline"){
     const opportunityId=String(body.opportunityId||""),row=await db.prepare("SELECT account_id,fit_decision FROM b2b_opportunities WHERE id=?").bind(opportunityId).first<{account_id:string;fit_decision?:string}>();
     if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
-    const contactStatus=String(body.contactStatus||""),fitDecision=String(body.fitDecision||""),fitReason=String(body.fitReason||"").trim();
+    const contactStatus=contactStatuses.includes(String(body.contactStatus))?String(body.contactStatus):"لم يتم التواصل",fitDecision=String(body.fitDecision||""),fitReason=String(body.fitReason||"").trim();
+    if(contactStatus==="تم تحديد موعد اجتماع"&&!String(body.meetingScheduledAt||""))return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
     if(fitDecision&&!['اعتماد','رفض','تأجيل'].includes(fitDecision))return Response.json({error:"قرار الملاءمة غير صحيح"},{status:400});
     if(fitDecision&&!fitReason)return Response.json({error:"ملاحظات قرار الملاءمة مطلوبة"},{status:400});
     const meetingCompleted=String(body.meetingCompletedAt||"")||null,decisionChanged=fitDecision&&fitDecision!==String(row.fit_decision||""),meetingSignature=JSON.stringify([meetingCompleted,String(body.meetingTopic||""),String(body.meetingSummary||""),String(body.meetingAttendeesInternal||""),String(body.meetingAttendeesExternal||"")]);
