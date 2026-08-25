@@ -503,6 +503,7 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
   assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
   assert.match(page, /partnership-decisions-overview/);
+  assert.match(page, /contactStatus === "تم الاجتماع" && String\(selected\.lifecycle_stage \|\| "الاستكشاف والتقييم"\) === "الاستكشاف والتقييم"/);
   assert.match(b2b, /update_partnership_pipeline/);
   assert.match(b2b, /update_partnership_contact/);
   assert.match(b2b, /add_partnership_meeting/);

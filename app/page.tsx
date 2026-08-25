@@ -8313,7 +8313,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       )}
                     </div>
                   )}
-                  {pipelineDraft.contactStatus === "تم الاجتماع" && (
+                  {pipelineDraft.contactStatus === "تم الاجتماع" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") === "الاستكشاف والتقييم" && (
                     <div className="fit-decision-panel">
                       <header>
                         <b>قرار الملاءمة</b>
