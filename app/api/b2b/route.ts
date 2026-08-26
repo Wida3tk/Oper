@@ -356,10 +356,13 @@ export async function POST(req:Request){
     if((approvalType==="مدير الشراكات"&&!managerAllowed)||(approvalType==="الإدارة القانونية"&&!governanceAllowed))return Response.json({error:"ليست لديك صلاحية هذا الاعتماد"},{status:403});
     if(!await assertAccess(accountId)&&!isAdmin(auth))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     const existing=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type=? ORDER BY created_at DESC LIMIT 1").bind(accountId,approvalType).first<{id:string}>(),approvalId=existing?.id||id("B2BAp");
-    await db.batch([
+    const changes=[
       existing?db.prepare("UPDATE b2b_approvals SET status=?,note=?,decided_by_email=?,decided_at=?,updated_at=? WHERE id=?").bind(decision,note,auth.email,now,now,approvalId):db.prepare("INSERT INTO b2b_approvals(id,account_id,opportunity_id,partnership_id,approval_type,status,note,decided_by_email,decided_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(approvalId,accountId,opportunityId,partnershipId,approvalType,decision,note,auth.email,now,now,now),
-      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"قرار فرز الجهة",`${approvalType}: ${decision==="approved"?"مقبولة للتخطيط":decision==="idea"?"فكرة أولية":"أعيدت للمراجعة"}${note?` · ${note}`:""}`,auth.email,now),
-    ]);return Response.json({ok:true});
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"تصنيف الجهة",`${approvalType}: ${decision==="approved"?"مناسبة":decision==="idea"?"فكرة أولية":approvalType==="مدير الشراكات"?"غير مناسبة":"أعيدت للمراجعة"}${note?` · ${note}`:""}`,auth.email,now),
+    ];
+    if(approvalType==="مدير الشراكات"&&decision==="rejected"&&opportunityId)changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='غير مناسب',lifecycle_updated_at=?,sort_order=0,updated_at=? WHERE id=?").bind(now,now,opportunityId));
+    if(approvalType==="مدير الشراكات"&&decision==="approved"&&opportunityId)changes.push(db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='الاستكشاف والتقييم',lifecycle_updated_at=?,updated_at=? WHERE id=?").bind(now,now,opportunityId));
+    await db.batch(changes);return Response.json({ok:true});
   }
   if(action==="update_lifecycle"){
     const partnershipId=String(body.partnershipId||""),opportunityId=String(body.opportunityId||""),target=String(body.stage||"");

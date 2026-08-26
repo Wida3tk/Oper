@@ -599,7 +599,7 @@ test("keeps organization cards focused on operational identity fields", async ()
 test("supports multiple organization representatives with one primary contact", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
-  assert.match(page, /ممثلو الجهة/);
+  assert.match(page, /إضافة ممثل آخر/);
   assert.match(page, /تعيين كأساسي/);
   assert.match(b2b, /action==="save_contact"/);
   assert.match(b2b, /action==="delete_contact"/);
@@ -704,10 +704,10 @@ test("uses a compact B2B drawer with on-demand representatives and intake classi
   const page=await read("../app/page.tsx");
   const b2b=await read("../app/api/b2b/route.ts");
   const css=await read("../app/globals.css");
-  assert.match(page,/إضافة ممثل إضافي/);
+  assert.match(page,/إضافة ممثل آخر/);
   assert.match(page,/B2BIntakeDecisionPanel/);
-  assert.match(page,/قبول للتخطيط/);
-  assert.match(page,/حفظ كفكرة أولية/);
+  assert.match(page,/مناسب/);
+  assert.match(page,/غير مناسب/);
   assert.match(b2b,/decision==="idea"/);
-  assert.match(css,/\.b2b-drawer>header\{padding:16px 20px\}/);
+  assert.match(css,/\.b2b-drawer>header\{padding:14px 18px\}/);
 });
