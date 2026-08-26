@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { authorize, operationalDb } from "../../_lib/operations";
+import { authorize, can, operationalDb } from "../../_lib/operations";
 
 export const dynamic="force-dynamic";
 
@@ -9,6 +9,7 @@ const groups:Record<string,string[]>={
   programs:["programs","program_tracks","program_trials","enrollments","seat_reservations","reservation_transfers"],
   operations:["workflow_tasks","tasks","audit_log"],
   users:["staff_roles","staff_accounts"],
+  b2b:["b2b_accounts","b2b_contacts","b2b_opportunities","b2b_partnerships","b2b_activities","b2b_meeting_minutes","b2b_documents","b2b_approvals","b2b_partnership_finance","b2b_assignments"],
 };
 const labels:Record<string,string>={
   customers:"العملاء",prospects:"الطلبات الأولية",orders:"الطلبات",payments:"الدفعات",
@@ -18,11 +19,16 @@ const labels:Record<string,string>={
   enrollments:"التسجيلات",seat_reservations:"الحجوزات والمباشر",reservation_transfers:"نقل الحجوزات",
   workflow_tasks:"المهام التشغيلية",tasks:"المهام العامة",audit_log:"سجل الإجراءات",staff_roles:"صلاحيات المستخدمين",
   staff_accounts:"حسابات المستخدمين",
+  b2b_accounts:"جهات الشراكات",b2b_contacts:"ممثلو الجهات",b2b_opportunities:"مسارات الجهات",
+  b2b_partnerships:"الاتفاقيات",b2b_activities:"سجل تقدم الشراكات",b2b_meeting_minutes:"محاضر الاجتماعات",
+  b2b_documents:"مستندات الشراكات",b2b_approvals:"اعتمادات الشراكات",b2b_partnership_finance:"مؤشرات الشراكات المالية",
+  b2b_assignments:"إسناد جهات الشراكات",
 };
 
 export async function GET(req:Request){
   const auth=await authorize(req,[]);
   if(!auth.ok)return auth.response;
+  if(!can(auth,"reports.view"))return Response.json({error:"ليس لديك صلاحية تصدير التقارير"},{status:403});
   const category=new URL(req.url).searchParams.get("category")||"all";
   if(category!=="all"&&!groups[category])return Response.json({error:"تصنيف التصدير غير صالح"},{status:400});
   const tables=category==="all"?Array.from(new Set(Object.values(groups).flat())):groups[category];

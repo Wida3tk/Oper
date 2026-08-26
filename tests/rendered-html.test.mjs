@@ -688,3 +688,14 @@ test("provides a dedicated B2B login path and persistent notification reads", as
   assert.match(notifications,/notification_reads/);
   assert.match(notifications,/export async function POST/);
 });
+
+test("exports an isolated B2B backup and protects administrative endpoints", async()=>{
+  const page=await read("../app/page.tsx");
+  const reports=await read("../app/api/reports/export/route.ts");
+  const staff=await read("../app/api/staff/route.ts");
+  assert.match(page,/الشراكات وقطاع الأعمال/);
+  assert.match(reports,/b2b_meeting_minutes/);
+  assert.match(reports,/b2b_partnership_finance/);
+  assert.match(reports,/can\(auth,"reports\.view"\)/);
+  assert.match(staff,/can\(auth,"users\.manage"\)/);
+});
