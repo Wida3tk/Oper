@@ -6603,6 +6603,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
   const [showContactForm,setShowContactForm]=useState(false);
   const [showAllActivities,setShowAllActivities]=useState(false);
+  const [agreementStep,setAgreementStep]=useState("dataFormSentAt");
   const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
   const [columnStatuses,setColumnStatuses]=useState<Record<string,string>>({});
   const load=async(silent=false)=>{if(!silent)setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanFitDecision(Boolean(data.canFitDecision));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{if(!silent)setLoading(false)}};
@@ -8292,7 +8293,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                       </div>
                       {canManage && (
                         <button
-                          className="pipeline-save"
+                          className="pipeline-save meeting-save"
                           disabled={saving}
                           onClick={() => void execute({
                               action: "add_partnership_meeting",
@@ -8378,81 +8379,20 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <div className="agreement-milestones">
                       <header>
                         <b>تقدم الاتفاقية</b>
-                        <span>
-                          حدّث الخطوات ليظهر تقدمها مباشرة على بطاقة الجهة
-                        </span>
+                        <span>اختر الخطوة وسجّل تاريخ إنجازها</span>
                       </header>
-                      {agreementMilestones.map(([rowKey, key, label], index) => (
-                        <label
-                          key={rowKey}
-                          className={pipelineDraft[key] ? "complete" : ""}
-                        >
-                          <i>
-                            {pipelineDraft[key] ? (
-                              <Check size={15} />
-                            ) : (
-                              index + 1
-                            )}
-                          </i>
-                          <span>{label}</span>
-                          <input
-                            type="date"
-                            value={pipelineDraft[key] || ""}
-                            onChange={(e) =>
-                              setPipelineDraft({
-                                ...pipelineDraft,
-                                [key]: e.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      ))}
+                      <div className="agreement-step-editor"><select value={agreementStep} onChange={e=>setAgreementStep(e.target.value)}>{agreementMilestones.map(([,key,label])=><option key={key} value={key}>{label}</option>)}</select><input type="date" value={pipelineDraft[agreementStep]||""} onChange={e=>setPipelineDraft({...pipelineDraft,[agreementStep]:e.target.value})}/></div>
+                      <div className="agreement-date-summary">{agreementMilestones.map(([,key,label],index)=><article key={key} className={pipelineDraft[key]?"complete":""}><i>{pipelineDraft[key]?<Check size={13}/>:index+1}</i><span><b>{label}</b><small>{pipelineDraft[key]||"بانتظار التنفيذ"}</small></span></article>)}</div>
                     </div>
                   )}
                   {meetingMinutes.length > 0 && (
-                    <details className="meeting-minutes-history" open>
+                    <details className="meeting-minutes-history">
                       <summary>
                         محاضر الاجتماعات السابقة <b>{meetingMinutes.length}</b>
                       </summary>
                       <div>
                         {meetingMinutes.map((meeting, index) => (
-                          <article key={String(meeting.id)}>
-                            <header>
-                              <b>اجتماع {meetingMinutes.length - index}</b>
-                              <time>
-                                {String(
-                                  meeting.meeting_at ||
-                                    meeting.created_at ||
-                                    "",
-                                )
-                                  .replace("T", " ")
-                                  .slice(0, 16)}
-                              </time>
-                            </header>
-                            <p>{meeting.topic || "دون عنوان"}</p>
-                            {meeting.summary && (
-                              <blockquote>{meeting.summary}</blockquote>
-                            )}
-                            <dl>
-                              <div>
-                                <dt>حضور سلوكيرا</dt>
-                                <dd>{meeting.attendees_internal || "—"}</dd>
-                              </div>
-                              <div>
-                                <dt>حضور الجهة</dt>
-                                <dd>{meeting.attendees_external || "—"}</dd>
-                              </div>
-                              <div>
-                                <dt>القرارات</dt>
-                                <dd>{meeting.decisions || "—"}</dd>
-                              </div>
-                              <div>
-                                <dt>الخطوة القادمة</dt>
-                                <dd>{meeting.next_step || "—"}</dd>
-                              </div>
-                            </dl>
-                            <small>سجله {meeting.created_by_email}</small>
-                          </article>
+                          <details className="meeting-minute-item" key={String(meeting.id)}><summary><b>الاجتماع {meetingMinutes.length-index}</b><time>{String(meeting.meeting_at||meeting.created_at||"").replace("T"," ").slice(0,16)}</time><span>{meeting.topic||"عرض التفاصيل"}</span></summary><div>{meeting.summary&&<blockquote>{meeting.summary}</blockquote>}<dl><div><dt>حضور سلوكيرا</dt><dd>{meeting.attendees_internal||"—"}</dd></div><div><dt>حضور الجهة</dt><dd>{meeting.attendees_external||"—"}</dd></div><div><dt>القرارات</dt><dd>{meeting.decisions||"—"}</dd></div><div><dt>الخطوة القادمة</dt><dd>{meeting.next_step||"—"}</dd></div></dl><small>سجله {meeting.created_by_email}</small></div></details>
                         ))}
                       </div>
                     </details>
