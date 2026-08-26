@@ -131,6 +131,8 @@ export async function GET(req: Request) {
     return Response.json({activities,documents,approvals,meetings,contacts,documentTypes,approvalTypes});
   }
   const {results:staff}=await db.prepare("SELECT email,display_name FROM staff_accounts WHERE active=1 ORDER BY display_name,email").all();
+  const viewerName=String((staff.find(row=>String(row.email||"").toLowerCase()===auth.email.toLowerCase()) as Record<string,unknown>|undefined)?.display_name||"");
+  const canFitDecision=isAdmin(auth)||["دعاء","مصعب","روان"].some(name=>viewerName.includes(name));
   const section=params.get("section")||"business";
   if(section==="partnerships"){
     const {results}=await db.prepare(`SELECT COALESCE(p.id,o.id) id,p.id partnership_id,o.id opportunity_id,o.account_id,
@@ -157,7 +159,7 @@ export async function GET(req: Request) {
       ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...viewScope.bind).all();
     const employeeStages=["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","غير مناسب","مؤجل"],visibleStages=isAdmin(auth)?lifecycleStages:employeeStages;
     const visibleResults=isAdmin(auth)?results:results.map(row=>({...row,lifecycle_stage:["قياس الأثر","التجديد أو الخروج"].includes(String(row.lifecycle_stage))?"التفعيل والعمليات":row.lifecycle_stage}));
-    return Response.json({partnerships:visibleResults,statuses:partnershipStatuses,lifecycleStages:visibleStages,staff,scope:"all",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),viewerEmail:auth.email});
+    return Response.json({partnerships:visibleResults,statuses:partnershipStatuses,lifecycleStages:visibleStages,staff,scope:"all",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),canFitDecision,viewerEmail:auth.email,viewerName});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${assignedScope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:assignedScope.bind}:assignedScope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(a.owner_email) LIMIT 1) owner_name,a.priority,a.path,a.team_id,a.contact_status,a.logo_data,
@@ -326,6 +328,12 @@ export async function POST(req:Request){
     if(contactStatus==="تم تحديد موعد اجتماع"&&!String(body.meetingScheduledAt||""))return Response.json({error:"تاريخ ووقت الاجتماع مطلوبان عند تحديد موعد اجتماع"},{status:400});
     if(fitDecision&&!['اعتماد','رفض','تأجيل'].includes(fitDecision))return Response.json({error:"قرار الملاءمة غير صحيح"},{status:400});
     if(fitDecision&&!fitReason)return Response.json({error:"ملاحظات قرار الملاءمة مطلوبة"},{status:400});
+    if(fitDecision){
+      const viewer=await db.prepare("SELECT display_name FROM staff_accounts WHERE lower(email)=lower(?) LIMIT 1").bind(auth.email).first<{display_name?:string}>(),viewerName=String(viewer?.display_name||"");
+      if(!isAdmin(auth)&&!["دعاء","مصعب","روان"].some(name=>viewerName.includes(name)))return Response.json({error:"قرار الملاءمة متاح للإدارة ودعاء ومصعب وروان فقط"},{status:403});
+      const meeting=await db.prepare("SELECT id FROM b2b_meeting_minutes WHERE opportunity_id=? LIMIT 1").bind(opportunityId).first();
+      if(!meeting)return Response.json({error:"يجب حفظ محضر الاجتماع قبل اتخاذ قرار الملاءمة"},{status:409});
+    }
     if(fitDecision==="اعتماد"){
       const managerApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='مدير الشراكات' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
       if(!managerApproval)return Response.json({error:"يلزم اعتماد مدير الشراكات قبل الموافقة على الملاءمة"},{status:409});

@@ -503,12 +503,12 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
   assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
   assert.match(page, /partnership-decisions-overview/);
-  assert.match(page, /contactStatus === "تم الاجتماع" && String\(selected\.lifecycle_stage \|\| "الاستكشاف والتقييم"\) === "الاستكشاف والتقييم"/);
+  assert.match(page, /meetingMinutes\.length>0 && canFitDecision && String\(selected\.lifecycle_stage \|\| "الاستكشاف والتقييم"\) === "الاستكشاف والتقييم"/);
   assert.match(b2b, /update_partnership_pipeline/);
   assert.match(b2b, /update_partnership_contact/);
   assert.match(b2b, /add_partnership_meeting/);
   assert.match(b2b, /ensureSchemaOnce/);
-  assert.match(page, /حفظ حالة التواصل/);
+  assert.match(page, /action: "update_partnership_contact"/);
   assert.match(page, /حفظ محضر الاجتماع/);
   assert.doesNotMatch(page, /حفظ تحديث مسار الجهة والمحضر/);
   assert.match(page, /selected\.lifecycle_stage\) === "التفاوض والاتفاقية"/);
