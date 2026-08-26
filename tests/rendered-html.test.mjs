@@ -503,7 +503,9 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
   assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
   assert.doesNotMatch(page, /قرارات الملاءمة وتقدم الاتفاقيات/);
-  assert.match(page, /negotiation-agreement-panel/);
+  assert.doesNotMatch(page, /negotiation-agreement-panel/);
+  assert.match(page, /update_agreement_step/);
+  assert.match(b2b, /if\(action==="update_agreement_step"\)/);
   assert.match(page, /meetingMinutes\.length>0 && canFitDecision && String\(selected\.lifecycle_stage \|\| "الاستكشاف والتقييم"\) === "الاستكشاف والتقييم"/);
   assert.match(b2b, /update_partnership_pipeline/);
   assert.match(b2b, /update_partnership_contact/);

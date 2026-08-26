@@ -6603,7 +6603,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const [editingAccount,setEditingAccount]=useState(false),[accountDraft,setAccountDraft]=useState<Record<string,string>>({});
   const [showContactForm,setShowContactForm]=useState(false);
   const [showAllActivities,setShowAllActivities]=useState(false);
-  const [agreementStep,setAgreementStep]=useState("dataFormSentAt");
   const [columnPriorities,setColumnPriorities]=useState<Record<string,string>>({});
   const [columnStatuses,setColumnStatuses]=useState<Record<string,string>>({});
   const load=async(silent=false)=>{if(!silent)setLoading(true);setError("");try{const data=await apiJson(`/api/b2b?section=${section}`);setRows(data.opportunities||data.partnerships||[]);setOptions(data.stages||data.statuses||[]);setPartnershipStages(data.partnershipStages||[]);setTrainingStages(data.trainingStages||[]);setLifecycleStages(data.lifecycleStages||B2B_LIFECYCLE);setStaff(data.staff||[]);setScope(data.scope||"assigned");setCanReview(Boolean(data.canReview||data.canApprove));setCanFitDecision(Boolean(data.canFitDecision));setCanCreatePartnership(Boolean(data.canCreatePartnership));setCanDelete(Boolean(data.canDelete))}catch(e){setError((e as Error).message)}finally{if(!silent)setLoading(false)}};
@@ -8361,9 +8360,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <button className="pipeline-save" disabled={saving} onClick={()=>void execute({action:"update_partnership_pipeline",opportunityId:selected.opportunity_id,...pipelineDraft})}><Check size={16}/> حفظ تقدم الاتفاقية</button>
                   )}
                 </section>
-              )}
-              {section === "partnerships" && String(selected.lifecycle_stage)==="التفاوض والاتفاقية" && (
-                <section className="agreement-milestones negotiation-agreement-panel"><div className="b2b-progress-head"><div><h3>تقدم الاتفاقية</h3><p>اختيار خطوة الاتفاقية وتسجيل تاريخ إنجازها</p></div><em>{agreementMilestones.filter(([,key])=>pipelineDraft[key]).length} من {agreementMilestones.length}</em></div><div className="agreement-step-editor"><select value={agreementStep} onChange={e=>setAgreementStep(e.target.value)}>{agreementMilestones.map(([,key,label])=><option key={key} value={key}>{label}</option>)}</select><input type="date" value={pipelineDraft[agreementStep]||""} onChange={e=>setPipelineDraft({...pipelineDraft,[agreementStep]:e.target.value})}/></div><div className="agreement-date-summary">{agreementMilestones.map(([,key,label],index)=><article key={key} className={pipelineDraft[key]?"complete":""}><i>{pipelineDraft[key]?<Check size={13}/>:index+1}</i><span><b>{label}</b><small>{pipelineDraft[key]||"بانتظار التنفيذ"}</small></span></article>)}</div>{canManage&&<button className="pipeline-save" disabled={saving} onClick={()=>void execute({action:"update_partnership_pipeline",opportunityId:selected.opportunity_id,...pipelineDraft})}><Check size={15}/> حفظ تقدم الاتفاقية</button>}</section>
               )}
               {section === "partnerships" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") !== "الاستكشاف والتقييم" && (
                 <B2BApprovalsPanel
