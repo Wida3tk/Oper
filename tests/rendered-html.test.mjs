@@ -699,3 +699,15 @@ test("exports an isolated B2B backup and protects administrative endpoints", asy
   assert.match(reports,/can\(auth,"reports\.view"\)/);
   assert.match(staff,/can\(auth,"users\.manage"\)/);
 });
+
+test("uses a compact B2B drawer with on-demand representatives and intake classification", async()=>{
+  const page=await read("../app/page.tsx");
+  const b2b=await read("../app/api/b2b/route.ts");
+  const css=await read("../app/globals.css");
+  assert.match(page,/إضافة ممثل إضافي/);
+  assert.match(page,/B2BIntakeDecisionPanel/);
+  assert.match(page,/قبول للتخطيط/);
+  assert.match(page,/حفظ كفكرة أولية/);
+  assert.match(b2b,/decision==="idea"/);
+  assert.match(css,/\.b2b-drawer>header\{padding:16px 20px\}/);
+});

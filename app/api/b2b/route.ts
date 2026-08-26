@@ -351,14 +351,14 @@ export async function POST(req:Request){
   }
   if(action==="record_approval"){
     const accountId=String(body.accountId||""),opportunityId=String(body.opportunityId||"")||null,partnershipId=String(body.partnershipId||"")||null,approvalType=String(body.approvalType||""),decision=String(body.decision||""),note=String(body.note||"").trim();
-    if(!accountId||!approvalTypes.includes(approvalType)||!["approved","rejected"].includes(decision))return Response.json({error:"بيانات الاعتماد غير صحيحة"},{status:400});
+    if(!accountId||!approvalTypes.includes(approvalType)||!["approved","rejected","idea"].includes(decision)||(decision==="idea"&&approvalType!=="مدير الشراكات"))return Response.json({error:"بيانات الاعتماد غير صحيحة"},{status:400});
     const managerAllowed=isAdmin(auth)||can(auth,"b2b.review"),governanceAllowed=isAdmin(auth)||can(auth,"b2b.partnerships.manage");
     if((approvalType==="مدير الشراكات"&&!managerAllowed)||(approvalType==="الإدارة القانونية"&&!governanceAllowed))return Response.json({error:"ليست لديك صلاحية هذا الاعتماد"},{status:403});
     if(!await assertAccess(accountId)&&!isAdmin(auth))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     const existing=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type=? ORDER BY created_at DESC LIMIT 1").bind(accountId,approvalType).first<{id:string}>(),approvalId=existing?.id||id("B2BAp");
     await db.batch([
       existing?db.prepare("UPDATE b2b_approvals SET status=?,note=?,decided_by_email=?,decided_at=?,updated_at=? WHERE id=?").bind(decision,note,auth.email,now,now,approvalId):db.prepare("INSERT INTO b2b_approvals(id,account_id,opportunity_id,partnership_id,approval_type,status,note,decided_by_email,decided_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(approvalId,accountId,opportunityId,partnershipId,approvalType,decision,note,auth.email,now,now,now),
-      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"اعتماد",`${approvalType}: ${decision==="approved"?"معتمد":"مرفوض"}${note?` · ${note}`:""}`,auth.email,now),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId,partnershipId,"قرار فرز الجهة",`${approvalType}: ${decision==="approved"?"مقبولة للتخطيط":decision==="idea"?"فكرة أولية":"أعيدت للمراجعة"}${note?` · ${note}`:""}`,auth.email,now),
     ]);return Response.json({ok:true});
   }
   if(action==="update_lifecycle"){
