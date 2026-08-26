@@ -100,6 +100,10 @@ async function ensureSchema(db:ReturnType<typeof operationalDb>) {
     db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='غير مناسب' WHERE lifecycle_stage='مرفوض'"),
     db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='غير مناسب' WHERE lifecycle_stage='مرفوض'")
   ]);
+  await db.batch([
+    db.prepare("UPDATE b2b_opportunities SET agreement_signed_at=(SELECT MAX(created_at) FROM b2b_activities WHERE opportunity_id=b2b_opportunities.id AND activity_type IN ('توقيع الاتفاقية','تم توقيع الطرفين')),lifecycle_stage='التفعيل والعمليات',lifecycle_updated_at=(SELECT MAX(created_at) FROM b2b_activities WHERE opportunity_id=b2b_opportunities.id AND activity_type IN ('توقيع الاتفاقية','تم توقيع الطرفين')) WHERE agreement_signed_at IS NULL AND EXISTS(SELECT 1 FROM b2b_activities WHERE opportunity_id=b2b_opportunities.id AND activity_type IN ('توقيع الاتفاقية','تم توقيع الطرفين')) AND EXISTS(SELECT 1 FROM b2b_approvals WHERE account_id=b2b_opportunities.account_id AND approval_type='الإدارة القانونية' AND status='approved')"),
+    db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفعيل والعمليات',updated_at=COALESCE((SELECT lifecycle_updated_at FROM b2b_opportunities WHERE id=b2b_partnerships.opportunity_id),updated_at) WHERE opportunity_id IN (SELECT id FROM b2b_opportunities WHERE agreement_signed_at IS NOT NULL AND lifecycle_stage='التفعيل والعمليات')")
+  ]);
 }
 
 let schemaReady:Promise<void>|null=null;
@@ -433,6 +437,33 @@ export async function POST(req:Request){
   if(action==="log_activity"){
     const opportunityId=String(body.opportunityId||""),partnershipId=String(body.partnershipId||""),accountId=String(body.accountId||""),activityType=String(body.activityType||"").trim(),details=String(body.details||"").trim();if(!accountId||!activityType)return Response.json({error:"نوع التحديث مطلوب"},{status:400});if(!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
     await db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,due_at,completed_at,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id("B2BX"),accountId,opportunityId||null,partnershipId||null,activityType,details,String(body.dueAt||"")||null,body.completed?now:null,auth.email,now).run();return Response.json({ok:true});
+  }
+  if(action==="update_agreement_step"){
+    const opportunityId=String(body.opportunityId||""),step=String(body.step||""),completedAt=String(body.completedAt||""),details=String(body.details||"").trim();
+    const steps:Record<string,{column:string;label:string}>={
+      dataFormSentAt:{column:"data_form_sent_at",label:"تم إرسال النموذج"},
+      agreementPreparedAt:{column:"agreement_prepared_at",label:"إعداد الاتفاقية"},
+      agreementSentAt:{column:"agreement_sent_at",label:"تم إرسال الاتفاقية"},
+      organizationSignedAt:{column:"organization_signed_at",label:"تم توقيع الجهة"},
+      agreementSignedAt:{column:"agreement_signed_at",label:"تم توقيع الطرفين"},
+    },milestone=steps[step];
+    if(!opportunityId||!milestone||!/^\d{4}-\d{2}-\d{2}$/.test(completedAt))return Response.json({error:"اختر خطوة الاتفاقية وتاريخ إنجازها"},{status:400});
+    const row=await db.prepare("SELECT o.account_id,p.id partnership_id,o.lifecycle_stage FROM b2b_opportunities o LEFT JOIN b2b_partnerships p ON p.opportunity_id=o.id WHERE o.id=?").bind(opportunityId).first<{account_id:string;partnership_id?:string;lifecycle_stage?:string}>();
+    if(!row||!await assertAccess(row.account_id))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
+    if(step==="agreementSignedAt"){
+      const legalApproval=await db.prepare("SELECT id FROM b2b_approvals WHERE account_id=? AND approval_type='الإدارة القانونية' AND status='approved' ORDER BY decided_at DESC LIMIT 1").bind(row.account_id).first();
+      if(!legalApproval)return Response.json({error:"يلزم اعتماد الإدارة القانونية قبل تسجيل توقيع الطرفين"},{status:409});
+    }
+    const changes=[
+      db.prepare(`UPDATE b2b_opportunities SET ${milestone.column}=?,updated_at=? WHERE id=?`).bind(completedAt,now,opportunityId),
+      db.prepare("INSERT INTO b2b_activities(id,account_id,opportunity_id,partnership_id,activity_type,details,completed_at,actor_email,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(id("B2BX"),row.account_id,opportunityId,row.partnership_id||null,milestone.label,details,now,auth.email,now),
+    ];
+    if(step==="agreementSignedAt")changes.push(
+      db.prepare("UPDATE b2b_opportunities SET lifecycle_stage='التفعيل والعمليات',lifecycle_updated_at=?,sort_order=0,updated_at=? WHERE id=?").bind(now,now,opportunityId),
+      db.prepare("UPDATE b2b_partnerships SET lifecycle_stage='التفعيل والعمليات',updated_at=? WHERE opportunity_id=?").bind(now,opportunityId)
+    );
+    await db.batch(changes);
+    return Response.json({ok:true,lifecycleStage:step==="agreementSignedAt"?"التفعيل والعمليات":row.lifecycle_stage});
   }
   if(action==="convert_to_partnership"){
     if(!can(auth,"b2b.partnerships.manage"))return Response.json({error:"ليس لديك صلاحية اعتماد الاتفاقيات"},{status:403});
