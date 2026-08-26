@@ -502,7 +502,8 @@ test("tracks partnership contact meetings fit decisions and agreement milestones
   assert.match(page, /الحضور من سلوكيرا/);
   assert.match(page, /اعتماد[\s\S]{0,120}رفض[\s\S]{0,120}تأجيل/);
   assert.match(page, /تم إرسال النموذج.*إعداد الاتفاقية.*تم إرسال الاتفاقية.*تم توقيع الجهة.*تم توقيع الطرفين/s);
-  assert.match(page, /partnership-decisions-overview/);
+  assert.doesNotMatch(page, /قرارات الملاءمة وتقدم الاتفاقيات/);
+  assert.match(page, /negotiation-agreement-panel/);
   assert.match(page, /meetingMinutes\.length>0 && canFitDecision && String\(selected\.lifecycle_stage \|\| "الاستكشاف والتقييم"\) === "الاستكشاف والتقييم"/);
   assert.match(b2b, /update_partnership_pipeline/);
   assert.match(b2b, /update_partnership_contact/);
@@ -646,7 +647,7 @@ test("keeps partnership decisions inside the card and isolates rejected organiza
   assert.match(page, /drawer-lifecycle/);
   assert.match(page, /آخر التحديثات/);
   assert.match(page, /b2b-inline-contacts/);
-  assert.match(page, /kanban-fit-decision/);
+  assert.doesNotMatch(page, /kanban-fit-decision/);
   assert.match(b2b, /lifecycle_stage='غير مناسب'/);
   assert.match(b2b, /decisionChanged&&fitDecision==="اعتماد"/);
 });

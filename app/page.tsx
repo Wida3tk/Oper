@@ -7337,56 +7337,6 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
           </footer>
         </section>
       )}
-      {section === "partnerships" &&
-        visibleRows.some((row) => row.fit_decision) && (
-          <section className="partnership-decisions-overview">
-            <header>
-              <div>
-                <b>قرارات الملاءمة وتقدم الاتفاقيات</b>
-                <span>الحالة الحالية ظاهرة دون الحاجة إلى فتح ملف الجهة</span>
-              </div>
-            </header>
-            <div>
-              {visibleRows
-                .filter((row) => row.fit_decision)
-                .map((row) => (
-                  <article
-                    key={String(row.id)}
-                    className={
-                      row.fit_decision === "اعتماد"
-                        ? "approved"
-                        : row.fit_decision === "رفض"
-                          ? "rejected"
-                          : "deferred"
-                    }
-                  >
-                    <div>
-                      <b>{row.account_name || "جهة دون اسم"}</b>
-                      <span>
-                        {row.fit_decision} · {row.fit_reason || "دون ملاحظة"}
-                      </span>
-                    </div>
-                    {row.fit_decision === "اعتماد" ? (
-                      <div className="partnership-card-progress">
-                        {agreementMilestones.map(([key, , label]) => (
-                          <span key={key} className={row[key] ? "done" : ""}>
-                            <i>{row[key] ? "✓" : ""}</i>
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <em>
-                        {row.fit_decision === "تأجيل" && row.next_follow_up
-                          ? `المتابعة: ${row.next_follow_up}`
-                          : "محفوظة في السجل"}
-                      </em>
-                    )}
-                  </article>
-                ))}
-            </div>
-          </section>
-        )}
       <section className="b2b-list">
         <header>
           <div>
@@ -7547,8 +7497,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                               </span>
                             </div>
                             <div className={`b2b-contact-signal ${b2bContactTone(row.contact_status)}`}><i/><span>حالة الجهة</span><b>{row.contact_status || "لم يتم التواصل"}</b></div>
-                            {row.fit_decision && <div className={`kanban-fit-decision ${row.fit_decision === "اعتماد" ? "approved" : row.fit_decision === "رفض" ? "rejected" : "deferred"}`}><span>قرار الملاءمة</span><b>{row.fit_decision}</b></div>}
-                            {row.fit_decision === "اعتماد" && <div className="kanban-agreement-progress">{agreementMilestones.map(([key,,label])=><span key={key} className={row[key]?"done":""} title={label}/>)}</div>}
+                            {String(row.lifecycle_stage)==="التفاوض والاتفاقية" && <div className="kanban-agreement-progress">{agreementMilestones.map(([key,,label])=><span key={key} className={row[key]?"done":""} title={label}/>)}</div>}
                             {["تم تحديد اجتماع", "تم تحديد موعد اجتماع"].includes(String(row.contact_status)) && row.meeting_scheduled_at && (
                               <small className="b2b-card-meeting-date">موعد الاجتماع · {new Date(String(row.meeting_scheduled_at)).toLocaleString("ar-SA-u-nu-latn", { dateStyle: "medium", timeStyle: "short" })}</small>
                             )}
@@ -7737,23 +7686,19 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                 <div className="drawer-lifecycle">
                   <div className="drawer-lifecycle-title">
                     <span>دورة حياة الشراكة</span>
-                    <b>{selected.fit_decision === "رفض" ? "غير مناسب" : selected.fit_decision === "تأجيل" ? "مؤجل" : selected.lifecycle_stage || "الاستكشاف والتقييم"}</b>
+                    <b>{selected.lifecycle_stage || "الاستكشاف والتقييم"}</b>
                   </div>
-                  <div className={`drawer-lifecycle-track ${selected.fit_decision === "رفض" ? "rejected" : ""}`}>
-                    {(selected.fit_decision === "اعتماد"
-                      ? lifecycleStages.filter((stage) => !["غير مناسب","مؤجل"].includes(stage))
-                      : selected.fit_decision === "رفض"
-                        ? ["الاستكشاف والتقييم", "غير مناسب"]
-                        : selected.fit_decision === "تأجيل"
-                          ? ["الاستكشاف والتقييم", "مؤجل"]
-                        : ["الاستكشاف والتقييم"]
+                  <div className={`drawer-lifecycle-track ${String(selected.lifecycle_stage)==="غير مناسب" ? "rejected" : ""}`}>
+                    {(["غير مناسب","مؤجل"].includes(String(selected.lifecycle_stage))
+                      ? ["الاستكشاف والتقييم",String(selected.lifecycle_stage)]
+                      : lifecycleStages.filter((stage) => !["غير مناسب","مؤجل"].includes(stage))
                     ).map((stage, index, shownStages) => (
                       <span key={stage} className={shownStages.indexOf(String(selected.lifecycle_stage || "الاستكشاف والتقييم")) >= index || ["غير مناسب","مؤجل"].includes(stage) ? "done" : ""}>
                         <i>{index + 1}</i><b>{stage}</b>
                       </span>
                     ))}
                   </div>
-                  {canConvert && selected.fit_decision === "اعتماد" && (
+                  {canConvert && !["الاستكشاف والتقييم","غير مناسب","مؤجل"].includes(String(selected.lifecycle_stage)) && (
                     <label className="drawer-lifecycle-select">
                       <span>تحديث المرحلة</span>
                       <select disabled={saving} value={String(selected.lifecycle_stage || "الاستكشاف والتقييم")} onChange={(e)=>void execute({action:"update_lifecycle",opportunityId:selected.opportunity_id,partnershipId:selected.partnership_id||"",stage:e.target.value})}>
@@ -8076,7 +8021,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                   execute={execute}
                 />
               )}
-              {section === "partnerships" && (
+              {section === "partnerships" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") === "الاستكشاف والتقييم" && (
                 <section className="partnership-pipeline-panel">
                   <div className="b2b-progress-head">
                     <div>
@@ -8416,6 +8361,9 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
                     <button className="pipeline-save" disabled={saving} onClick={()=>void execute({action:"update_partnership_pipeline",opportunityId:selected.opportunity_id,...pipelineDraft})}><Check size={16}/> حفظ تقدم الاتفاقية</button>
                   )}
                 </section>
+              )}
+              {section === "partnerships" && String(selected.lifecycle_stage)==="التفاوض والاتفاقية" && (
+                <section className="agreement-milestones negotiation-agreement-panel"><div className="b2b-progress-head"><div><h3>تقدم الاتفاقية</h3><p>اختيار خطوة الاتفاقية وتسجيل تاريخ إنجازها</p></div><em>{agreementMilestones.filter(([,key])=>pipelineDraft[key]).length} من {agreementMilestones.length}</em></div><div className="agreement-step-editor"><select value={agreementStep} onChange={e=>setAgreementStep(e.target.value)}>{agreementMilestones.map(([,key,label])=><option key={key} value={key}>{label}</option>)}</select><input type="date" value={pipelineDraft[agreementStep]||""} onChange={e=>setPipelineDraft({...pipelineDraft,[agreementStep]:e.target.value})}/></div><div className="agreement-date-summary">{agreementMilestones.map(([,key,label],index)=><article key={key} className={pipelineDraft[key]?"complete":""}><i>{pipelineDraft[key]?<Check size={13}/>:index+1}</i><span><b>{label}</b><small>{pipelineDraft[key]||"بانتظار التنفيذ"}</small></span></article>)}</div>{canManage&&<button className="pipeline-save" disabled={saving} onClick={()=>void execute({action:"update_partnership_pipeline",opportunityId:selected.opportunity_id,...pipelineDraft})}><Check size={15}/> حفظ تقدم الاتفاقية</button>}</section>
               )}
               {section === "partnerships" && String(selected.lifecycle_stage || "الاستكشاف والتقييم") !== "الاستكشاف والتقييم" && (
                 <B2BApprovalsPanel
