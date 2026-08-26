@@ -113,8 +113,8 @@ function ensureSchemaOnce(db:ReturnType<typeof operationalDb>){
 }
 
 function isAdmin(auth:{roles:string[]}){return auth.roles.includes("admin")}
-function scopeSql(auth:{email:string;roles:string[]},alias="a"){
-  return isAdmin(auth)?{sql:"",bind:[]}:{sql:` AND (${alias}.owner_email=? OR EXISTS(SELECT 1 FROM b2b_assignments ba WHERE ba.account_id=${alias}.id AND ba.email=?))`,bind:[auth.email,auth.email]};
+function scopeSql(auth:{email:string;roles:string[];permissions?:string[]},alias="a"){
+  return isAdmin(auth)||can(auth,"b2b.review")?{sql:"",bind:[]}:{sql:` AND (${alias}.owner_email=? OR EXISTS(SELECT 1 FROM b2b_assignments ba WHERE ba.account_id=${alias}.id AND ba.email=?))`,bind:[auth.email,auth.email]};
 }
 
 export async function GET(req: Request) {
