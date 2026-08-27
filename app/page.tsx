@@ -5894,6 +5894,20 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
     if (row.paid > 0) return "دفعة جزئية";
     return "غير مدفوع";
   };
+  const currentInstallmentStatus = (row: FinanceOrder) => {
+    const open = row.installments.filter((item) => item.status !== "مدفوع");
+    if (!open.length) return row.installments.length ? "تم السداد" : "لم يُنشأ جدول";
+    const priority = ["تطبيق السياسة", "متأخر", "تذكير نهائي", "تذكير ثالث", "تذكير ثاني", "تذكير ثانٍ", "تذكير أول", "موافقة تمديد"];
+    for (const status of priority) {
+      if (open.some((item) => item.status === status)) return status;
+    }
+    if (open.some((item) => item.display_status === "متأخر")) return "متأخر";
+    return [...open].sort((a,b) => String(a.due_date).localeCompare(String(b.due_date)))[0]?.status || "ملتزم";
+  };
+  const installmentStatusTone = (status: string) =>
+    status === "تم السداد" || status === "ملتزم" ? "green" :
+    ["تطبيق السياسة", "متأخر", "تذكير نهائي", "تذكير ثالث"].includes(status) ? "red" :
+    status.startsWith("تذكير") || status === "موافقة تمديد" ? "amber" : "neutral";
   const subscriptionMeta = (row: FinanceOrder) => {
     const items: string[] = [];
     if (row.program_track && !["غير محدد", "—"].includes(row.program_track)) items.push(`المسار: ${row.program_track}`);
@@ -6182,6 +6196,7 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
                   {row.installments.filter((x) => x.status !== "مدفوع").length}{" "}
                   قسط متبقٍ
                 </span>
+                <em className={`installment-status-badge ${installmentStatusTone(currentInstallmentStatus(row))}`}>حالة السداد: {currentInstallmentStatus(row)}</em>
                 <em className={`payment-behavior-badge ${row.payment_behavior?.tone || "neutral"}`}>سلوك السداد: {row.payment_behavior?.label || "جديد"}</em>
                 <b>فتح الملف المالي ←</b>
               </footer>
