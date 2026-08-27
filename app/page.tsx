@@ -453,7 +453,7 @@ function AuthGate() {
           {error && <div className="login-error">{error}</div>}
           <button
             className="primary login-submit"
-            disabled={saving || !email || password.length < 8}
+            disabled={saving || !email.trim() || !password}
             onClick={login}
           >
             {saving
