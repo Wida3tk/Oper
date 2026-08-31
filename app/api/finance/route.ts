@@ -63,7 +63,7 @@ export async function POST(req:Request){
  const auth=await authorize(req,["finance"]);if(!auth.ok)return auth.response;
  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),orderId=String(body.orderId||"");
  if(!orderId)return Response.json({error:"رقم الطلب مطلوب"},{status:400});
- const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string}>();
+ const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type,purchase_source,finance_review_status FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string;purchase_source:string;finance_review_status:string}>();
  await ensureFinanceUndoSchema(db);
  await ensureWithdrawalSchema(db);
  await ensureOrderPaymentReferenceSchema(db);
@@ -118,7 +118,9 @@ export async function POST(req:Request){
    const paymentId=String(details.paymentId||"");const previousAmount=Number(details.previousAmount||0);
    if(!paymentId)return Response.json({error:"بيانات التراجع عن الدفعة الأولى غير مكتملة"},{status:409});
    const other=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=? AND id!=?").bind(orderId,paymentId).first<{paid:number}>(),restoredPaid=cents(other?.paid)+cents(previousAmount);
-   statements.push(db.prepare("UPDATE payments SET amount=? WHERE id=? AND order_id=?").bind(previousAmount,paymentId,orderId),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT id FROM payment_intents WHERE resulting_order_id=? ORDER BY created_at LIMIT 1)").bind(previousAmount,now,orderId,orderId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(restoredPaid),restoredPaid===cents(order.total)?"مدفوع":restoredPaid>0?"مدفوع جزئياً":"غير مدفوع",now,orderId));
+   if(details.createdPayment)statements.push(db.prepare("DELETE FROM payments WHERE id=? AND order_id=?").bind(paymentId,orderId));
+   else statements.push(db.prepare("UPDATE payments SET amount=? WHERE id=? AND order_id=?").bind(previousAmount,paymentId,orderId),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT id FROM payment_intents WHERE resulting_order_id=? ORDER BY created_at LIMIT 1)").bind(previousAmount,now,orderId,orderId));
+   statements.push(db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(restoredPaid),restoredPaid===cents(order.total)?"مدفوع":restoredPaid>0?"مدفوع جزئياً":"غير مدفوع",now,orderId));
   }else if(target.action==="PAY_INSTALLMENT"){
    const paymentId=String(details.paymentId||"");if(!paymentId)return Response.json({error:"بيانات التراجع عن السداد غير مكتملة"},{status:409});
    const payment=await db.prepare("SELECT amount FROM payments WHERE id=? AND order_id=?").bind(paymentId,orderId).first<{amount:number}>();if(!payment)return Response.json({error:"دفعة السداد لم تعد موجودة"},{status:409});
@@ -172,7 +174,7 @@ export async function POST(req:Request){
   const scheduledTotal=(count>1?(count-1)*regularAmountCents:0)+finalAmountCents;
   if(scheduledTotal!==remaining)return Response.json({error:`مجموع جدول الأقساط يجب أن يساوي المتبقي على العميل (${money(remaining).toFixed(2)} ر.س)`},{status:400});
   const paidSeq=await db.prepare("SELECT COALESCE(MAX(sequence),0) seq FROM installments WHERE order_id=? AND status='مدفوع'").bind(orderId).first<{seq:number}>();
-  const statements=[db.prepare("UPDATE orders SET total=?,paid=?,payment_plan='أقساط',status=?,updated_at=? WHERE id=?").bind(money(totalCents),money(paidCents),remaining===0?"مدفوع":"مدفوع جزئياً",now,orderId),db.prepare("DELETE FROM installments WHERE order_id=? AND status!='مدفوع'").bind(orderId)];
+  const statements=[db.prepare("UPDATE orders SET total=?,paid=?,payment_plan='أقساط',status=?,updated_at=? WHERE id=?").bind(money(totalCents),money(paidCents),remaining===0?"مدفوع":paidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId),db.prepare("DELETE FROM installments WHERE order_id=? AND status!='مدفوع'").bind(orderId)];
   for(let i=0;i<count;i++)statements.push(db.prepare("INSERT INTO installments(id,order_id,sequence,amount_cents,due_date,status,created_at,updated_at) VALUES(?,?,?,?,?,'قادم',?,?)").bind(id("INS"),orderId,Number(paidSeq?.seq||0)+i+1,i===count-1?finalAmountCents:regularAmountCents,dueDate(start,i),now,now));
   await db.batch(statements);return Response.json({ok:true});
  }
@@ -180,14 +182,17 @@ export async function POST(req:Request){
   if(!can(auth,"finance.payments.record"))return Response.json({error:"لا تملكين صلاحية تعديل الدفعة الأولى"},{status:403});
   const amountCents=cents(body.amount);if(amountCents<0||amountCents>cents(order.total))return Response.json({error:"قيمة الدفعة الأولى يجب أن تكون بين صفر وإجمالي عقد البرنامج"},{status:400});
   const first=await db.prepare("SELECT id,amount FROM payments WHERE order_id=? ORDER BY CASE WHEN flow_type='sale' THEN 0 ELSE 1 END,COALESCE(paid_at,created_at),created_at LIMIT 1").bind(orderId).first<{id:string;amount:number}>();
-  if(!first)return Response.json({error:"لا توجد دفعة أولى مسجلة لهذا الطلب"},{status:404});
-  const otherPaid=await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=? AND id!=?").bind(orderId,first.id).first<{paid:number}>(),newPaidCents=cents(otherPaid?.paid)+amountCents;
+  const paymentId=first?.id||id("PAY"),createdPayment=!first;
+  const otherPaid=first?await db.prepare("SELECT COALESCE(SUM(amount),0) paid FROM payments WHERE order_id=? AND id!=?").bind(orderId,first.id).first<{paid:number}>():{paid:0},newPaidCents=cents(otherPaid?.paid)+amountCents;
   if(newPaidCents>cents(order.total))return Response.json({error:"إجمالي الدفعات يتجاوز عقد البرنامج"},{status:400});
   const open=await db.prepare("SELECT id,sequence FROM installments WHERE order_id=? AND status!='مدفوع' ORDER BY sequence").bind(orderId).all<{id:string;sequence:number}>(),remainingCents=cents(order.total)-newPaidCents;
   if(remainingCents>0&&!open.results.length){const installmentCount=await db.prepare("SELECT COUNT(*) count FROM installments WHERE order_id=?").bind(orderId).first<{count:number}>();if(Number(installmentCount?.count||0)>0)return Response.json({error:"جميع الأقساط الحالية مسددة؛ لا يمكن تخفيض الدفعة الأولى دون إنشاء استحقاق جديد"},{status:409})}
-  const statements=[db.prepare("UPDATE payments SET amount=? WHERE id=?").bind(money(amountCents),first.id),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT payment_intent_id FROM (SELECT pi.id payment_intent_id FROM payment_intents pi WHERE pi.resulting_order_id=? ORDER BY pi.created_at LIMIT 1))").bind(money(amountCents),now,orderId,orderId),db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaidCents),newPaidCents===cents(order.total)?"مدفوع":newPaidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId)];
+  const statements=[];
+  if(first)statements.push(db.prepare("UPDATE payments SET amount=? WHERE id=?").bind(money(amountCents),paymentId),db.prepare("UPDATE payment_intents SET amount=?,updated_at=? WHERE resulting_order_id=? AND id=(SELECT payment_intent_id FROM (SELECT pi.id payment_intent_id FROM payment_intents pi WHERE pi.resulting_order_id=? ORDER BY pi.created_at LIMIT 1))").bind(money(amountCents),now,orderId,orderId));
+  else if(amountCents>0)statements.push(db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,'sale',?,?)").bind(paymentId,orderId,money(amountCents),now,"مسجلة",String(order.purchase_source||"غير محدد"),"",order.finance_review_status==="approved"?"confirmed":"pending",now));
+  statements.push(db.prepare("UPDATE orders SET paid=?,status=?,updated_at=? WHERE id=?").bind(money(newPaidCents),newPaidCents===cents(order.total)?"مدفوع":newPaidCents>0?"مدفوع جزئياً":"غير مدفوع",now,orderId));
   if(open.results.length){if(remainingCents===0)statements.push(db.prepare("DELETE FROM installments WHERE order_id=? AND status!='مدفوع'").bind(orderId));else{const regular=Math.floor(remainingCents/open.results.length);for(let index=0;index<open.results.length;index++){const value=index===open.results.length-1?remainingCents-regular*(open.results.length-1):regular;statements.push(db.prepare("UPDATE installments SET amount_cents=?,updated_at=? WHERE id=? AND order_id=?").bind(value,now,open.results[index].id,orderId))}}}
-  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_FIRST_PAYMENT','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({paymentId:first.id,previousAmount:Number(first.amount||0),amount:money(amountCents),orderId,rebalancedInstallments:open.results.length}),now));
+  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_FIRST_PAYMENT','order',?,?,?)").bind(id("AUD"),auth.email,orderId,JSON.stringify({paymentId,previousAmount:Number(first?.amount||0),amount:money(amountCents),orderId,createdPayment:createdPayment&&amountCents>0,rebalancedInstallments:open.results.length}),now));
   await db.batch(statements);
   return Response.json({ok:true,paid:money(newPaidCents),remaining:money(cents(order.total)-newPaidCents)});
  }
