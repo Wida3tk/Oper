@@ -202,7 +202,11 @@ export async function POST(req:Request){
   const auth=await authorize(req,["b2b"]);if(!auth.ok)return auth.response;
   if(!can(auth,"b2b.manage"))return Response.json({error:"ليس لديك صلاحية تعديل بيانات قطاع الأعمال"},{status:403});
   const body=await req.json() as Record<string,unknown>,action=String(body.action||""),db=operationalDb(),now=new Date().toISOString();await ensureSchemaOnce(db);
-  const assertAccess=async(accountId:string)=>{const scope=scopeSql(auth);return db.prepare(`SELECT a.id FROM b2b_accounts a WHERE a.id=?${scope.sql}`).bind(accountId,...scope.bind).first()};
+  // Partnership cards are a shared workspace: every employee who has the B2B
+  // management permission can update a card they can see, whether or not it is
+  // currently assigned to their email. Assignment remains an ownership field,
+  // not a hidden write restriction.
+  const assertAccess=async(accountId:string)=>db.prepare("SELECT id FROM b2b_accounts WHERE id=?").bind(accountId).first();
   if(action==="save_contact"){
     const accountId=String(body.accountId||""),contactId=String(body.contactId||""),name=String(body.name||"").trim(),jobTitle=String(body.jobTitle||"").trim(),phone=String(body.phone||"").trim(),email=String(body.email||"").trim().toLowerCase(),isPrimary=body.isPrimary===true;
     if(!accountId||!await assertAccess(accountId))return Response.json({error:"الجهة غير متاحة ضمن نطاق عملك"},{status:403});
