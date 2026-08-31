@@ -876,9 +876,9 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && query.trim()) go("customers");
+                if (e.key === "Enter" && query.trim() && view !== "finance") go("customers");
               }}
-              placeholder="ابحث عن عميل، رقم طلب أو برنامج..."
+              placeholder={view === "finance" ? "ابحث بالاسم أو رقم العميل أو الطلب أو البرنامج..." : "ابحث عن عميل، رقم طلب أو برنامج..."}
             />
           </label>
           <div className="top-notifications">
@@ -970,7 +970,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           {view === "finance" && (
             <>
               <TransferReviews />
-              <LiveFinance initialReviewFilter={financeReviewFilter} />
+              <LiveFinance initialReviewFilter={financeReviewFilter} searchQuery={query} />
             </>
           )}
           {view === "b2b-business" && <B2BWorkspace section="business" canManage={has("b2b.manage")} canConvert={has("b2b.partnerships.manage")} />}
@@ -5750,7 +5750,7 @@ function TransferReviews() {
   );
 }
 
-function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter?: string }) {
+function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { initialReviewFilter?: string; searchQuery?: string }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
     [summary, setSummary] = useState({
@@ -6019,13 +6019,22 @@ function LiveFinance({ initialReviewFilter = "الكل" }: { initialReviewFilter
   );
   const activeStatuses =
     financeTab === "sales" ? salesStatuses : collectionStatuses;
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase("ar");
+  const matchesFinanceSearch = (row: FinanceOrder) =>
+    !normalizedSearchQuery ||
+    [row.customer_name,row.customer_id,row.order_id,row.program_name,row.phone,row.email]
+      .join(" ")
+      .toLocaleLowerCase("ar")
+      .includes(normalizedSearchQuery);
   const filteredFinance = collectionRows.filter(
     (row) =>
+      matchesFinanceSearch(row) &&
       (programFilter === "الكل" || row.program_name === programFilter) &&
       (statusFilter === "الكل" || financeStatus(row) === statusFilter),
   );
   const filteredSales = salesEntries.filter(
     ({ row, payment }) =>
+      matchesFinanceSearch(row) &&
       (programFilter === "الكل" || row.program_name === programFilter) &&
       matchesReviewType({ row, payment }, reviewTypeFilter) &&
       (statusFilter === "الكل" ||
