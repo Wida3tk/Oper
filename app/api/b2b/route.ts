@@ -161,9 +161,15 @@ export async function GET(req: Request) {
       LEFT JOIN b2b_partnership_finance f ON f.partnership_id=p.id WHERE 1=1${viewScope.sql}
       AND o.opportunity_kind='partnership'
       ORDER BY CASE COALESCE(p.lifecycle_stage,o.lifecycle_stage) ${lifecycleStages.map((stage,index)=>`WHEN '${stage}' THEN ${index}`).join(" ")} ELSE 5 END,CASE WHEN o.sort_order=0 THEN 1 ELSE 0 END,o.sort_order,o.updated_at DESC`).bind(...viewScope.bind).all();
+    const {results:recentActivities}=await db.prepare(`SELECT x.id,x.activity_type,x.details,x.created_at,x.actor_email,a.name account_name,COALESCE(s.display_name,x.actor_email) actor_name
+      FROM b2b_activities x JOIN b2b_accounts a ON a.id=x.account_id
+      LEFT JOIN b2b_opportunities o ON o.id=x.opportunity_id
+      LEFT JOIN staff_accounts s ON lower(s.email)=lower(x.actor_email)
+      WHERE (o.opportunity_kind='partnership' OR EXISTS(SELECT 1 FROM b2b_opportunities po WHERE po.account_id=x.account_id AND po.opportunity_kind='partnership'))
+      ORDER BY x.created_at DESC LIMIT 8`).all();
     const employeeStages=["الاستكشاف والتقييم","التفاوض والاتفاقية","التفعيل والعمليات","غير مناسب","مؤجل"],visibleStages=isAdmin(auth)?lifecycleStages:employeeStages;
     const visibleResults=isAdmin(auth)?results:results.map(row=>({...row,lifecycle_stage:["قياس الأثر","التجديد أو الخروج"].includes(String(row.lifecycle_stage))?"التفعيل والعمليات":row.lifecycle_stage}));
-    return Response.json({partnerships:visibleResults,statuses:partnershipStatuses,lifecycleStages:visibleStages,staff,scope:"all",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),canFitDecision,viewerEmail:auth.email,viewerName});
+    return Response.json({partnerships:visibleResults,recentActivities,statuses:partnershipStatuses,lifecycleStages:visibleStages,staff,scope:"all",canCreatePartnership:isAdmin(auth)||can(auth,"b2b.partnerships.create"),canDelete:isAdmin(auth),canApprove:isAdmin(auth)||can(auth,"b2b.review")||can(auth,"b2b.partnerships.manage"),canFitDecision,viewerEmail:auth.email,viewerName});
   }
   const reviewAccess=can(auth,"b2b.review"),businessScope=isAdmin(auth)?{sql:"",bind:[]}:reviewAccess?{sql:` AND (${assignedScope.sql.replace(/^ AND /,"")} OR o.approval_status='pending')`,bind:assignedScope.bind}:assignedScope;
   const {results}=await db.prepare(`SELECT o.*,a.name account_name,a.type account_type,a.region,a.city,a.activity,a.source,a.owner_email,(SELECT s.display_name FROM staff_accounts s WHERE lower(s.email)=lower(a.owner_email) LIMIT 1) owner_name,a.priority,a.path,a.team_id,a.contact_status,a.logo_data,
