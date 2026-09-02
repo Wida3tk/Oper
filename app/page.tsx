@@ -503,7 +503,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
       } catch {}
     };
     void loadNotifications();
-    const interval = window.setInterval(loadNotifications, 20000);
+    const interval = window.setInterval(loadNotifications, 90000);
     const refresh = () => void loadNotifications();
     window.addEventListener("sulukera:data-changed", refresh);
     return () => { window.clearInterval(interval); window.removeEventListener("sulukera:data-changed", refresh); };
@@ -6634,7 +6634,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
     void load();
     const refresh=()=>void load(true);
     const onVisibility=()=>{if(document.visibilityState==="visible")refresh()};
-    const interval=window.setInterval(refresh,8000);
+    const interval=window.setInterval(refresh,60000);
     window.addEventListener("focus",refresh);
     document.addEventListener("visibilitychange",onVisibility);
     window.addEventListener("sulukera:data-changed",refresh);
