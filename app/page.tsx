@@ -2795,6 +2795,8 @@ type FinanceOrder = {
   withdrawal?: { id:string;reason:string;withdrawn_at:string;gross_paid:number;non_refundable_amount:number;refund_amount:number;refund_source:string;refund_method:string;reference:string;status:string;created_by_email:string;created_at:string } | null;
   undo_available?: { id: string; action: string; label: string; created_at: string } | null;
 };
+type CollectionForecast = { month:string; due:number; expected:number; follow_up:number; risk:number; installments:number; items:{customer_name:string;program_name:string;order_id:string;installment_id:string;amount:number;due_date:string;status:string;reminder_count:number;category:"expected"|"follow_up"|"risk"}[] };
+type FinanceSummary = { total:number; paid:number; remaining:number; overdue:number; forecast:CollectionForecast };
 type ProgramTrack = { id?: string; name: string; active?: number };
 type Program = {
   id: string;
@@ -5753,11 +5755,12 @@ function TransferReviews() {
 function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { initialReviewFilter?: string; searchQuery?: string }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
-    [summary, setSummary] = useState({
+    [summary, setSummary] = useState<FinanceSummary>({
       total: 0,
       paid: 0,
       remaining: 0,
       overdue: 0,
+      forecast:{month:"",due:0,expected:0,follow_up:0,risk:0,installments:0,items:[]},
     }),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -6001,6 +6004,8 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     (sum, payment) => sum + Number(payment.amount || 0),
     0,
   );
+  const forecast=summary.forecast;
+  const forecastMonthLabel=forecast.month?new Date(`${forecast.month}-01T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn",{month:"long",year:"numeric"}):"الشهر القادم";
   const financePrograms = Array.from(
     new Set(rows.map((row) => row.program_name).filter(Boolean)),
   );
@@ -6140,6 +6145,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
           </>
         )}
       </div>
+      {financeTab === "collections" && <section className="collection-forecast"><header><div><span>توقع تحصيل</span><h3>{forecastMonthLabel}</h3><p>من الأقساط غير المسددة ذات تاريخ استحقاق مجدول خلال الشهر. لا تدخل الأقساط المسددة أو الملغاة في الحساب.</p></div><div className="collection-forecast-total"><span>إجمالي المستحق</span><b>{sar(forecast.due)}</b><small>{forecast.installments} قسط مجدول</small></div></header><div className="collection-forecast-metrics"><article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article><article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article><article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article></div>{forecast.items.length>0&&<div className="collection-forecast-list">{forecast.items.map(item=><button type="button" key={item.installment_id} className={item.category} onClick={()=>{const row=rows.find(current=>current.order_id===item.order_id);if(row)open(row)}}><time>{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}</section>}
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>
