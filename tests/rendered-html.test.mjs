@@ -714,14 +714,3 @@ test("uses a compact B2B drawer with on-demand representatives and intake classi
   assert.match(b2b,/decision==="idea"/);
   assert.match(css,/\.b2b-drawer>header\{padding:14px 18px\}/);
 });
-
-test("imports historical course grades from the academy workbook with safe student matching", async()=>{
-  const page=await read("../app/page.tsx");
-  const grades=await read("../app/api/grades/import/route.ts");
-  assert.match(page,/درجات المقررات السابقة/);
-  assert.match(page,/readHistoricalGradeWorkbook/);
-  assert.match(page,/استيراد الدرجات/);
-  assert.match(grades,/student_course_grades/);
-  assert.match(grades,/ON CONFLICT\(customer_id,course_code\) DO UPDATE/);
-  assert.match(grades,/الطالب غير موجود في قاعدة العملاء/);
-});

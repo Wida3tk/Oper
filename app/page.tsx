@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Armchair,
@@ -46,7 +46,6 @@ import {
   UserRoundCheck,
   UserPlus,
   UsersRound,
-  Upload,
   WalletCards,
   X,
   Check,
@@ -2865,27 +2864,6 @@ function LiveState({
   return null;
 }
 
-type HistoricalGradeCourse = { studentName:string; license:string; courseCode:string; courseName:string; instructorName:string; attendanceScore:number; homeworkScore:number; discussionScore:number; finalExamScore:number; totalScore:number; weeklyGrades:{label:string;attendance:number;homework:number;discussion:number}[] };
-const gradeText=(value:unknown)=>String(value??"").trim();
-const gradeNumber=(value:unknown)=>{const result=Number(value);return Number.isFinite(result)&&result>=0?result:0};
-function readHistoricalGradeWorkbook(workbook:{SheetNames:string[];Sheets:Record<string,unknown>},xlsx:typeof import("xlsx")){
-  return workbook.SheetNames.filter(sheet=>sheet.trim()!=="البيانات الرئيسية").flatMap(sheetName=>{
-    const rows=xlsx.utils.sheet_to_json(workbook.Sheets[sheetName] as import("xlsx").WorkSheet,{header:1,defval:"",raw:true}) as unknown[][];
-    const cell=(row:number,column:number)=>gradeText(rows[row]?.[column]),studentName=cell(1,0),courseName=cell(1,2),license=cell(0,5),rawCode=`${cell(2,2)} ${sheetName}`;
-    const courseCode=rawCode.match(/[A-Za-z]{2,}[\s-]?\d{1,3}/)?.[0].replace(/\s+/g,"").toUpperCase()||sheetName.trim();
-    if(!studentName||!courseName)return [] as HistoricalGradeCourse[];
-    const weeklyGrades:HistoricalGradeCourse["weeklyGrades"]=[];let attendanceScore=0,homeworkScore=0,discussionScore=0,finalExamScore=0;
-    for(let row=5;row<rows.length;row+=1){const label=`${cell(row,0)} ${cell(row,1)}`.trim();if(label.includes("النتيجة النهائية"))break;const attendance=gradeNumber(rows[row]?.[2]),homework=gradeNumber(rows[row]?.[3]),discussion=gradeNumber(rows[row]?.[4]);if(!label||(!attendance&&!homework&&!discussion))continue;if(label.includes("الاختبار النهائي")){finalExamScore+=attendance+homework+discussion;continue}weeklyGrades.push({label,attendance,homework,discussion});attendanceScore+=attendance;homeworkScore+=homework;discussionScore+=discussion}
-    return [{studentName,license,courseCode,courseName,instructorName:cell(2,5),attendanceScore,homeworkScore,discussionScore,finalExamScore,totalScore:attendanceScore+homeworkScore+discussionScore+finalExamScore,weeklyGrades}];
-  });
-}
-function HistoricalGradesImporter(){
-  const fileRef=useRef<HTMLInputElement>(null),[fileName,setFileName]=useState(""),[courses,setCourses]=useState<HistoricalGradeCourse[]>([]),[error,setError]=useState(""),[result,setResult]=useState<{imported:number;skipped:{course:string;student:string;reason:string}[]}|null>(null),[importing,setImporting]=useState(false);
-  const chooseFile=async(file?:File)=>{setError("");setResult(null);setCourses([]);if(!file)return;if(!/\.(xlsx|xls)$/i.test(file.name)){setError("يرجى اختيار ملف Excel بصيغة XLSX أو XLS.");return}try{const xlsx=await import("xlsx"),workbook=xlsx.read(await file.arrayBuffer(),{type:"array",cellFormula:false,cellText:false}),extracted=readHistoricalGradeWorkbook(workbook,xlsx);if(!extracted.length)throw new Error("لم نجد صفحات مقررات مكتملة في الملف.");setFileName(file.name);setCourses(extracted)}catch(e){setError(e instanceof Error?e.message:"تعذر قراءة ملف الدرجات.")}};
-  const save=async()=>{setImporting(true);setError("");try{const response=await apiJson("/api/grades/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({fileName,courses})});setResult(response);window.dispatchEvent(new CustomEvent("sulukera:success",{detail:{message:`تم استيراد درجات ${response.imported} مقرر`}}))}catch(e){setError(e instanceof Error?e.message:"تعذر حفظ الدرجات.")}finally{setImporting(false)}};
-  return <section className="historical-grades-importer"><header><div><span>استيراد تاريخي</span><b>درجات المقررات السابقة</b><small>يربط الملف بالطالب المسجل بالاسم، ويحدّث المقرر نفسه عند إعادة استيراده.</small></div><button type="button" onClick={()=>fileRef.current?.click()}><Upload size={15}/> اختيار ملف Excel</button></header><input ref={fileRef} type="file" accept=".xlsx,.xls" hidden onChange={event=>void chooseFile(event.target.files?.[0])}/>{fileName&&<div className="historical-grades-preview"><span><b>{fileName}</b><small>{courses[0]?.studentName} · {courses.length} مقرر</small></span><div>{courses.slice(0,5).map(course=><em key={course.courseCode}>{course.courseCode} · واجبات {course.homeworkScore}</em>)}</div><button className="primary" disabled={importing||!courses.length} onClick={()=>void save()}>{importing?"جارٍ الحفظ...":"استيراد الدرجات"}</button></div>}{error&&<p className="historical-grades-error">{error}</p>}{result&&<div className="historical-grades-result"><b>تم حفظ {result.imported} مقرر.</b>{result.skipped.length>0&&<small>لم تحفظ {result.skipped.length} سجلات: {result.skipped.slice(0,2).map(item=>`${item.student} — ${item.reason}`).join(" · ")}</small>}</div>}</section>;
-}
-
 function CustomerSmartFilters({
   programs,
   statuses,
@@ -4653,7 +4631,6 @@ function LiveAcademy({
             </p>
           </div>
         </div>
-        <HistoricalGradesImporter />
         {board}
       </div>
       {detailPanel}
