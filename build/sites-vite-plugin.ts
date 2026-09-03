@@ -24,11 +24,17 @@ export function sites(): Plugin {
       const outputDirectory = resolve(root, "dist", ".openai");
       const hostingConfig = resolve(root, ".openai", "hosting.json");
       const drizzleSource = resolve(root, "drizzle");
-      await rm(outputDirectory, { recursive: true, force: true });
-      await mkdir(outputDirectory, { recursive: true });
-      if (await exists(hostingConfig)) await cp(hostingConfig, resolve(outputDirectory, "hosting.json"));
-      if (await exists(drizzleSource)) {
-        await cp(drizzleSource, resolve(outputDirectory, "drizzle"), { recursive: true });
+      try {
+        await rm(outputDirectory, { recursive: true, force: true });
+        await mkdir(outputDirectory, { recursive: true });
+        if (await exists(hostingConfig)) await cp(hostingConfig, resolve(outputDirectory, "hosting.json"));
+        if (await exists(drizzleSource)) {
+          await cp(drizzleSource, resolve(outputDirectory, "drizzle"), { recursive: true });
+        }
+      } catch (error) {
+        // بعض بيئات Windows تحمي مجلد بيانات Codex القديم داخل dist. هذا
+        // الملحق لا يدخل في Worker أو الأصول، لذلك لا يجب أن يمنع النشر.
+        if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
       }
     },
   };
