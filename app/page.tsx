@@ -5802,7 +5802,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     setLoading(true);
     setError("");
     try {
-      const data = await apiJson("/api/finance");
+      const data = await apiJson(`/api/finance?forecastMonth=${encodeURIComponent(collectionMonth)}`);
       const list = data.orders || [];
       setRows(list);
       setSummary(data.summary || summary);
@@ -5828,7 +5828,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   };
   useEffect(() => {
     void load();
-  }, []);
+  }, [collectionMonth]);
   const open = (row: FinanceOrder) => {
     setSelected(row);
     setTotal(String(row.total));
@@ -6138,7 +6138,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
         )}
       </div>
       {financeTab === "collections" && <section className="collection-dashboard"><header><div><span>لوحة التحصيل الفعلية</span><h3>{collectionMonthLabel}</h3><p>اختاري شهرًا حاليًا أو سابقًا؛ التحصيل الفعلي يعتمد على تاريخ سداد الدفعة، والمتبقي يعتمد على أقساط الشهر غير المسددة.</p></div><label><span>الشهر</span><input type="month" value={collectionMonth} onChange={event=>setCollectionMonth(event.target.value)}/></label></header><div><article><span>التحصيل الفعلي</span><b>{sar(collectionsMonth)}</b><small>دفعات التحصيل المسجلة خلال الشهر</small></article><article><span>الأقساط المجدولة</span><b>{sar(scheduledMonth)}</b><small>{monthInstallments.length} قسط بتاريخ استحقاق في الشهر</small></article><article className={remainingScheduledMonth>0?"outstanding":"settled"}><span>المتبقي من أقساط الشهر</span><b>{sar(remainingScheduledMonth)}</b><small>{remainingScheduledMonth>0?"يحتاج متابعة أو سداد":"تم سداد أقساط الشهر"}</small></article><article><span>المتبقي الكلي</span><b>{sar(Number(summary.remaining))}</b><small>جميع الأشهر والملفات النشطة</small></article></div></section>}
-      {financeTab === "collections" && <section className="collection-forecast"><header><div><span>توقع تحصيل</span><h3>{forecastMonthLabel}</h3><p>من الأقساط غير المسددة ذات تاريخ استحقاق مجدول خلال الشهر. لا تدخل الأقساط المسددة أو الملغاة في الحساب.</p></div><div className="collection-forecast-total"><span>إجمالي المستحق</span><b>{sar(forecast.due)}</b><small>{forecast.installments} قسط مجدول</small></div></header><div className="collection-forecast-metrics"><article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article><article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article><article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article></div>{forecast.items.length>0&&<div className="collection-forecast-list">{forecast.items.map(item=><button type="button" key={item.installment_id} className={item.category} onClick={()=>{const row=rows.find(current=>current.order_id===item.order_id);if(row)open(row)}}><time>{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}</section>}
+      {financeTab === "collections" && <section className="collection-forecast"><details><summary><span><i>توقع تحصيل</i><b>{forecastMonthLabel}</b><small>يُحسب من الأقساط المجدولة غير المسددة في الشهر المحدد</small></span><em>{forecast.installments}</em><strong>{sar(forecast.due)} · عرض التوقعات</strong></summary><div className="collection-forecast-body"><div className="collection-forecast-month"><label>شهر التوقع<input type="month" value={collectionMonth} onChange={event=>setCollectionMonth(event.target.value)}/></label><span>إجمالي الأقساط المستحقة: <b>{sar(forecast.due)}</b></span></div><div className="collection-forecast-metrics"><article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article><article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article><article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article></div>{forecast.items.length>0&&<div className="collection-forecast-list">{forecast.items.map(item=><button type="button" key={item.installment_id} className={item.category} onClick={()=>{const row=rows.find(current=>current.order_id===item.order_id);if(row)open(row)}}><time>{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}</div></details></section>}
       <LiveState loading={loading} error={error} empty={!rows.length} />
       {!loading && !error && rows.length > 0 && (
         <>

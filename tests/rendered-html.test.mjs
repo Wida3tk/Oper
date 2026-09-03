@@ -715,15 +715,16 @@ test("uses a compact B2B drawer with on-demand representatives and intake classi
   assert.match(css,/\.b2b-drawer>header\{padding:14px 18px\}/);
 });
 
-test("forecasts next-month collections from open scheduled installments only", async()=>{
+test("forecasts selected-month collections from open scheduled installments only", async()=>{
   const page=await read("../app/page.tsx");
   const finance=await read("../app/api/finance/route.ts");
-  assert.match(finance,/function nextMonthKey/);
+  assert.match(finance,/requestedForecastMonth/);
   assert.match(finance,/item\.status!=="مدفوع"&&item\.status!=="ملغي"/);
   assert.match(finance,/forecastMonth/);
   assert.match(page,/توقع تحصيل/);
   assert.match(page,/متوقع التحصيل/);
   assert.match(page,/عالي المخاطر/);
+  assert.match(page,/شهر التوقع/);
 });
 
 test("keeps seat transfers compact and exposes a month-selectable collection dashboard", async()=>{

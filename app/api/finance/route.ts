@@ -21,10 +21,6 @@ function paymentBehavior(installments:Record<string,unknown>[],today:string){
  const priority=["تطبيق السياسة","تذكير نهائي","تذكير ثالث","تذكير ثاني","تذكير أول","متأخر","موافقة تمديد","ملتزم"],label=[...counts].sort((a,b)=>b[1]-a[1]||priority.indexOf(a[0])-priority.indexOf(b[0]))[0]?.[0]||"ملتزم";
  const tone=label==="ملتزم"?"green":label==="تطبيق السياسة"||label==="متأخر"||label==="تذكير نهائي"?"red":label==="تذكير ثالث"||label==="تذكير ثاني"?"purple":"amber";return {label,tone,summary};
 }
-function nextMonthKey(date:string){
- const [year,month]=date.slice(0,7).split("-").map(Number),nextMonth=month===12?1:month+1,nextYear=month===12?year+1:year;
- return `${nextYear}-${String(nextMonth).padStart(2,"0")}`;
-}
 
 export async function GET(req:Request){
  const auth=await authorize(req,["finance","viewer"]);if(!auth.ok)return auth.response;
@@ -54,7 +50,7 @@ export async function GET(req:Request){
   const orderReference=orderReferencesResult.results.find(x=>x.order_id===order.order_id);
   return {...order,total:money(totalCents),gross_paid:money(grossPaidCents),refunded:money(refundCents),paid:money(paidCents),remaining:money(remainingCents),overpayment:money(Math.max(paidCents-totalCents,0)),payments:orderPayments,installments:orderInstallments,order_payment_reference:String(orderReference?.reference||""),withdrawal:withdrawal||null,payment_behavior:paymentBehavior(orderInstallments,today),finance_note:note?.note||"",undo_available:undo?{id:undo.id,action:undo.action,label:undoLabels[String(undo.action)]||"آخر تحديث مالي",created_at:undo.created_at}:null};
  });
- const totalCents=orders.reduce((s,o)=>s+cents(o.total),0),paidCents=orders.reduce((s,o)=>s+cents(o.paid),0),remainingCents=orders.reduce((s,o)=>s+cents(o.remaining),0),forecastMonth=nextMonthKey(today);
+ const requestedForecastMonth=new URL(req.url).searchParams.get("forecastMonth")||"",forecastMonth=/^\d{4}-(0[1-9]|1[0-2])$/.test(requestedForecastMonth)?requestedForecastMonth:today.slice(0,7),totalCents=orders.reduce((s,o)=>s+cents(o.total),0),paidCents=orders.reduce((s,o)=>s+cents(o.paid),0),remainingCents=orders.reduce((s,o)=>s+cents(o.remaining),0);
  const forecastItems=orders.flatMap(order=>order.withdrawal?[]:order.installments.filter(item=>item.status!=="مدفوع"&&item.status!=="ملغي"&&String(item.due_date||"").startsWith(forecastMonth)).map(item=>{
   const reminders=Number(item.reminder_count||0),status=String(item.status||""),risk=["تطبيق السياسة","إنذار","تذكير نهائي","تذكير ثالث"].includes(status)||reminders>=2,followUp=!risk&&(reminders>=1||status==="موافقة تمديد");
   return {customer_name:order.customer_name,program_name:order.program_name,order_id:order.order_id,installment_id:item.id,amount:Number(item.amount||0),due_date:String(item.due_date),status,reminder_count:reminders,category:risk?"risk":followUp?"follow_up":"expected"};
