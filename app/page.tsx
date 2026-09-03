@@ -503,7 +503,9 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
       } catch {}
     };
     void loadNotifications();
-    const interval = window.setInterval(loadNotifications, 90000);
+    // لا نطلب الإشعارات كل دقيقة ونصف من كل حساب مفتوح. الحفظ الفعلي
+    // ينعكس فوراً، وهذه فقط مزامنة احتياطية للخلفية.
+    const interval = window.setInterval(loadNotifications, 300000);
     const refresh = () => void loadNotifications();
     window.addEventListener("sulukera:data-changed", refresh);
     return () => { window.clearInterval(interval); window.removeEventListener("sulukera:data-changed", refresh); };
@@ -6633,7 +6635,9 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
     void load();
     const refresh=()=>void load(true);
     const onVisibility=()=>{if(document.visibilityState==="visible")refresh()};
-    const interval=window.setInterval(refresh,60000);
+    // مزامنة احتياطية للشراكات؛ عمليات الحفظ نفسها تحدّث الواجهة فوراً.
+    // تقليلها إلى ثلاث دقائق يمنع استنزاف قراءات D1 مع تعدد الموظفين.
+    const interval=window.setInterval(refresh,180000);
     window.addEventListener("focus",refresh);
     document.addEventListener("visibilitychange",onVisibility);
     window.addEventListener("sulukera:data-changed",refresh);

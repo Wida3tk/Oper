@@ -26,10 +26,8 @@ export async function GET(req:Request){
  const auth=await authorize(req,["finance","viewer"]);if(!auth.ok)return auth.response;
  if(!can(auth,"finance.view"))return Response.json({error:"لا تملكين صلاحية عرض المالية"},{status:403});
  const db=operationalDb();
- await ensureFinanceClassificationSchema(db);
- await ensureFinanceUndoSchema(db);
- await ensureWithdrawalSchema(db);
- await ensureOrderPaymentReferenceSchema(db);
+ // شاشة التحصيل يجب أن تبقى قراءة خالصة. تشغيل ترحيلات CREATE/ALTER هنا
+ // كان يستهلك عمليات كتابة مع كل فتح أو تحديث للشاشة.
  const [ordersResult,paymentsResult,installmentsResult,notesResult,undoResult,withdrawalsResult,orderReferencesResult]=await Promise.all([
   db.prepare("SELECT o.id order_id,o.program_id,o.order_type,o.track program_track,o.delivery program_delivery,o.language program_language,o.competency_assessment,o.purchase_source,o.payment_plan,o.base_total,o.total stored_total,o.discount_percent,o.status order_status,o.finance_review_status,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id WHERE c.deleted_at IS NULL ORDER BY CASE o.finance_review_status WHEN 'pending' THEN 0 ELSE 1 END,o.updated_at DESC LIMIT 200").all<Record<string,unknown>>(),
   db.prepare("SELECT pay.id,pay.order_id,pay.amount,pay.due_date,pay.paid_at,pay.status,pay.method,pay.reference,pay.proof_asset_key,pay.flow_type,pay.classification_status,pay.created_at,(SELECT pi.id FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) payment_intent_id,(SELECT pi.status FROM payment_intents pi WHERE pi.resulting_order_id=pay.order_id AND ABS(pi.amount-pay.amount)<0.001 ORDER BY pi.created_at LIMIT 1) reconciliation_status FROM payments pay ORDER BY COALESCE(pay.paid_at,pay.created_at) DESC").all<Record<string,unknown>>(),
@@ -68,10 +66,10 @@ export async function POST(req:Request){
  const auth=await authorize(req,["finance"]);if(!auth.ok)return auth.response;
  const body=await req.json() as Record<string,unknown>,action=String(body.action||""),orderId=String(body.orderId||"");
  if(!orderId)return Response.json({error:"رقم الطلب مطلوب"},{status:400});
- const db=operationalDb(),now=new Date().toISOString(),order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type,purchase_source,finance_review_status FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string;purchase_source:string;finance_review_status:string}>();
- await ensureFinanceUndoSchema(db);
- await ensureWithdrawalSchema(db);
- await ensureOrderPaymentReferenceSchema(db);
+ const db=operationalDb(),now=new Date().toISOString();
+ // التهيئة لا تُنفّذ إلا قبل عملية تغيير فعلية، وليس عند عرض البيانات.
+ await Promise.all([ensureFinanceClassificationSchema(db),ensureFinanceUndoSchema(db),ensureWithdrawalSchema(db),ensureOrderPaymentReferenceSchema(db)]);
+ const order=await db.prepare("SELECT id,total,base_total,discount_percent,order_type,purchase_source,finance_review_status FROM orders WHERE id=?").bind(orderId).first<{id:string,total:number;base_total:number;discount_percent:number;order_type:string;purchase_source:string;finance_review_status:string}>();
  if(!order)return Response.json({error:"الطلب غير موجود"},{status:404});
  if(action==="update_order_payment_reference"){
   if(!can(auth,"finance.payments.record"))return Response.json({error:"ليس لديك صلاحية تعديل مرجع السداد"},{status:403});
