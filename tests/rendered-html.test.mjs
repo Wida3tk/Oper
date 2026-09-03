@@ -725,3 +725,14 @@ test("forecasts next-month collections from open scheduled installments only", a
   assert.match(page,/متوقع التحصيل/);
   assert.match(page,/عالي المخاطر/);
 });
+
+test("keeps seat transfers compact and exposes a month-selectable collection dashboard", async()=>{
+  const page=await read("../app/page.tsx");
+  const css=await read("../app/globals.css");
+  assert.match(page,/<details>/);
+  assert.match(page,/عرض الطلبات/);
+  assert.match(page,/collectionMonth/);
+  assert.match(page,/لوحة التحصيل الفعلية/);
+  assert.match(page,/المتبقي من أقساط الشهر/);
+  assert.match(css,/\.collection-dashboard/);
+});
