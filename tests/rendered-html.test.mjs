@@ -290,6 +290,18 @@ test("stores four editable reminder templates and replaces finance variables", a
   assert.match(api, /first:[\s\S]*second:[\s\S]*third:[\s\S]*final:/);
 });
 
+test("explains live dashboard metrics and removes the seat reservation reflection", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/dashboard/home/route.ts");
+  assert.match(page, /العمليات المعلّقة حتى اعتمادها/);
+  assert.match(page, /قيمة العقود المنشأة/);
+  assert.match(page, /إجمالي المقبوض الفعلي/);
+  assert.match(page, /onOpenCustomers/);
+  assert.match(page, /onOpenFinance/);
+  assert.doesNotMatch(page, /label="حجز مقعد" value=\{data\.operations\.activeReservations\}/);
+  assert.doesNotMatch(api, /activeReservations/);
+});
+
 test("aligns paid installment details as a compact right-side panel", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.installment-list>article>\.paid-ref\{width:min\(100%,500px\)/);
