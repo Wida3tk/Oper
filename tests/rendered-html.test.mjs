@@ -538,6 +538,18 @@ test("removes the seat reservation page and routes active reservations into onbo
   assert.match(operations, /'تهيئة العميل واستكمال بياناته'/);
 });
 
+test("keeps continuing education notes out of classifications and search", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /value\.includes\("الاقتصاد السلوكي"\)/);
+  assert.match(page, /value\.includes\("انتقائية الطعام"\)/);
+  assert.match(page, /function customerOperationalNote/);
+  assert.match(page, /<th>ملاحظة عملياتية<\/th>/);
+  assert.match(page, /customerProgramCategory\(row\) === "التعليم المستمر" \? customerProgramLabel\(row\)/);
+  assert.match(page, /filter\(label=>label!=="—"\)/);
+  assert.match(css, /\.operational-note-cell span/);
+});
+
 test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");

@@ -3507,7 +3507,7 @@ function LiveCustomers({
   const [rows, setRows] = useState<typeof initialPeople>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [programFilter, setProgramFilter] = useState(focus === "registration" ? "تحليل السلوك التطبيقي" : "الكل"),
+    [programFilter, setProgramFilter] = useState("الكل"),
     [categoryFilter, setCategoryFilter] = useState("الكل");
   const load = () => {
     apiJson("/api/customers")
@@ -3601,7 +3601,7 @@ function LiveCustomers({
   const filtered = directoryRows
     .filter(
       (row) =>
-        `${row.name} ${row.id} ${row.phone} ${row.program} ${row.track} ${customerProgramLabel(row)}`.includes(query) &&
+        `${row.name} ${row.id} ${row.phone} ${customerProgramCategory(row) === "التعليم المستمر" ? customerProgramLabel(row) : `${row.program} ${row.track}`} ${customerProgramLabel(row)}`.includes(query) &&
         (programFilter === "الكل" || customerProgramCategory(row) === programFilter) &&
         (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter),
     )
@@ -3635,7 +3635,7 @@ function LiveCustomers({
         </div>
         <div>
           <span>التصنيفات</span>
-          <b>{new Set(directoryRows.map((row) => customerProgramLabel(row))).size}</b>
+          <b>{new Set(directoryRows.map((row) => customerProgramLabel(row)).filter(label=>label!=="—")).size}</b>
         </div>
       </div>
       <div className="card full customer-directory">
@@ -8852,12 +8852,22 @@ function customerProgramLabel(customer: (typeof initialPeople)[number]) {
   if (category === "تحليل السلوك التطبيقي") return hasTrack ? track : "غير محدد";
   if (category === "إدارة السلوك التنظيمي") return hasTrack ? track : "غير محدد";
   if (category === "التعليم المستمر") {
-    if (customer.program === "التعليم المستمر" && hasTrack) return track;
-    return customer.program || "غير مصنف";
+    const value=`${customer.program || ""} ${track}`;
+    if (value.includes("الاقتصاد السلوكي")) return "الاقتصاد السلوكي";
+    if (value.includes("انتقائية الطعام")) return "انتقائية الطعام";
+    return "—";
   }
   if (category === "التجربة") return customer.program !== "—" ? customer.program : "تجربة";
   if (category === "غير مصنف") return "غير مصنف";
   return customer.program || category;
+}
+
+function customerOperationalNote(customer: (typeof initialPeople)[number]) {
+  if (customerProgramCategory(customer) !== "التعليم المستمر") return "";
+  const generic=new Set(["","—","غير محدد","التعليم المستمر"]),track=String(customer.track||"").trim(),program=String(customer.program||"").trim();
+  if (!generic.has(track) && !["الاقتصاد السلوكي","انتقائية الطعام"].some(name=>track.includes(name))) return track;
+  if (!generic.has(program) && !["الاقتصاد السلوكي","انتقائية الطعام"].some(name=>program.includes(name))) return program;
+  return "";
 }
 
 function CompletedCustomerTable({
@@ -8895,12 +8905,13 @@ function CompletedCustomerTable({
             <th>اسم العميل</th>
             <th>البرنامج</th>
             <th>التصنيف</th>
+            <th>ملاحظة عملياتية</th>
             <th>تاريخ الإضافة</th>
           </tr>
         </thead>
         <tbody>
           {list.map((customer) => {
-            const added = additionDate(customer);
+            const added = additionDate(customer),classification=customerProgramLabel(customer),operationalNote=customerOperationalNote(customer);
             return <tr key={customer.id} onClick={() => open(customer)}>
               <td>
                 <b>{customer.name}</b>
@@ -8913,8 +8924,9 @@ function CompletedCustomerTable({
                 </small>
               </td>
               <td>
-                <b>{customerProgramLabel(customer)}</b>
+                <b className={classification==="—"?"empty":""}>{classification}</b>
               </td>
+              <td className="operational-note-cell">{operationalNote?<span title={operationalNote}>{operationalNote}</span>:<small>لا توجد ملاحظة</small>}</td>
               <td className="customer-added-at">
                 {added ? <><b dir="ltr">{added.date}</b><small dir="ltr">{added.time}</small></> : <span>—</span>}
               </td>
