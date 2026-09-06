@@ -540,6 +540,7 @@ test("removes the seat reservation page and routes active reservations into onbo
 
 test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
   const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
   const transition = await read("../app/api/enrollments/transition/route.ts");
   assert.match(page, /className="onboarding-tabs"/);
   assert.match(page, /شهادة تحليل السلوك التطبيقي/);
@@ -550,6 +551,8 @@ test("organizes onboarding by certificate and distinguishes employee work from c
   assert.match(page, /أكد العميل إنشاء الحساب/);
   assert.match(transition, /to:"بانتظار إنشاء الحساب"/);
   assert.match(transition, /account_created:\{from:\["بانتظار إنشاء الحساب","اكتمل التسجيل"\]/);
+  assert.match(css, /\.journey-board\.registration\{grid-template-columns:minmax\(0,1fr\)!important/);
+  assert.match(css, /\.journey-board\.registration \.column-empty\{min-height:96px/);
 });
 
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
