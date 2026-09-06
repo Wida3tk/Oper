@@ -4269,7 +4269,7 @@ function LiveAcademy({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [moving, setMoving] = useState(""),
-    [programFilter, setProgramFilter] = useState("الكل"),
+    [programFilter, setProgramFilter] = useState(focus === "registration" ? "تحليل السلوك التطبيقي" : "الكل"),
     [subprogramFilter, setSubprogramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [selectedRow, setSelectedRow] = useState<LiveEnrollment | null>(null);

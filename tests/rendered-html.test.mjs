@@ -553,6 +553,8 @@ test("organizes onboarding by certificate and distinguishes employee work from c
   assert.match(transition, /account_created:\{from:\["بانتظار إنشاء الحساب","اكتمل التسجيل"\]/);
   assert.match(css, /\.journey-board\.registration\{grid-template-columns:minmax\(0,1fr\)!important/);
   assert.match(css, /\.journey-board\.registration \.column-empty\{min-height:96px/);
+  assert.match(css, /\.journey-board\.registration \.ops-customer-row\{position:relative!important/);
+  assert.match(css, /border-top:1px solid #e1e7ef!important/);
 });
 
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
