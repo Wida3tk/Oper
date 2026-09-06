@@ -562,6 +562,18 @@ test("numbers and exports the filtered customer directory", async () => {
   assert.match(css, /\.customer-name-cell>i/);
 });
 
+test("opens actionable operations customers and removes resolved green cases", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/operations-center/route.ts");
+  const css = await read("../app/globals.css");
+  assert.match(page, /onOpenCustomer=\{open\}/);
+  assert.match(page, /className=\{`\$\{item\.severity\} \$\{item\.customer_id\?"customer-actionable":""\}`\}/);
+  assert.match(page, /فتح ملف العميل/);
+  assert.match(api, /NOT IN \('closed','finance_resolved'\)/);
+  assert.match(api, /c\.id customer_id,c\.name customer_name,c\.phone,c\.email/);
+  assert.match(css, /\.operations-exceptions article\.customer-actionable/);
+});
+
 test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");

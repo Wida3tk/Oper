@@ -947,7 +947,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
               <HomeDashboard onOpenTasks={() => setView("work")} onOpenCustomers={()=>setView("customers")} onOpenFinance={()=>{setFinanceReviewFilter("الكل");setView("finance")}} onOpenFinanceReview={(kind) => { setFinanceReviewFilter(kind); setView("finance"); }} />
             </>
           )}
-          {view === "work" && <LiveWork onNavigate={go} />}
+          {view === "work" && <LiveWork onNavigate={go} onOpenCustomer={open} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
           {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
           {view === "contact" && (
@@ -3693,7 +3693,7 @@ type OperationsCenterData = {
   stats: { upcoming: number; overdue: number; attention: number; incomplete: number };
   events: { id: string; title: string; event_date: string; event_time?: string; details?: string; audience: string }[];
   schedule: { id: string; assignment_date?: string; start_date?: string; reservation_kind: string; cohort_label?: string; status: string; customer_name: string; program_name: string }[];
-  exceptions: { id: string; order_id?: string; title: string; customer_name?: string; program_name?: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string; attention_state?: "needs_operations" | "waiting_finance" | "finance_resolved" }[];
+  exceptions: { id: string; order_id?: string; order_number?: string; customer_id?: string; customer_name?: string; phone?: string; email?: string; program_name?: string; purchase_source?: string; track?: string; delivery?: string; total?: number; paid?: number; title: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string; attention_state?: "needs_operations" | "waiting_finance" | "finance_resolved" }[];
 };
 
 const DAILY_OPERATIONS_MESSAGES = [
@@ -3734,13 +3734,14 @@ function dailyOperationsMessage(date = new Date()) {
   return DAILY_OPERATIONS_MESSAGES[dayNumber % DAILY_OPERATIONS_MESSAGES.length];
 }
 
-function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
+function LiveWork({ onNavigate,onOpenCustomer }: { onNavigate: (view: View) => void;onOpenCustomer:(customer:(typeof initialPeople)[number])=>void }) {
   const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [acting, setActing] = useState("");
   const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
   useEffect(() => { void load(); const refresh = () => void load(); window.addEventListener("sulukera:data-changed", refresh); return () => window.removeEventListener("sulukera:data-changed", refresh); }, []);
   if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
+  const openCustomer=(row:OperationsCenterData["exceptions"][number])=>{if(!row.customer_id)return;onOpenCustomer({id:row.customer_id,name:row.customer_name||"عميل",phone:row.phone||"—",program:row.program_name||"—",track:row.track||"—",cohort:"—",source:row.purchase_source||"—",owner:"غير مسند",state:row.title,tone:row.severity,due:row.due_at?`مستحق ${dateLabel(row.due_at)}`:"بحاجة إلى إجراء",paid:Number(row.paid||0),total:Number(row.total||0),email:row.email||"",orderId:row.order_number||row.order_id||"—",delivery:row.delivery||""} as (typeof initialPeople)[number])};
   const takeAttentionAction = async (row: OperationsCenterData["exceptions"][number]) => {
     if (!row.order_id) return;
     setActing(row.id); setError("");
@@ -3776,10 +3777,10 @@ function LiveWork({ onNavigate }: { onNavigate: (view: View) => void }) {
       </section>
       <section className="operations-exceptions">
         <header><div><Activity size={19}/><span><b>عملاء بحاجة للانتباه</b><small>متابعة مشتركة بين التشغيل والمالية حتى إغلاق الحالة</small></span></div><em>{data.exceptions.length}</em></header>
-        <div>{data.exceptions.length ? data.exceptions.map(item => <article className={item.severity} key={item.id}>
+        <div>{data.exceptions.length ? data.exceptions.map(item => <article className={`${item.severity} ${item.customer_id?"customer-actionable":""}`} key={item.id} role={item.customer_id?"button":undefined} tabIndex={item.customer_id?0:undefined} onClick={()=>openCustomer(item)} onKeyDown={event=>{if(item.customer_id&&event.key==="Enter")openCustomer(item)}}>
           <i>{item.kind === "policy" ? "!" : item.kind === "overdue" ? "⌛" : "i"}</i>
           <div><b>{item.kind === "withdrawal" ? "العميل منسحب" : item.kind === "policy" ? item.attention_state === "waiting_finance" ? "بانتظار تحديث المالية" : item.attention_state === "finance_resolved" ? "بحاجة لإجراء تشغيلي" : "بحاجة لإجراء من التشغيل" : item.title}</b><span>{item.customer_name || "إجراء داخلي"}{item.program_name ? ` · ${item.program_name}` : ""}</span><small>{item.kind === "withdrawal" ? "يلزم تنفيذ إجراء الانسحاب التشغيلي وإغلاق متابعة العميل" : item.kind === "policy" ? item.attention_state === "finance_resolved" ? "تم تحديث الحالة المالية" : item.attention_state === "waiting_finance" ? "تم اتخاذ الإجراء التشغيلي الأول" : "حالة مالية تتطلب الانتباه" : `${item.department}${item.due_at ? ` · مستحق ${dateLabel(item.due_at)}` : ""}`}</small></div>
-          {["policy","withdrawal"].includes(item.kind) ? data.canTakeAttentionAction && item.attention_state !== "waiting_finance" && <button disabled={acting === item.id} onClick={() => void takeAttentionAction(item)}>{acting === item.id ? "..." : "تم اتخاذ إجراء"}</button> : <button onClick={() => onNavigate(routeFor(item))}>معالجة</button>}
+          <span className="open-customer-hint">{item.customer_id?"فتح ملف العميل":""}</span>{["policy","withdrawal"].includes(item.kind) ? data.canTakeAttentionAction && item.attention_state !== "waiting_finance" && <button disabled={acting === item.id} onClick={event => {event.stopPropagation();void takeAttentionAction(item)}}>{acting === item.id ? "..." : "تم اتخاذ إجراء"}</button> : <button onClick={event => {event.stopPropagation();item.customer_id?openCustomer(item):onNavigate(routeFor(item))}}>فتح ومعالجة</button>}
         </article>) : <div className="guided-empty"><ShieldCheck size={27}/><b>الوضع التشغيلي مستقر</b><span>لا توجد استثناءات أو حالات متأخرة حاليًا.</span></div>}</div>
       </section>
     </div>
