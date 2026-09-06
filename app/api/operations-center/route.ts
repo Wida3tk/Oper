@@ -22,23 +22,34 @@ export async function GET(req: Request) {
         OR date(r.start_date) BETWEEN date('now','+3 hours') AND date('now','+3 hours','+30 days'))
       ORDER BY COALESCE(r.assignment_date,r.start_date),r.start_date LIMIT 100`).all(),
     db.prepare("SELECT * FROM team_events WHERE date(event_date) BETWEEN date('now','+3 hours') AND date('now','+3 hours','+90 days') ORDER BY event_date,event_time LIMIT 200").all<Record<string, unknown>>(),
-    db.prepare(`SELECT t.id,t.title,t.department,t.due_at,t.entity_type,
+    db.prepare(`SELECT t.id,t.title,t.department,t.due_at,t.entity_type,t.priority,t.assignee_email responsible_email,t.created_by_email last_action_by_email,t.created_at last_action_at,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT e.customer_id FROM enrollments e WHERE e.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT r.customer_id FROM seat_reservations r WHERE r.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT o.customer_id FROM payments py JOIN orders o ON o.id=py.order_id WHERE py.id=t.entity_id) END customer_id,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT e.order_id FROM enrollments e WHERE e.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT r.order_id FROM seat_reservations r WHERE r.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT py.order_id FROM payments py WHERE py.id=t.entity_id) END order_id,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT c.name FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=t.entity_id)
            WHEN t.entity_type='reservation' THEN (SELECT c.name FROM seat_reservations r JOIN customers c ON c.id=r.customer_id WHERE r.id=t.entity_id)
-           WHEN t.entity_type='payment' THEN (SELECT c.name FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END customer_name
+           WHEN t.entity_type='payment' THEN (SELECT c.name FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END customer_name,
+      CASE WHEN t.entity_type='enrollment' THEN (SELECT c.phone FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=t.entity_id)
+           WHEN t.entity_type='reservation' THEN (SELECT c.phone FROM seat_reservations r JOIN customers c ON c.id=r.customer_id WHERE r.id=t.entity_id)
+           WHEN t.entity_type='payment' THEN (SELECT c.phone FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END phone,
+      CASE WHEN t.entity_type='enrollment' THEN (SELECT c.email FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=t.entity_id)
+           WHEN t.entity_type='reservation' THEN (SELECT c.email FROM seat_reservations r JOIN customers c ON c.id=r.customer_id WHERE r.id=t.entity_id)
+           WHEN t.entity_type='payment' THEN (SELECT c.email FROM payments py JOIN orders o ON o.id=py.order_id JOIN customers c ON c.id=o.customer_id WHERE py.id=t.entity_id) END email,
+      CASE WHEN t.entity_type='enrollment' THEN (SELECT p.name FROM enrollments e JOIN programs p ON p.id=e.program_id WHERE e.id=t.entity_id)
+           WHEN t.entity_type='reservation' THEN (SELECT p.name FROM seat_reservations r JOIN programs p ON p.id=r.program_id WHERE r.id=t.entity_id)
+           WHEN t.entity_type='payment' THEN (SELECT p.name FROM payments py JOIN orders o ON o.id=py.order_id LEFT JOIN programs p ON p.id=o.program_id WHERE py.id=t.entity_id) END program_name
       FROM workflow_tasks t WHERE t.status!='مكتملة' AND t.due_at IS NOT NULL AND date(t.due_at)<date('now','+3 hours') ${financeFilter}
       ORDER BY t.due_at LIMIT 50`).all(),
     db.prepare(`SELECT CASE WHEN w.id IS NOT NULL THEN 'withdrawal-' ELSE 'policy-' END||o.id id,o.id order_id,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,o.order_number,o.purchase_source,o.track,o.delivery,o.total,o.paid,
       CASE WHEN w.id IS NOT NULL THEN 'العميل منسحب' ELSE 'تطبيق السياسة' END title,'المالية' department,NULL due_at,
       CASE WHEN w.id IS NOT NULL THEN 'withdrawal' ELSE 'policy' END entity_type,
-      COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END) attention_state,f.first_action_by_email,f.first_action_at,f.finance_action_by_email,f.finance_action_at
+      COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END) attention_state,f.first_action_by_email,f.first_action_at,f.finance_action_by_email,f.finance_action_at,
+      COALESCE(f.finance_action_by_email,f.first_action_by_email) last_action_by_email,COALESCE(f.finance_action_at,f.first_action_at,o.updated_at,o.created_at) last_action_at,
+      (SELECT e.owner_email FROM enrollments e WHERE e.order_id=o.id ORDER BY e.updated_at DESC LIMIT 1) responsible_email,'عالية' priority
       FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id LEFT JOIN attention_followups f ON f.order_id=o.id
       LEFT JOIN withdrawals w ON w.order_id=o.id AND w.status='مكتمل'
       WHERE (w.id IS NOT NULL OR EXISTS(SELECT 1 FROM installments i WHERE i.order_id=o.id AND i.status='تطبيق السياسة') OR f.state IN ('needs_operations','waiting_finance','finance_resolved'))
       AND (w.id IS NOT NULL OR COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END) NOT IN ('closed','finance_resolved')) ORDER BY c.name LIMIT 50`).all(),
-    db.prepare(`SELECT 'data-'||e.id id,e.order_id,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,o.order_number,o.purchase_source,o.track,o.delivery,o.total,o.paid,'بيانات العميل غير مكتملة' title,'التشغيلية' department,NULL due_at,'enrollment' entity_type
+    db.prepare(`SELECT 'data-'||e.id id,e.order_id,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,o.order_number,o.purchase_source,o.track,o.delivery,o.total,o.paid,'بيانات العميل غير مكتملة' title,'التشغيلية' department,NULL due_at,'enrollment' entity_type,e.owner_email responsible_email,e.updated_at last_action_at,NULL last_action_by_email,'عالية' priority
       FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id
       JOIN orders o ON o.id=e.order_id
       WHERE e.status!='مكتمل' AND (trim(COALESCE(c.phone,''))='' OR trim(COALESCE(c.email,''))='') ORDER BY e.updated_at LIMIT 50`).all(),
