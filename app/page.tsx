@@ -3610,6 +3610,11 @@ function LiveCustomers({
         String((a as typeof a & { createdAt?: string }).createdAt || ""),
       ),
     );
+  const exportCustomers=()=>{
+    const headers=["الرقم","اسم العميل","رقم العميل","رقم الطلب","رقم الجوال","البرنامج","التصنيف","الملاحظة العملياتية","تاريخ الإضافة"],escape=(value:unknown)=>`"${String(value??"").replaceAll('"','""')}"`,lines=filtered.map((row,index)=>[index+1,row.name,row.id,row.orderId,row.phone,customerProgramCategory(row),customerProgramLabel(row),customerOperationalNote(row),(row as typeof row&{createdAt?:string}).createdAt||""]);
+    const blob=new Blob(["\uFEFF"+[headers,...lines].map(line=>line.map(escape).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`عملاء-سلوكيرا-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  };
   if (loading || error)
     return <LiveState loading={loading} error={error} empty={false} />;
   return (
@@ -3642,8 +3647,9 @@ function LiveCustomers({
         <div className="directory-head">
           <div>
             <h2>قاعدة بيانات العملاء</h2>
-            <p>جميع العملاء المسجلين في النظام، مع عرض الاسم والبرنامج فقط.</p>
+            <p>قائمة مرتبة للعملاء وبياناتهم التشغيلية؛ التصدير يلتزم بنتائج البحث والتصفية الحالية.</p>
           </div>
+          <button type="button" className="customer-export" disabled={!filtered.length} onClick={exportCustomers}><Download size={16}/>تصدير النتائج <em>{filtered.length}</em></button>
         </div>
         <CustomerSmartFilters
           programs={programs}
@@ -8902,6 +8908,7 @@ function CompletedCustomerTable({
       <table>
         <thead>
           <tr>
+            <th className="customer-row-number">#</th>
             <th>اسم العميل</th>
             <th>البرنامج</th>
             <th>التصنيف</th>
@@ -8910,12 +8917,12 @@ function CompletedCustomerTable({
           </tr>
         </thead>
         <tbody>
-          {list.map((customer) => {
+          {list.map((customer,index) => {
             const added = additionDate(customer),classification=customerProgramLabel(customer),operationalNote=customerOperationalNote(customer);
             return <tr key={customer.id} onClick={() => open(customer)}>
-              <td>
-                <b>{customer.name}</b>
-                <small>فتح ملف العميل</small>
+              <td className="customer-row-number"><b>{index+1}</b></td>
+              <td className="customer-name-cell">
+                <i>{customer.name.trim().slice(0,2)}</i><span><b>{customer.name}</b><small>{customer.orderId||customer.id} · فتح الملف</small></span>
               </td>
               <td>
                 <b>{customerProgramCategory(customer)}</b>

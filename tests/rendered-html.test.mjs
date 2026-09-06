@@ -550,6 +550,18 @@ test("keeps continuing education notes out of classifications and search", async
   assert.match(css, /\.operational-note-cell span/);
 });
 
+test("numbers and exports the filtered customer directory", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /const exportCustomers=/);
+  assert.match(page, /تصدير النتائج/);
+  assert.match(page, /text\/csv;charset=utf-8/);
+  assert.match(page, /<th className="customer-row-number">#<\/th>/);
+  assert.match(page, /className="customer-name-cell"/);
+  assert.match(css, /\.customer-export/);
+  assert.match(css, /\.customer-name-cell>i/);
+});
+
 test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
