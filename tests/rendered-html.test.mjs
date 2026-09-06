@@ -269,13 +269,25 @@ test("shows subscription classification and delivery on finance cards", async ()
   assert.match(page, /مع تقييم كفاءة/);
 });
 
-test("renders the finance customer profile professionally with an LTR phone", async () => {
+test("merges the finance customer profile into the drawer header with an LTR phone", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /finance-customer-profile/);
-  assert.match(page, /finance-profile-phone/);
+  assert.match(page, /finance-person-details/);
+  assert.doesNotMatch(page, /Section title="بيانات العميل والطلب"/);
   assert.match(page, /dir="ltr">\{selected\.phone\}/);
   assert.match(css, /unicode-bidi:embed/);
+});
+
+test("stores four editable reminder templates and replaces finance variables", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/reminder-templates/route.ts");
+  assert.match(page, /قوالب رسائل التذكير/);
+  assert.match(page, /اسم_العميل:selected\.customer_name/);
+  assert.match(page, /المبلغ:sar\(installment\.amount\)/);
+  assert.match(page, /نوع_التذكير:status/);
+  assert.match(page, /replaceAll\(`\{\{\$\{key\}\}\}`/);
+  assert.match(api, /reminder_message_templates/);
+  assert.match(api, /first:[\s\S]*second:[\s\S]*third:[\s\S]*final:/);
 });
 
 test("aligns paid installment details as a compact right-side panel", async () => {

@@ -4674,7 +4674,7 @@ type StaffRow = {
   has_password?: number;
 };
 function ControlPanel() {
-  const [section, setSection] = useState<"users" | "programs" | "dates">("users");
+  const [section, setSection] = useState<"users" | "programs" | "dates" | "reminders">("users");
   return (
     <div className="control-panel">
       <nav className="control-panel-tabs" aria-label="أقسام لوحة التحكم">
@@ -4699,10 +4699,27 @@ function ControlPanel() {
           <CalendarDays size={18} />
           إدارة المواعيد
         </button>
+        <button
+          className={section === "reminders" ? "active" : ""}
+          onClick={() => setSection("reminders")}
+        >
+          <MessageSquareText size={18} />
+          قوالب التذكير
+        </button>
       </nav>
-      {section === "users" ? <Users /> : section === "programs" ? <Programs /> : <TeamEventsAdmin />}
+      {section === "users" ? <Users /> : section === "programs" ? <Programs /> : section === "dates" ? <TeamEventsAdmin /> : <ReminderTemplatesAdmin />}
     </div>
   );
+}
+
+const reminderTemplateLabels: Record<string,string> = { first:"التذكير الأول", second:"التذكير الثاني", third:"التذكير الثالث", final:"التذكير النهائي" };
+function ReminderTemplatesAdmin(){
+  const [templates,setTemplates]=useState<Record<string,string>>({first:"",second:"",third:"",final:""}),[variables,setVariables]=useState<string[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState("");
+  useEffect(()=>{void apiJson("/api/reminder-templates").then(data=>{setTemplates(data.templates);setVariables(data.variables||[])}).catch(e=>setMessage((e as Error).message)).finally(()=>setLoading(false))},[]);
+  const save=async()=>{setSaving(true);setMessage("");try{await apiJson("/api/reminder-templates",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({templates})});setMessage("تم حفظ قوالب التذكير") }catch(e){setMessage((e as Error).message)}finally{setSaving(false)}};
+  const insertVariable=(key:string,variable:string)=>setTemplates(current=>({...current,[key]:`${current[key]}{{${variable}}}`}));
+  if(loading)return <div className="ops-empty compact">جارٍ تحميل القوالب...</div>;
+  return <section className="reminder-templates-admin card"><header><div><MessageSquareText size={22}/><span><h2>قوالب رسائل التذكير</h2><p>يختار النظام القالب تلقائيًا حسب عدد التذكيرات، ثم يستبدل المتغيرات ببيانات العميل والقسط.</p></span></div><button className="primary" disabled={saving||Object.values(templates).some(value=>!value.trim())} onClick={()=>void save()}>{saving?"جارٍ الحفظ...":"حفظ جميع القوالب"}</button></header>{message&&<div className={message.startsWith("تم")?"template-message success":"ops-error compact"}>{message}</div>}<div className="template-variables"><b>المتغيرات المتاحة</b>{variables.map(variable=><code key={variable}>{`{{${variable}}}`}</code>)}</div><div className="reminder-template-grid">{Object.entries(reminderTemplateLabels).map(([key,label])=><article key={key}><header><b>{label}</b><small>يُستخدم عند إرسال {label}</small></header><textarea value={templates[key]||""} onChange={e=>setTemplates({...templates,[key]:e.target.value})} aria-label={`قالب ${label}`}/><footer><span>إدراج متغير:</span>{variables.map(variable=><button type="button" key={variable} onClick={()=>insertVariable(key,variable)}>{variable}</button>)}</footer></article>)}</div></section>;
 }
 
 function TeamEventsAdmin() {
@@ -5803,8 +5820,10 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [reviewTypeFilter, setReviewTypeFilter] = useState(initialReviewFilter),
+    [reminderTemplates,setReminderTemplates]=useState<Record<string,string>>({}),
     [saving, setSaving] = useState(false);
   useEffect(() => { setReviewTypeFilter(initialReviewFilter); if (initialReviewFilter !== "الكل") { setFinanceTab("sales"); setStatusFilter("بانتظار المراجعة"); } }, [initialReviewFilter]);
+  useEffect(()=>{void apiJson("/api/reminder-templates").then(data=>setReminderTemplates(data.templates||{})).catch(()=>setReminderTemplates({}))},[]);
   const syncScheduleFromSavedTable = (row: FinanceOrder) => {
     const openInstallments = [...row.installments]
       .filter((item) => item.status !== "مدفوع")
@@ -6134,7 +6153,10 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     const status = reminderStatus(installment);
     const dueDate = new Date(`${String(installment.due_date).slice(0, 10)}T12:00:00`)
       .toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "long", year: "numeric" });
-    const message = `مرحباً ${selected.customer_name}،\n\nنود تذكيركم باستحقاق القسط رقم ${installment.sequence} لبرنامج ${selected.program_name}، بقيمة ${sar(installment.amount)}، وتاريخ استحقاقه ${dueDate}.\n\nنأمل التكرم بإتمام السداد، وفي حال تم السداد يرجى تجاهل الرسالة وإرسال مرجع العملية.\n\nشكراً لكم،\nفريق سلوكيرا`;
+    const templateKey=["first","second","third","final"][Math.min(Number(installment.reminder_count||0),3)];
+    const fallback="مرحباً {{اسم_العميل}}،\n\nنود تذكيركم بـ {{نوع_التذكير}} للقسط رقم {{رقم_القسط}} من برنامج {{اسم_البرنامج}}، بقيمة {{المبلغ}}، والمستحق بتاريخ {{تاريخ_الاستحقاق}}.\n\nنأمل التكرم بإتمام السداد وإرسال مرجع العملية.\n\nفريق سلوكيرا";
+    const values:Record<string,string>={اسم_العميل:selected.customer_name,المبلغ:sar(installment.amount),نوع_التذكير:status,رقم_القسط:String(installment.sequence),اسم_البرنامج:selected.program_name,تاريخ_الاستحقاق:dueDate,المتبقي:sar(selected.remaining)};
+    const message=Object.entries(values).reduce((text,[key,value])=>text.replaceAll(`{{${key}}}`,value),reminderTemplates[templateKey]||fallback);
     const whatsapp = window.open(
       `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
       "_blank",
@@ -6284,6 +6306,14 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                   {selected.customer_id} · {selected.program_name}
                 </p>
                 {subscriptionMeta(selected).length>0&&<div className="drawer-subscription-meta">{subscriptionMeta(selected).map(item=><span key={item}>{item}</span>)}</div>}
+                <div className="finance-person-details">
+                  <span><small>الجوال</small><b dir="ltr">{selected.phone}</b></span>
+                  <span><small>البريد</small><b dir="ltr">{selected.email}</b></span>
+                  <span><small>رقم الطلب</small><b dir="ltr">{selected.order_id}</b></span>
+                  <span><small>مصدر الشراء</small><b>{selected.purchase_source}</b></span>
+                  <span><small>المسار</small><b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</b></span>
+                  <span><small>نمط البرنامج</small><b>{selected.program_delivery || "غير محدد"}</b></span>
+                </div>
               </div>
             </div>
             <div className="finance-reference-strip">
@@ -6363,28 +6393,6 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                 </button>
               </div>
             )}
-            <Section title="بيانات العميل والطلب">
-              <div className="info customer-data finance-customer-profile">
-                <label className="finance-profile-phone">
-                  رقم الجوال<b dir="ltr">{selected.phone}</b>
-                </label>
-                <label>
-                  البريد الإلكتروني<b dir="ltr">{selected.email}</b>
-                </label>
-                <label>
-                  رقم الطلب<b dir="ltr">{selected.order_id}</b>
-                </label>
-                <label>
-                  مصدر الشراء<b>{selected.purchase_source}</b>
-                </label>
-                <label>
-                  المسار<b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</b>
-                </label>
-                <label>
-                  نمط البرنامج<b>{selected.program_delivery || "غير محدد"}</b>
-                </label>
-              </div>
-            </Section>
             <Section title="حالة السداد">
               <div className="schedule-form">
                 <label>
