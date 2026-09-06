@@ -148,7 +148,6 @@ const navGroups: {
     collapsible: true,
     items: [
       ["customers", "قاعدة بيانات العملاء", "customers"],
-      ["reservations", "حجوزات المقاعد", "reservations"],
     ],
   },
   {
@@ -541,11 +540,10 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
   }, []);
   useEffect(() => {
     const refresh = async () => {
-      const [tasksResult, enrollmentsResult, reservationsResult, financeResult] =
+      const [tasksResult, enrollmentsResult, financeResult] =
         await Promise.allSettled([
           apiJson("/api/tasks"),
           apiJson("/api/enrollments"),
-          apiJson("/api/reservations?kind=seat"),
           apiJson("/api/finance"),
         ]);
       if (tasksResult.status === "fulfilled") {
@@ -554,10 +552,6 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
       const enrollments =
         enrollmentsResult.status === "fulfilled"
           ? enrollmentsResult.value.enrollments || []
-          : [];
-      const reservations =
-        reservationsResult.status === "fulfilled"
-          ? reservationsResult.value.reservations || []
           : [];
       const finance =
         financeResult.status === "fulfilled"
@@ -570,13 +564,10 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
       setNavCounts({
         contact: enrollments.filter((row: LiveEnrollment) => row.status === "جديد").length,
         registration: enrollments.filter(
-          (row: LiveEnrollment) => row.status === "تم التواصل",
+          (row: LiveEnrollment) => ["تم التواصل", "بانتظار إنشاء الحساب"].includes(row.status),
         ).length,
         assignment: enrollments.filter((row: LiveEnrollment) =>
           ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status) && !isDirectActivation(row),
-        ).length,
-        reservations: reservations.filter(
-          (row: LiveReservation) => row.status !== "تم التحويل",
         ).length,
         "program-activation": enrollments.filter((row: LiveEnrollment) =>
           isDirectActivation(row) && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status),
@@ -658,8 +649,6 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     (id === "customers" && has("customers.view")) ||
     (["contact", "registration"].includes(id) && has("customers.manage")) ||
     (["assignment", "program-activation"].includes(id) && has("programs.activate")) ||
-    (id === "reservations" &&
-      has("reservations.manage")) ||
     (id === "finance" && has("finance.view")) ||
     (["b2b-business", "b2b-partnerships"].includes(id) && has("b2b.view")) ||
     (id === "reports" && has("reports.view")) ||
@@ -960,7 +949,6 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           )}
           {view === "work" && <LiveWork onNavigate={go} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
-          {view === "reservations" && <Reservations />}
           {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
           {view === "contact" && (
             <>
@@ -3519,7 +3507,7 @@ function LiveCustomers({
   const [rows, setRows] = useState<typeof initialPeople>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [programFilter, setProgramFilter] = useState("الكل"),
+    [programFilter, setProgramFilter] = useState(focus === "registration" ? "تحليل السلوك التطبيقي" : "الكل"),
     [categoryFilter, setCategoryFilter] = useState("الكل");
   const load = () => {
     apiJson("/api/customers")
@@ -4078,6 +4066,7 @@ function TrialHandoff() {
 const enrollmentSteps: Record<string, [string, string]> = {
   جديد: ["contacted", "تأكيد تسليم العميل"],
   "تم التواصل": ["registered", "تهيئة العميل"],
+  "بانتظار إنشاء الحساب": ["account_created", "تأكيد إنشاء الحساب"],
   "اكتمل التسجيل": ["activated", "تم تفعيل المقررات"],
   "تم إنشاء الحساب": ["activated", "تم تفعيل المقررات"],
 };
@@ -4334,7 +4323,7 @@ function LiveAcademy({
     );
   };
   const displayState = (status: string) =>
-    status === "تم إنشاء الحساب"
+    focus !== "registration" && status === "تم إنشاء الحساب"
       ? "اكتمل التسجيل"
       : status === "نشط"
         ? "تم الإسناد"
@@ -4343,7 +4332,7 @@ function LiveAcademy({
     focus === "contact"
       ? ["جديد"]
       : focus === "registration"
-        ? ["تم التواصل"]
+        ? ["تم التواصل", "بانتظار إنشاء الحساب"]
         : ["اكتمل التسجيل"];
   const availablePrograms = Array.from(
     new Set(rows.map((row) => programFamily(row.program_name)).filter(Boolean)),
@@ -4365,17 +4354,25 @@ function LiveAcademy({
     (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة") || row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
     row.order_type !== "إشراف" &&
     !row.program_name.includes("الإشراف");
+  const onboardingCategory = (row: LiveEnrollment) => {
+    const family=programFamily(row.program_name);
+    return family === "تقييم الكفاءة" ? "تحليل السلوك التطبيقي" : family;
+  };
 
   const actionLabel = (row: LiveEnrollment) =>
     focus === "program-activation" && (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة"))
       ? "ربط المقيم وإكمال التقييم"
       : focus === "program-activation"
         ? "تم تفعيل البرنامج"
+        : focus === "registration" && row.status === "تم التواصل"
+          ? "تمت إضافته للمنصة"
+          : focus === "registration" && row.status === "بانتظار إنشاء الحساب"
+            ? "أكد العميل إنشاء الحساب"
         : enrollmentStep(row)?.[1];
   const filteredRows = rows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
-      (programFilter === "الكل" || programFamily(row.program_name) === programFilter) &&
+      (programFilter === "الكل" || (focus === "registration" ? onboardingCategory(row) : programFamily(row.program_name)) === programFilter) &&
       (subprogramFilter === "الكل" || programPathLabel(row) === subprogramFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
@@ -4388,7 +4385,7 @@ function LiveAcademy({
     focus === "contact"
       ? "بانتظار تسليم العميل"
       : focus === "registration"
-        ? "قيد تهيئة العميل"
+        ? state === "تم التواصل" ? "بانتظار إجراء الموظف" : "بانتظار العميل"
         : (
             {
               "اكتمل التسجيل": "بانتظار التفعيل",
@@ -4551,7 +4548,11 @@ function LiveAcademy({
                 ][index]
               : focus === "contact"
                 ? "فتح البطاقة يعرض ملف العميل"
-                : "فتح البطاقة يعرض بيانات العميل وخطواته"}
+                : focus === "registration" && state === "تم التواصل"
+                  ? "أضف العميل للمنصة ثم سجّل تنفيذ الإجراء"
+                  : focus === "registration"
+                    ? "الموظف أنهى الإضافة؛ ننتظر تأكيد العميل إنشاء حسابه"
+                    : "فتح البطاقة يعرض بيانات العميل وخطواته"}
           </p>
           {!!count(state) && (
             <div className="ops-list-head" aria-hidden="true">
@@ -4599,11 +4600,17 @@ function LiveAcademy({
     </div>
   );
   const attentionPanel=focus!=="contact"&&attentionRows.length>0&&<section className="operations-attention"><header><div><ShieldCheck size={19}/><span><b>عملاء بحاجة للانتباه</b><small>تم تطبيق السياسة المالية على ملفاتهم</small></span></div><em>{attentionRows.length}</em></header><div>{attentionRows.map(row=><button key={row.id} onClick={()=>setSelectedRow(row)}><span><b>{row.customer_name}</b><small>{row.program_name} · {row.order_number||row.order_id}</small></span><em>فتح الملف ←</em></button>)}</div></section>;
+  const onboardingTabs=focus==="registration"&&<div className="onboarding-tabs" role="tablist" aria-label="برامج تهيئة العملاء">{[
+    ["تحليل السلوك التطبيقي","شهادة تحليل السلوك التطبيقي"],
+    ["إدارة السلوك التنظيمي","شهادة إدارة السلوك التنظيمي"],
+    ["التعليم المستمر","التعليم المستمر"],
+  ].map(([value,label])=><button type="button" role="tab" aria-selected={programFilter===value} className={programFilter===value?"active":""} key={value} onClick={()=>{setProgramFilter(value);setStatusFilter("الكل");setSubprogramFilter("الكل")}}><span>{label}</span><em>{rows.filter(row=>["تم التواصل","بانتظار إنشاء الحساب"].includes(row.status)&&onboardingCategory(row)===value).length}</em></button>)}</div>;
   if (focus !== "assignment")
     return (
       <>
         {attentionPanel}
-        <CustomerSmartFilters
+        {onboardingTabs}
+        {focus!=="registration"&&<CustomerSmartFilters
           programs={availablePrograms}
           statuses={availableStatuses}
           program={programFilter}
@@ -4616,7 +4623,7 @@ function LiveAcademy({
           subcategory={subprogramFilter}
           onSubcategory={setSubprogramFilter}
           tertiaryLabel={programFilter === "التعليم المستمر" ? "البرنامج الفرعي" : "المسار"}
-        />
+        />}
         {board}
         {detailPanel}
       </>

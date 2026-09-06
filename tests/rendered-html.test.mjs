@@ -529,17 +529,27 @@ test("keeps navigation counters aligned with their operational queues", async ()
   assert.match(page, /id === "work"\s*\? undefined/);
 });
 
-test("opens a complete student file from seat reservations", async () => {
+test("removes the seat reservation page and routes active reservations into onboarding", async () => {
   const page = await read("../app/page.tsx");
-  const reservations = await read("../app/api/reservations/route.ts");
-  assert.match(page, /فتح ملف الطالب/);
-  assert.match(page, /<CircleUserRound size=\{16\}\/>فتح ملف الطالب/);
-  assert.doesNotMatch(page, /<UserRound size=/);
-  assert.match(page, /className="drawer operations-drawer reservation-customer-drawer"/);
-  assert.match(page, /<CustomerNotes customerId=\{selectedReservation\.customer_id\}/);
-  assert.match(page, /selectedReservation\.phone/);
-  assert.match(page, /selectedReservation\.email/);
-  assert.match(reservations, /o\.track program_track,o\.delivery program_delivery,o\.purchase_source,o\.order_number/);
+  const operations = await read("../app/api/_lib/operations.ts");
+  assert.doesNotMatch(page, /\["reservations", "حجوزات المقاعد", "reservations"\]/);
+  assert.doesNotMatch(page, /view === "reservations" && <Reservations/);
+  assert.match(operations, /converted_enrollment_id IS NULL AND status NOT IN/);
+  assert.match(operations, /'تهيئة العميل واستكمال بياناته'/);
+});
+
+test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
+  const page = await read("../app/page.tsx");
+  const transition = await read("../app/api/enrollments/transition/route.ts");
+  assert.match(page, /className="onboarding-tabs"/);
+  assert.match(page, /شهادة تحليل السلوك التطبيقي/);
+  assert.match(page, /شهادة إدارة السلوك التنظيمي/);
+  assert.match(page, /بانتظار إجراء الموظف/);
+  assert.match(page, /بانتظار العميل/);
+  assert.match(page, /تمت إضافته للمنصة/);
+  assert.match(page, /أكد العميل إنشاء الحساب/);
+  assert.match(transition, /to:"بانتظار إنشاء الحساب"/);
+  assert.match(transition, /account_created:\{from:\["بانتظار إنشاء الحساب","اكتمل التسجيل"\]/);
 });
 
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {

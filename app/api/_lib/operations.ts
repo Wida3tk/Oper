@@ -139,10 +139,7 @@ export function id(prefix: string) {
 }
 
 export async function promoteDueReservations(db:ReturnType<typeof operationalDb>,actorEmail="system@sulukera"){
-  const dateParts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
-  const part=(type:string)=>dateParts.find(item=>item.type===type)?.value||"";
-  const today=`${part("year")}-${part("month")}-${part("day")}`;
-  const {results}=await db.prepare("SELECT * FROM seat_reservations WHERE assignment_date IS NOT NULL AND assignment_date<=? AND converted_enrollment_id IS NULL AND status IN ('مؤكد','بانتظار البدء','بانتظار الإسناد') ORDER BY assignment_date LIMIT 100").bind(today).all<Record<string,unknown>>();
+  const {results}=await db.prepare("SELECT * FROM seat_reservations WHERE converted_enrollment_id IS NULL AND status NOT IN ('منسحب','تم النقل','تم التحويل','نقل قيد المراجعة') ORDER BY created_at LIMIT 250").all<Record<string,unknown>>();
   for(const reservation of results){
     const enrollmentId=id("ENR"),now=new Date().toISOString();
     try{await db.batch([
