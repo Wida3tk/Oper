@@ -323,6 +323,11 @@ test("tracks motivational weekly targets from Saturday through Thursday", async 
   assert.match(css, /\.goals-rail/);
   assert.match(css, /\.weekly-target-popover/);
   assert.match(css, /\.chart-total-cards/);
+  assert.match(css, /\.sales-performance \.goals-rail\{order:-1/);
+  assert.match(page, /activityPageSize=4/);
+  assert.match(page, /activity-nav/);
+  assert.match(page, /مسار العملاء الحالي/);
+  assert.match(page, /قراءة سريعة:/);
 });
 
 test("aligns paid installment details as a compact right-side panel", async () => {
