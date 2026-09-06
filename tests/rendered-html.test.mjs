@@ -310,14 +310,18 @@ test("tracks motivational weekly targets from Saturday through Thursday", async 
   assert.match(page, /firstSaturdayDay=1\+\(6-monthStart\.getDay\(\)\+7\)%7/);
   assert.match(page, /startDay\+5/);
   assert.match(page, /تحدي الأسبوع/);
-  assert.match(page, /الجمعة خارج القياس/);
+  assert.match(page, /السبت–الخميس/);
   assert.match(page, /saveWeeklyTarget/);
   assert.match(page, /هدف الأسبوع/);
   assert.match(page, /إجمالي المبيعات/);
   assert.match(page, /إجمالي التحصيل/);
   assert.match(api, /weekly_sales_targets/);
   assert.match(operations, /weekly_sales_targets/);
-  assert.match(css, /\.weekly-targets/);
+  assert.match(page, /weekly-challenge-compact/);
+  assert.match(page, /weekly-edit-trigger/);
+  assert.match(page, /setSelectedWeek/);
+  assert.match(css, /\.goals-rail/);
+  assert.match(css, /\.weekly-target-popover/);
   assert.match(css, /\.chart-total-cards/);
 });
 
