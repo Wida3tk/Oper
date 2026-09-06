@@ -79,6 +79,9 @@ export async function POST(req: Request) {
   }
 
   const paymentPlan = String(body.payment || "دفع كامل");
+  const purchaseDate = String(body.purchaseDate || "").trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate))return Response.json({error:"تاريخ شراء العميل مطلوب"},{status:400});
+  const paidAt = `${purchaseDate}T12:00:00.000Z`;
   const baseTotal = seatOnly?0:Math.round(Number(body.baseTotal || 0) * 100) / 100;
   const discountPercent = Number(body.discountPercent || 0);
   if(![0,5,10,15,20,25,30,35,40,45,50].includes(discountPercent))return Response.json({error:"نسبة الخصم غير صالحة"},{status:400});
@@ -105,7 +108,6 @@ export async function POST(req: Request) {
   }
   const purchaseType = String(body.purchaseType || "برنامج");
   const isReservation=purchaseType==="حجز مقعد";
-  const isScheduled=seatOnly;
   if(!isAsara&&isReservation&&(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"تاريخ بدء البرنامج وتاريخ الإسناد مطلوبان لحجز المقعد"},{status:400});
   if(!isAsara&&isReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   if(hasSeatReservation&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة لحجز المقعد"},{status:400});
@@ -129,7 +131,7 @@ export async function POST(req: Request) {
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,seatOnly?"حجز مقعد فقط":isSupervision?"إشراف":autoAsara&&!isCompetencyService?"مكتمل":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
     db.prepare("INSERT INTO orders(id,order_number,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,seat_reservation,competency_assessment,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'غير مسند',?,?,?,?)").bind(orderId,orderNumber,customerId,purchaseType,programId,program.name,track||"غير محدد",isAbat?"مسجل":delivery,orderLanguage,source,seatOnly?"رسوم مقعد":paymentPlan,baseTotal,seatOnly?0:discountPercent,contractTotal,seatOnly?0:amount,seatOnly?"حجز فقط":paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",autoAsara&&!isCompetencyService?"مكتمل":seatOnly?"غير مطبق":"تم التواصل",financeReviewStatus,hasSeatReservation?1:0,competencyAssessment?1:0,cohort||null,startDate||null,now,now),
-    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,now,"مسجلة",method,reference,proofAssetKey,seatOnly?"seat_fee":isSupervision?"collection":"sale",classificationStatus,now),
+    db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,paidAt,"مسجلة",method,reference,proofAssetKey,seatOnly?"seat_fee":isSupervision?"collection":"sale",classificationStatus,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );
   if(needsFinanceReview)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),paymentId,isSupervision?"اعتماد طلب الإشراف للتحصيل":paymentPlan==="أقساط"?"اعتماد وتنظيم طلب أقساط":method==="Paytabs"?"مراجعة رابط مرجع Paytabs":method==="تمارا"?"مراجعة عملية تمارا":"مراجعة واعتماد التحويل البنكي",auth.email,now));
@@ -137,7 +139,7 @@ export async function POST(req: Request) {
   if(seatOnly)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,due_at,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات','متابعة حجز المقعد فقط','مفتوحة','عادية',?,?,?)").bind(id("TSK"),reservationId,assignmentDate,auth.email,now));
   else if(autoAsara&&!isCompetencyService)statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,completed_at,created_at,updated_at) VALUES(?,?,?,?,'مكتمل',?,?,?)").bind(enrollmentId,customerId,programId,orderId,now,now,now));
   else statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,source_reservation_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(enrollmentId,customerId,programId,orderId,reservationId,"تم التواصل",now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'التشغيلية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,auth.email,now));
-  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_PAYMENT_AND_ADMIT','payment',?,?,?)").bind(id("AUD"),auth.email,paymentId,JSON.stringify({programId,purchaseType,source,baseTotal,discountPercent,discountedProgramTotal,seatFee,hasSeatReservation,competencyAssessment,contractTotal,amount,method,needsFinanceReview,customerId,orderId}),now));
+  statements.push(db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'RECORD_PAYMENT_AND_ADMIT','payment',?,?,?)").bind(id("AUD"),auth.email,paymentId,JSON.stringify({programId,purchaseType,source,baseTotal,discountPercent,discountedProgramTotal,seatFee,hasSeatReservation,competencyAssessment,contractTotal,amount,method,purchaseDate,needsFinanceReview,customerId,orderId}),now));
   await db.batch(statements);
   return Response.json({ok:true,prospectId,paymentIntentId:intentId,customerId,orderId,reservationId,enrollmentId,status:"تم إنشاء العميل"},{status:201});
 }

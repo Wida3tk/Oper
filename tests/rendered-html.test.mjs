@@ -43,7 +43,43 @@ test("stores payment reference links with an audit trail", async () => {
   const source = await read("../app/api/payments/route.ts");
   assert.match(source, /export async function PATCH/);
   assert.match(source, /UPDATE payments SET reference=/);
+  assert.match(source, /INSERT INTO order_payment_references/);
   assert.match(source, /UPDATE_PAYMENT_REFERENCE/);
+});
+
+test("uses the employee-selected purchase date for the initial sale", async () => {
+  const page = await read("../app/page.tsx");
+  const intake = await read("../app/api/intake/route.ts");
+  assert.match(page, /تاريخ دفع العميل الفعلي، ويُحتسب بناءً عليه ضمن مبيعات اليوم/);
+  assert.match(page, /purchaseDate/);
+  assert.match(intake, /const paidAt = `\$\{purchaseDate\}T12:00:00\.000Z`/);
+  assert.match(intake, /paymentId,orderId,amount,paidAt/);
+});
+
+test("opens a prepared WhatsApp installment reminder and records its status", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /sendInstallmentReminder/);
+  assert.match(page, /https:\/\/wa\.me\/\$\{digits\}\?text=\$\{encodeURIComponent\(message\)\}/);
+  assert.match(page, /إرسال مرجع العملية/);
+  assert.match(page, /action: "installment_status", installmentId: installment\.id, status/);
+  assert.match(page, /إرسال \$\{reminderStatus\(inst\)\} عبر واتساب/);
+  assert.match(css, /\.installment-whatsapp-reminder/);
+});
+
+test("keeps finance tools compact and installments collapsible", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /className="finance-action-toolbar"/);
+  assert.match(page, /رسوم المقعد/);
+  assert.match(page, /activeFinanceTool==="discount"/);
+  assert.match(page, /activeFinanceTool==="withdrawal"/);
+  assert.match(page, /activeFinanceTool==="undo"/);
+  assert.match(page, /<details className=\{`installment-card/);
+  assert.match(page, /<summary>[\s\S]*installment-card-title/);
+  assert.match(css, /\.finance-action-toolbar\{display:grid;grid-template-columns:repeat\(4/);
+  assert.match(css, /\.installment-card\[open\]/);
+  assert.match(css, /@media\(max-width:720px\)\{\.finance-action-toolbar\{grid-template-columns:repeat\(2/);
 });
 
 test("creates readable sequential order numbers by program family", async () => {
@@ -389,7 +425,7 @@ test("keeps payment references and customer notes actionable near the top of car
   const css = await read("../app/globals.css");
   assert.match(page, /className="finance-card-reference"/);
   assert.match(page, /orderId=\{selected\.order_id\}/);
-  assert.match(page, /selectedReferencePayment\?\.reference \|\| selected\.order_payment_reference/);
+  assert.match(page, /selected\.order_payment_reference \|\| selectedReferencePayment\?\.reference/);
   const financeApi = await read("../app/api/finance/route.ts");
   assert.match(financeApi, /CREATE TABLE IF NOT EXISTS order_payment_references/);
   assert.match(financeApi, /action==="update_order_payment_reference"/);

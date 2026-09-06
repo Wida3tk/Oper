@@ -12,11 +12,13 @@ export async function PATCH(req: Request) {
     return Response.json({ error: "رابط مرجع السداد الصحيح مطلوب" }, { status: 400 });
   }
   const db = operationalDb();
-  const payment = await db.prepare("SELECT id,reference FROM payments WHERE id=?").bind(paymentId).first<{id:string;reference:string|null}>();
+  const payment = await db.prepare("SELECT id,order_id,reference FROM payments WHERE id=?").bind(paymentId).first<{id:string;order_id:string;reference:string|null}>();
   if (!payment) return Response.json({ error: "الدفعة غير موجودة" }, { status: 404 });
   const now = new Date().toISOString();
+  await db.prepare("CREATE TABLE IF NOT EXISTS order_payment_references(order_id TEXT PRIMARY KEY,reference TEXT NOT NULL,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
   await db.batch([
     db.prepare("UPDATE payments SET reference=? WHERE id=?").bind(reference, paymentId),
+    db.prepare("INSERT INTO order_payment_references(order_id,reference,updated_by_email,updated_at) VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET reference=excluded.reference,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(payment.order_id, reference, auth.email, now),
     db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_PAYMENT_REFERENCE','payment',?,?,?)").bind(id("AUD"), auth.email, paymentId, JSON.stringify({ from: payment.reference || "", to: reference }), now),
   ]);
   return Response.json({ ok: true, paymentId, reference, updatedBy: auth.email, updatedAt: now });
