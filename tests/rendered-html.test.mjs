@@ -302,6 +302,19 @@ test("explains live dashboard metrics and removes the seat reservation reflectio
   assert.doesNotMatch(api, /activeReservations/);
 });
 
+test("tracks motivational weekly targets from Saturday through Thursday", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /firstSaturdayDay=1\+\(6-monthStart\.getDay\(\)\+7\)%7/);
+  assert.match(page, /startDay\+5/);
+  assert.match(page, /سباق الهدف الأسبوعي/);
+  assert.match(page, /الجمعة خارج فترة القياس/);
+  assert.match(page, /إجمالي المبيعات/);
+  assert.match(page, /إجمالي التحصيل/);
+  assert.match(css, /\.weekly-targets/);
+  assert.match(css, /\.chart-total-cards/);
+});
+
 test("aligns paid installment details as a compact right-side panel", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.installment-list>article>\.paid-ref\{width:min\(100%,500px\)/);
