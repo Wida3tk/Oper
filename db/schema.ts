@@ -217,12 +217,20 @@ export const traineeProgress = sqliteTable("trainee_progress", {
   stage: text("stage").notNull().default("الممارس"),
   stageStatus: text("stage_status").notNull().default("لم يبدأ"),
   note: text("note"),
+  dueAt: text("due_at"),
+  evidenceUrl: text("evidence_url"),
   stageStartedAt: text("stage_started_at"),
   stageCompletedAt: text("stage_completed_at"),
   updatedByEmail: text("updated_by_email"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const traineeProgressEvents = sqliteTable("trainee_progress_events", {
+  id: text("id").primaryKey(), enrollmentId: text("enrollment_id").notNull().references(() => enrollments.id),
+  fromStage: text("from_stage"), fromStatus: text("from_status"), toStage: text("to_stage").notNull(), toStatus: text("to_status").notNull(),
+  note: text("note"), dueAt: text("due_at"), evidenceUrl: text("evidence_url"), actorEmail: text("actor_email").notNull(), createdAt: text("created_at").notNull(),
+}, (table) => [index("trainee_progress_events_enrollment_idx").on(table.enrollmentId, table.createdAt)]);
 
 export const staffRoles = sqliteTable("staff_roles", {
   id: text("id").primaryKey(),

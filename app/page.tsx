@@ -1854,6 +1854,7 @@ function Registration({ done }: { done: () => void }) {
   const finalTotal = discountedTotal;
   const payableAmount = seatOnly ? seatFee : form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
   const phoneInvalid = !internationalPhonePattern.test(form.phone);
+  const emailInvalid = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const readProof = (file?: File) => {
     setSaveError("");
     if (!file) return;
@@ -1883,10 +1884,12 @@ function Registration({ done }: { done: () => void }) {
     !/^https?:\/\/\S+$/i.test(form.reference.trim());
   const next = () => {
     setSaveError("");
-    if (step === 1 && (!form.name || !form.phone || !form.email || phoneInvalid)) {
+    if (step === 1 && (!form.name || !form.phone || !form.email || phoneInvalid || emailInvalid)) {
       setSaveError(
         phoneInvalid
           ? "رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: +9665xxxxxxxx"
+          : emailInvalid
+            ? "صيغة البريد الإلكتروني غير صحيحة"
           : "الاسم والجوال والبريد الإلكتروني حقول إلزامية",
       );
       return;
@@ -1946,8 +1949,8 @@ function Registration({ done }: { done: () => void }) {
   };
   const submit = async () => {
     setSaveError("");
-    if (!form.name || !form.phone || !form.email || phoneInvalid) {
-      setSaveError("يلزم استكمال الاسم والجوال والبريد قبل الحفظ");
+    if (!form.name || !form.phone || !form.email || phoneInvalid || emailInvalid) {
+      setSaveError(emailInvalid?"صيغة البريد الإلكتروني غير صحيحة":"يلزم استكمال الاسم والجوال والبريد قبل الحفظ");
       setStep(1);
       return;
     }
@@ -3693,27 +3696,32 @@ function LiveCustomers({
   );
 }
 
-type TraineeProgressRow = { enrollment_id:string;customer_id:string;customer_name:string;phone?:string;email?:string;program_name:string;order_number?:string;track?:string;cohort_label?:string;owner_email?:string;activated_at?:string;stage:string;stage_status:string;note?:string;updated_by_email?:string;updated_at?:string };
+type TraineeProgressRow = { enrollment_id:string;customer_id:string;customer_name:string;phone?:string;email?:string;program_name:string;order_number?:string;track?:string;cohort_label?:string;owner_email?:string;activated_at?:string;stage:string;stage_status:string;note?:string;due_at?:string;evidence_url?:string;updated_by_email?:string;updated_at?:string };
+type TraineeProgressEvent = {id:string;enrollment_id:string;from_stage?:string;from_status?:string;to_stage:string;to_status:string;note?:string;due_at?:string;evidence_url?:string;actor_email:string;created_at:string};
 
 function TraineeProgress({canManage}:{canManage:boolean}) {
-  const [rows,setRows]=useState<TraineeProgressRow[]>([]),[stages,setStages]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[stageFilter,setStageFilter]=useState("الكل"),[search,setSearch]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saving,setSaving]=useState("");
-  const load=async()=>{setLoading(true);setError("");try{const data=await apiJson("/api/trainee-progress");setRows(data.trainees||[]);setStages(data.stages||[]);setStatuses(data.statuses||[]);}catch(cause){setError((cause as Error).message);}finally{setLoading(false)}};
+  const [rows,setRows]=useState<TraineeProgressRow[]>([]),[history,setHistory]=useState<TraineeProgressEvent[]>([]),[stages,setStages]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[stageFilter,setStageFilter]=useState("الكل"),[search,setSearch]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saving,setSaving]=useState("");
+  const load=async(showLoading=true)=>{if(showLoading)setLoading(true);setError("");try{const data=await apiJson("/api/trainee-progress");setRows(data.trainees||[]);setHistory(data.history||[]);setStages(data.stages||[]);setStatuses(data.statuses||[]);}catch(cause){setError((cause as Error).message);}finally{if(showLoading)setLoading(false)}};
   useEffect(()=>{void load();},[]);
-  const update=async(row:TraineeProgressRow,patch:Partial<TraineeProgressRow>)=>{const next={...row,...patch};setSaving(row.enrollment_id);setError("");try{await apiJson("/api/trainee-progress",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.enrollment_id,stage:next.stage,status:next.stage_status,note:next.note||""})});setRows(current=>current.map(item=>item.enrollment_id===row.enrollment_id?next:item));window.dispatchEvent(new CustomEvent("sulukera:success",{detail:{message:"تم تحديث تقدم المتدرب"}}));}catch(cause){setError((cause as Error).message);}finally{setSaving("")}};
+  const update=async(row:TraineeProgressRow,patch:Partial<TraineeProgressRow>)=>{const next={...row,...patch};setSaving(row.enrollment_id);setError("");try{await apiJson("/api/trainee-progress",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.enrollment_id,stage:next.stage,status:next.stage_status,note:next.note||"",dueAt:next.due_at||"",evidenceUrl:next.evidence_url||""})});await load(false);window.dispatchEvent(new CustomEvent("sulukera:success",{detail:{message:"تم تحديث تقدم المتدرب"}}));}catch(cause){setError((cause as Error).message);}finally{setSaving("")}};
   if(loading||error&&!rows.length)return <LiveState loading={loading} error={error} empty={false}/>;
   const statusRank:Record<string,number>={"بانتظار المتدرب":0,"قيد التقدم":1,"لم يبدأ":2,"مكتمل":3};
   const filtered=rows.filter(row=>(stageFilter==="الكل"||row.stage===stageFilter)&&`${row.customer_name} ${row.order_number||""} ${row.email||""}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>(statusRank[a.stage_status]??2)-(statusRank[b.stage_status]??2)||a.customer_name.localeCompare(b.customer_name,"ar"));
-  const completed=rows.filter(row=>row.stage==="المشروع"&&row.stage_status==="مكتمل").length,waiting=rows.filter(row=>row.stage_status==="بانتظار المتدرب").length;
+  const completed=rows.filter(row=>row.stage==="المشروع"&&row.stage_status==="مكتمل").length,waiting=rows.filter(row=>row.stage_status==="بانتظار المتدرب").length,activeRows=filtered.filter(row=>row.stage_status!=="مكتمل"),completedRows=filtered.filter(row=>row.stage_status==="مكتمل");
+  const renderCard=(row:TraineeProgressRow)=><article key={row.enrollment_id}>
+    <header><i>{row.customer_name.slice(0,2)}</i><div><b>{row.customer_name}</b><span>{row.order_number||row.enrollment_id} · {row.track||"المسار غير محدد"}</span></div><em className={`status-${row.stage_status.replaceAll(" ","-")}`}>{row.stage_status}</em></header>
+    <div className="trainee-stage-rail" aria-label={`تقدم ${row.customer_name}`}>{stages.map((stage,index)=>{const current=stages.indexOf(row.stage),done=index<current||(index===current&&row.stage_status==="مكتمل");return <span className={done?"done":index===current?"current":""} key={stage}><i>{done?<Check size={14}/>:index+1}</i><b>{stage}</b></span>})}</div>
+    <div className="trainee-progress-details"><span><small>الدفعة</small><b>{row.cohort_label||"غير محددة"}</b></span><span><small>مسؤول المتابعة</small><b>{row.owner_email?.split("@")[0]||"غير مسند"}</b></span><span><small>آخر تحديث</small><b>{row.updated_at?new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ بعد"}</b></span></div>
+    <div className="trainee-progress-controls"><label><span>المرحلة الحالية</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage} onChange={event=>void update(row,{stage:event.target.value,stage_status:"لم يبدأ"})}>{stages.map(stage=><option key={stage}>{stage}</option>)}</select></label><label><span>حالة المرحلة</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage_status} onChange={event=>void update(row,{stage_status:event.target.value})}>{statuses.map(status=><option key={status}>{status}</option>)}</select></label><label><span>الموعد المستهدف</span><input type="date" disabled={!canManage||saving===row.enrollment_id} value={row.due_at||""} onChange={event=>void update(row,{due_at:event.target.value})}/></label><label><span>رابط الإثبات</span><input type="url" disabled={!canManage||saving===row.enrollment_id} defaultValue={row.evidence_url||""} placeholder="https://" onBlur={event=>{if(event.target.value!==String(row.evidence_url||""))void update(row,{evidence_url:event.target.value})}}/></label><label className="progress-note"><span>ملاحظة المتابعة</span><input disabled={!canManage||saving===row.enrollment_id} defaultValue={row.note||""} placeholder="مثال: سلّم التطبيق وبانتظار المراجعة" onBlur={event=>{if(event.target.value!==String(row.note||""))void update(row,{note:event.target.value})}}/></label></div>
+    {row.due_at&&row.stage_status!=="مكتمل"&&new Date(`${row.due_at}T23:59:59`).getTime()<Date.now()&&<div className="trainee-overdue"><Clock3 size={14}/> تجاوز الموعد المستهدف</div>}
+    {history.some(event=>event.enrollment_id===row.enrollment_id)&&<details className="trainee-history"><summary>سجل التقدم ({history.filter(event=>event.enrollment_id===row.enrollment_id).length})</summary>{history.filter(event=>event.enrollment_id===row.enrollment_id).map(event=><p key={event.id}><b>{event.to_stage} · {event.to_status}</b><span>{event.actor_email.split("@")[0]} · {new Date(event.created_at).toLocaleString("ar-SA-u-nu-latn")}</span></p>)}</details>}
+  </article>;
   return <div className="trainee-progress-page">
     <section className="trainee-progress-summary"><div><ChartNoAxesCombined size={22}/><span><b>مسار مستقل بعد التفعيل</b><small>تُسحب هوية المتدرب من سجل العميل، ويُحفظ التقدم منفصلًا استعدادًا لنقله إلى نظام الطلاب.</small></span></div><dl><div><dt>إجمالي المتدربين</dt><dd>{rows.length}</dd></div><div><dt>بانتظار المتدرب</dt><dd>{waiting}</dd></div><div><dt>أكملوا المشروع</dt><dd>{completed}</dd></div></dl></section>
-    <section className="trainee-progress-toolbar"><label><Search size={17}/><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="ابحث باسم المتدرب أو رقم الطلب"/></label><div role="tablist" aria-label="تصفية حسب المرحلة"><button className={stageFilter==="الكل"?"active":""} onClick={()=>setStageFilter("الكل")}>الكل <em>{rows.length}</em></button>{stages.map(stage=><button key={stage} className={stageFilter===stage?"active":""} onClick={()=>setStageFilter(stage)}>{stage}<em>{rows.filter(row=>row.stage===stage).length}</em></button>)}</div></section>
+    <section className="trainee-progress-toolbar"><label><Search size={17}/><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="ابحث باسم المتدرب أو رقم الطلب"/></label><div role="tablist" aria-label="تصفية حسب المرحلة"><button className={stageFilter==="الكل"?"active":""} onClick={()=>setStageFilter("الكل")}>الكل <em>{rows.length}</em></button>{stages.map(stage=><button key={stage} className={stageFilter===stage?"active":""} onClick={()=>setStageFilter(stage)}>{stage}<em>{rows.filter(row=>row.stage===stage).length}</em></button>)}</div><a className="trainee-export" href="/api/trainee-progress?format=portable" target="_blank" rel="noreferrer"><Download size={15}/> تصدير للنقل</a></section>
     {error&&<div className="inline-error" role="alert">{error}</div>}
-    <section className="trainee-progress-list">{filtered.length?filtered.map(row=><article key={row.enrollment_id}>
-      <header><i>{row.customer_name.slice(0,2)}</i><div><b>{row.customer_name}</b><span>{row.order_number||row.enrollment_id} · {row.track||"المسار غير محدد"}</span></div><em className={`status-${row.stage_status.replaceAll(" ","-")}`}>{row.stage_status}</em></header>
-      <div className="trainee-stage-rail" aria-label={`تقدم ${row.customer_name}`}>{stages.map((stage,index)=>{const current=stages.indexOf(row.stage),done=index<current||(index===current&&row.stage_status==="مكتمل");return <span className={done?"done":index===current?"current":""} key={stage}><i>{done?<Check size={14}/>:index+1}</i><b>{stage}</b></span>})}</div>
-      <div className="trainee-progress-details"><span><small>الدفعة</small><b>{row.cohort_label||"غير محددة"}</b></span><span><small>مسؤول المتابعة</small><b>{row.owner_email?.split("@")[0]||"غير مسند"}</b></span><span><small>آخر تحديث</small><b>{row.updated_at?new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ بعد"}</b></span></div>
-      <div className="trainee-progress-controls"><label><span>المرحلة الحالية</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage} onChange={event=>void update(row,{stage:event.target.value,stage_status:"لم يبدأ"})}>{stages.map(stage=><option key={stage}>{stage}</option>)}</select></label><label><span>حالة المرحلة</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage_status} onChange={event=>void update(row,{stage_status:event.target.value})}>{statuses.map(status=><option key={status}>{status}</option>)}</select></label><label className="progress-note"><span>ملاحظة المتابعة</span><input disabled={!canManage||saving===row.enrollment_id} defaultValue={row.note||""} placeholder="مثال: سلّم التطبيق وبانتظار المراجعة" onBlur={event=>{if(event.target.value!==String(row.note||""))void update(row,{note:event.target.value})}}/></label></div>
-    </article>):<div className="guided-empty"><ChartNoAxesCombined size={28}/><b>لا يوجد متدربون ضمن هذا العرض</b><span>يظهر متدرب إدارة السلوك التنظيمي هنا تلقائيًا بعد اكتمال تهيئته وتفعيله.</span></div>}</section>
+    {activeRows.length?<section className="trainee-progress-list">{activeRows.map(renderCard)}</section>:!completedRows.length&&<div className="guided-empty"><ChartNoAxesCombined size={28}/><b>لا يوجد متدربون ضمن هذا العرض</b><span>يظهر متدرب إدارة السلوك التنظيمي هنا تلقائيًا بعد اكتمال تهيئته وتفعيله.</span></div>}
+    {completedRows.length>0&&<details className="completed-trainees"><summary><span><Check size={16}/> المكتملون</span><em>{completedRows.length}</em></summary><section className="trainee-progress-list">{completedRows.map(renderCard)}</section></details>}
   </div>;
 }
 
@@ -4736,7 +4744,7 @@ type StaffRow = {
   has_password?: number;
 };
 function ControlPanel() {
-  const [section, setSection] = useState<"users" | "programs" | "dates" | "reminders">("users");
+  const [section, setSection] = useState<"users" | "programs" | "dates" | "reminders" | "quality">("users");
   return (
     <div className="control-panel">
       <nav className="control-panel-tabs" aria-label="أقسام لوحة التحكم">
@@ -4768,10 +4776,25 @@ function ControlPanel() {
           <MessageSquareText size={18} />
           قوالب التذكير
         </button>
+        <button className={section === "quality" ? "active" : ""} onClick={() => setSection("quality")}>
+          <DatabaseBackup size={18} />
+          جودة البيانات
+        </button>
       </nav>
-      {section === "users" ? <Users /> : section === "programs" ? <Programs /> : section === "dates" ? <TeamEventsAdmin /> : <ReminderTemplatesAdmin />}
+      {section === "users" ? <Users /> : section === "programs" ? <Programs /> : section === "dates" ? <TeamEventsAdmin /> : section === "quality" ? <DataQualityAdmin /> : <ReminderTemplatesAdmin />}
     </div>
   );
+}
+
+type DataQualityIssue={id:string;name:string;phone:string;email:string;source?:string;cohort?:string;order_number?:string;issue:"email"|"phone"|"order"};
+function DataQualityAdmin(){
+  const [issues,setIssues]=useState<DataQualityIssue[]>([]),[historical,setHistorical]=useState<{id:string;name:string;open_enrollments:number}[]>([]),[editing,setEditing]=useState<DataQualityIssue|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState("");
+  const load=async()=>{setLoading(true);setError("");try{const data=await apiJson("/api/data-quality");setIssues(data.issues||[]);setHistorical(data.historical||[]);}catch(cause){setError((cause as Error).message);}finally{setLoading(false)}};
+  useEffect(()=>{void load()},[]);
+  const save=async()=>{if(!editing)return;setSaving(true);setError("");try{await apiJson("/api/customers",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({customerId:editing.id,name:editing.name,phone:editing.phone,email:editing.email,source:editing.source||"",cohort:editing.cohort||""})});setEditing(null);await load();window.dispatchEvent(new CustomEvent("sulukera:success",{detail:{message:"تم تصحيح بيانات العميل مع حفظ سجل التغيير"}}));}catch(cause){setError((cause as Error).message);}finally{setSaving(false)}};
+  if(loading)return <LiveState loading error="" empty={false}/>;
+  const labels={email:"بريد غير صالح",phone:"جوال ناقص",order:"دون طلب مرتبط"};
+  return <section className="data-quality-admin"><header><div><DatabaseBackup size={22}/><span><h2>مركز جودة البيانات</h2><p>يعرض المشكلات فقط ولا يغيّر أي سجل تلقائيًا. كل تصحيح يدوي يُحفظ في سجل التدقيق.</p></span></div><em>{issues.length} حالة للمراجعة</em></header>{error&&<div className="inline-error" role="alert">{error}</div>}<div className="data-quality-summary"><span><b>{issues.filter(item=>item.issue==="email").length}</b> بريد يحتاج تصحيحًا</span><span><b>{issues.filter(item=>item.issue==="phone").length}</b> جوال ناقص</span><span><b>{issues.filter(item=>item.issue==="order").length}</b> ملف بلا طلب</span><span><b>{historical.length}</b> علاقة تاريخية مستبعدة</span></div><div className="data-quality-list">{issues.map(item=><article key={item.id}><div><b>{item.name}</b><span>{item.order_number||item.id}</span></div><em className={`issue-${item.issue}`}>{labels[item.issue]}</em><small dir="ltr">{item.phone} · {item.email}</small>{item.issue!=="order"&&<button onClick={()=>setEditing({...item})}>مراجعة وتصحيح</button>}</article>)}</div>{historical.length>0&&<details className="historical-relations"><summary>العلاقات التاريخية المستبعدة من التشغيل ({historical.length})</summary><p>هذه السجلات محفوظة للتدقيق ولا تظهر في القوائم التشغيلية، ولم يتم تعديلها أو حذفها.</p></details>}{editing&&<div className="quality-editor-backdrop"><section className="quality-editor" role="dialog" aria-modal="true" aria-labelledby="quality-editor-title"><header><div><h3 id="quality-editor-title">تصحيح بيانات العميل</h3><p>لن تتأثر الطلبات أو الدفعات أو رحلة العميل.</p></div><button aria-label="إغلاق" onClick={()=>setEditing(null)}><X size={18}/></button></header><label>اسم العميل<input value={editing.name} onChange={event=>setEditing({...editing,name:event.target.value})}/></label><label>رقم الجوال<input dir="ltr" value={editing.phone} onChange={event=>setEditing({...editing,phone:event.target.value})}/></label><label>البريد الإلكتروني<input type="email" dir="ltr" value={editing.email} onChange={event=>setEditing({...editing,email:event.target.value})}/></label><footer><button onClick={()=>setEditing(null)}>إلغاء</button><button className="primary" disabled={saving||!editing.name.trim()||!editing.phone.trim()||!editing.email.includes("@")} onClick={()=>void save()}>{saving?"جارٍ الحفظ…":"حفظ التصحيح"}</button></footer></section></div>}</section>;
 }
 
 const reminderTemplateLabels: Record<string,string> = { first:"التذكير الأول", second:"التذكير الثاني", third:"التذكير الثالث", final:"التذكير النهائي" };

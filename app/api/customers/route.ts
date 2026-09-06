@@ -97,6 +97,8 @@ export async function PATCH(req: Request) {
   const source = String(body.source || "").trim();
   const cohort = String(body.cohort || "").trim();
   if (!customerId || !name || !phone || !email) return Response.json({ error: "الاسم والجوال والبريد مطلوبة" }, { status: 400 });
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"صيغة البريد الإلكتروني غير صحيحة"},{status:400});
+  if(!/^00[1-9]\d{8,14}$/.test(phone))return Response.json({error:"رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"},{status:400});
   const db = operationalDb();
   const current = await db.prepare(`SELECT c.id,c.name,c.phone,c.email,o.id order_id,o.purchase_source source,o.cohort_label cohort
     FROM customers c LEFT JOIN orders o ON o.id=(SELECT id FROM orders WHERE customer_id=c.id ORDER BY created_at DESC LIMIT 1)

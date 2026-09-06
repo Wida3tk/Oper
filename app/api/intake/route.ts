@@ -21,6 +21,7 @@ export async function POST(req: Request) {
   const programId = String(body.programId || "");
   if (!name || !phone || !email || !programId) return Response.json({ error: "الاسم والجوال والبريد والبرنامج مطلوبة" }, { status: 400 });
   if(!/^00[1-9]\d{8,14}$/.test(phone))return Response.json({error:"رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"},{status:400});
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"صيغة البريد الإلكتروني غير صحيحة"},{status:400});
   const journey=String(body.journey||"اشتراك");
   const track=String(body.track||"").trim(),requestedDelivery=String(body.delivery||"").trim(),requestedLanguage=String(body.language||"").trim(),cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim(),assignmentDate=String(body.assignmentDate||"").trim();
   const db = operationalDb();

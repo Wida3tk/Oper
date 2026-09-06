@@ -891,7 +891,26 @@ test("tracks OBM trainees in a portable post-activation module", async()=>{
   assert.match(api,/o\.status!='محذوف'/);
   assert.match(api,/إدارة السلوك التنظيمي/);
   assert.match(api,/UPDATE_TRAINEE_PROGRESS/);
+  assert.match(api,/trainee_progress_events/);
+  assert.match(api,/format.*portable/);
+  assert.match(api,/due_at/);
   assert.match(schema,/traineeProgress/);
+  assert.match(schema,/traineeProgressEvents/);
   assert.match(page,/"مكتمل":3/);
+  assert.match(page,/الموعد المستهدف/);
+  assert.match(page,/سجل التقدم/);
+  assert.match(page,/تصدير للنقل/);
   assert.match(customers,/DELETE FROM trainee_progress/);
+});
+
+test("audits data quality without automatically mutating customer records",async()=>{
+  const page=await read("../app/page.tsx");
+  const quality=await read("../app/api/data-quality/route.ts");
+  const intake=await read("../app/api/intake/route.ts");
+  assert.match(page,/مركز جودة البيانات/);
+  assert.match(page,/لا يغيّر أي سجل تلقائيًا/);
+  assert.match(page,/مراجعة وتصحيح/);
+  assert.match(quality,/readOnlyAudit: true/);
+  assert.doesNotMatch(quality,/export async function (POST|PATCH|DELETE)/);
+  assert.match(intake,/صيغة البريد الإلكتروني غير صحيحة/);
 });
