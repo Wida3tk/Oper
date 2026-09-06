@@ -58,6 +58,7 @@ export function ensureFinanceClassificationSchema(db:ReturnType<typeof operation
       "ALTER TABLE installments ADD COLUMN last_reminded_by_email TEXT",
     ]){try{await db.prepare(sql).run()}catch(error){if(!String(error).toLowerCase().includes("duplicate column"))throw error}}
     await db.prepare("CREATE TABLE IF NOT EXISTS monthly_sales_targets(month_key TEXT PRIMARY KEY,target_amount REAL NOT NULL DEFAULT 0,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+    await db.prepare("CREATE TABLE IF NOT EXISTS weekly_sales_targets(month_key TEXT NOT NULL,week_index INTEGER NOT NULL,target_amount REAL NOT NULL DEFAULT 0,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(month_key,week_index))").run();
     await db.prepare("CREATE TABLE IF NOT EXISTS system_migrations(key TEXT PRIMARY KEY,applied_at TEXT NOT NULL)").run();
     await db.prepare("UPDATE installments SET reminder_count=CASE WHEN status IN ('تذكير ثانٍ','تذكير ثالث','إنذار','تطبيق السياسة') THEN 2 WHEN status='تذكير أول' THEN 1 ELSE reminder_count END WHERE reminder_count=0").run();
     const migrated=await db.prepare("SELECT key FROM system_migrations WHERE key='financial-flow-v1'").first();

@@ -305,12 +305,18 @@ test("explains live dashboard metrics and removes the seat reservation reflectio
 test("tracks motivational weekly targets from Saturday through Thursday", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
+  const api = await read("../app/api/dashboard/home/route.ts");
+  const operations = await read("../app/api/_lib/operations.ts");
   assert.match(page, /firstSaturdayDay=1\+\(6-monthStart\.getDay\(\)\+7\)%7/);
   assert.match(page, /startDay\+5/);
-  assert.match(page, /سباق الهدف الأسبوعي/);
-  assert.match(page, /الجمعة خارج فترة القياس/);
+  assert.match(page, /تحدي الأسبوع/);
+  assert.match(page, /الجمعة خارج القياس/);
+  assert.match(page, /saveWeeklyTarget/);
+  assert.match(page, /هدف الأسبوع/);
   assert.match(page, /إجمالي المبيعات/);
   assert.match(page, /إجمالي التحصيل/);
+  assert.match(api, /weekly_sales_targets/);
+  assert.match(operations, /weekly_sales_targets/);
   assert.match(css, /\.weekly-targets/);
   assert.match(css, /\.chart-total-cards/);
 });

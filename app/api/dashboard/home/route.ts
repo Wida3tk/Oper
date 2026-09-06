@@ -45,7 +45,7 @@ export async function GET(req:Request){
   ].map(group=>{const rows=(traineeRows.results as Record<string,unknown>[]).filter(row=>group.match(String(row.program_name||"")));const details=new Map<string,number>();for(const row of rows){const program=String(row.program_name||"غير محدد"),track=String(row.detail||"غير محدد"),label=group.key==="ceu"?program:(track==="غير محدد"?program:track);details.set(label,(details.get(label)||0)+num(row.count))}return {key:group.key,label:group.label,count:rows.reduce((sum,row)=>sum+num(row.count),0),details:[...details].map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count)};});
   let finance=null;
   if(canSeeFinance){
-    const [contracts,contractPayments,flows,target,review,refunds]=await Promise.all([
+    const [contracts,contractPayments,flows,target,weeklyTargets,review,refunds]=await Promise.all([
       db.prepare("SELECT COUNT(*) orders,COALESCE(SUM(o.total),0) value FROM orders o JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND o.status!='منسحب' AND substr(o.created_at,1,7)=?").bind(month).first(),
       db.prepare(`SELECT COALESCE(SUM(p.amount),0) paid
         FROM payments p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id
@@ -57,6 +57,7 @@ export async function GET(req:Request){
         WHERE c.deleted_at IS NULL AND p.classification_status='confirmed' AND p.flow_type IN ('sale','collection') AND substr(COALESCE(p.paid_at,p.created_at),1,7)=?
         GROUP BY day ORDER BY day`).bind(month).all(),
       db.prepare("SELECT target_amount FROM monthly_sales_targets WHERE month_key=?").bind(month).first(),
+      db.prepare("SELECT week_index,target_amount FROM weekly_sales_targets WHERE month_key=? ORDER BY week_index").bind(month).all(),
       db.prepare(`SELECT CASE
         WHEN o.order_type='إشراف' THEN 'supervision'
         WHEN o.payment_plan='أقساط' THEN 'installments'
@@ -73,7 +74,7 @@ export async function GET(req:Request){
     const grossSales=flows.results.reduce((sum,row)=>sum+num(row.sales),0),grossCollections=flows.results.reduce((sum,row)=>sum+num(row.collections),0),salesRefunds=refunds.results.reduce((sum,row)=>sum+num(row.sales_refunds),0),collectionRefunds=refunds.results.reduce((sum,row)=>sum+num(row.collection_refunds),0),sales=grossSales-salesRefunds,collections=grossCollections-collectionRefunds,contractValue=num((contracts as Record<string,unknown>)?.value);
     const reviewBreakdown=Object.fromEntries(review.results.map(row=>[String(row.kind),num(row.count)]));
     const reviewCount=Object.values(reviewBreakdown).reduce((sum,count)=>sum+Number(count||0),0);
-    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,grossSales,grossCollections,salesRefunds,collectionRefunds,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),reviewCount,reviewBreakdown,daily};
+    finance={month,orders:num((contracts as Record<string,unknown>)?.orders),contractValue,sales,collections,grossSales,grossCollections,salesRefunds,collectionRefunds,cash:sales+collections,remaining:Math.max(contractValue-num((contractPayments as Record<string,unknown>)?.paid),0),target:num((target as Record<string,unknown>)?.target_amount),weeklyTargets:Object.fromEntries(weeklyTargets.results.map(row=>[String(row.week_index),num(row.target_amount)])),reviewCount,reviewBreakdown,daily};
   }
   return Response.json({
     user:{email:auth.email,name:account?.display_name||auth.email.split("@")[0],roles:auth.roles},
@@ -87,9 +88,11 @@ export async function GET(req:Request){
 export async function PATCH(req:Request){
   const auth=await authorize(req,["finance"]);if(!auth.ok)return auth.response;
   if(!can(auth,"finance.total.edit"))return Response.json({error:"ليس لديك صلاحية تعديل هدف المبيعات"},{status:403});
-  const body=await req.json() as Record<string,unknown>,month=String(body.month||""),target=Number(body.target||0);
-  if(!/^\d{4}-\d{2}$/.test(month)||!Number.isFinite(target)||target<0)return Response.json({error:"الشهر والهدف مطلوبان"},{status:400});
+  const body=await req.json() as Record<string,unknown>,month=String(body.month||"");
+  if(!/^\d{4}-\d{2}$/.test(month))return Response.json({error:"الشهر مطلوب"},{status:400});
   const db=operationalDb();await ensureFinanceClassificationSchema(db);const now=new Date().toISOString();
+  if(body.weekIndex!==undefined){const weekIndex=Number(body.weekIndex),target=Number(body.target||0);if(!Number.isInteger(weekIndex)||weekIndex<1||weekIndex>6||!Number.isFinite(target)||target<0)return Response.json({error:"رقم الأسبوع والهدف الأسبوعي غير صالحين"},{status:400});await db.prepare("INSERT INTO weekly_sales_targets(month_key,week_index,target_amount,updated_by_email,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(month_key,week_index) DO UPDATE SET target_amount=excluded.target_amount,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(month,weekIndex,target,auth.email,now).run();return Response.json({ok:true,month,weekIndex,target});}
+  const target=Number(body.target||0);if(!Number.isFinite(target)||target<0)return Response.json({error:"الهدف الشهري غير صالح"},{status:400});
   await db.prepare("INSERT INTO monthly_sales_targets(month_key,target_amount,updated_by_email,updated_at) VALUES(?,?,?,?) ON CONFLICT(month_key) DO UPDATE SET target_amount=excluded.target_amount,updated_by_email=excluded.updated_by_email,updated_at=excluded.updated_at").bind(month,target,auth.email,now).run();
   return Response.json({ok:true,month,target});
 }
