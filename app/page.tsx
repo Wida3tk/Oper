@@ -61,6 +61,7 @@ type View =
   | "customers"
   | "reservations"
   | "program-activation"
+  | "trainee-progress"
   | "contact"
   | "registration"
   | "assignment"
@@ -83,6 +84,7 @@ type NavIcon =
   | "finance"
   | "users"
   | "programs"
+  | "progress"
   | "b2b"
   | "partnerships"
   | "reports";
@@ -98,6 +100,7 @@ const navIcons: Record<NavIcon, LucideIcon> = {
   finance: HandCoins,
   users: Settings2,
   programs: FolderKanban,
+  progress: ChartNoAxesCombined,
   b2b: BriefcaseBusiness,
   partnerships: Handshake,
   reports: FileChartColumn,
@@ -127,6 +130,7 @@ const navGroups: {
     items: [
       ["dashboard", "الرئيسية", "dashboard"],
       ["work", "مركز العمليات", "tasks"],
+      ["trainee-progress", "تقدم المتدربين", "progress"],
     ],
   },
   {
@@ -319,6 +323,7 @@ const titles: Record<View, [string, string]> = {
     "الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل",
   ],
   "program-activation": ["تفعيل البرامج", "برامج التعليم المستمر المباشرة الجاهزة للتفعيل"],
+  "trainee-progress": ["تقدم المتدربين", "متابعة مراحل متدربي شهادة إدارة السلوك التنظيمي بعد التفعيل"],
   contact: ["تسليم العميل", "تسجيل بيانات العميل ومتابعة عملاء التجربة"],
   registration: [
     "تهيئة العميل",
@@ -646,6 +651,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     currentUser.permissions.includes(permission);
   const canOpen = (id: View) =>
     ["dashboard", "work"].includes(id) ||
+    (id === "trainee-progress" && (has("customers.view") || has("programs.activate"))) ||
     (id === "customers" && has("customers.view")) ||
     (["contact", "registration"].includes(id) && has("customers.manage")) ||
     (["assignment", "program-activation"].includes(id) && has("programs.activate")) ||
@@ -948,6 +954,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
             </>
           )}
           {view === "work" && <LiveWork onNavigate={go} onOpenCustomer={open} />}
+          {view === "trainee-progress" && <TraineeProgress canManage={currentUser.roles.includes("admin") || currentUser.roles.includes("academy")} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
           {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
           {view === "contact" && (
@@ -3684,6 +3691,29 @@ function LiveCustomers({
       </div>
     </>
   );
+}
+
+type TraineeProgressRow = { enrollment_id:string;customer_id:string;customer_name:string;phone?:string;email?:string;program_name:string;order_number?:string;track?:string;cohort_label?:string;owner_email?:string;activated_at?:string;stage:string;stage_status:string;note?:string;updated_by_email?:string;updated_at?:string };
+
+function TraineeProgress({canManage}:{canManage:boolean}) {
+  const [rows,setRows]=useState<TraineeProgressRow[]>([]),[stages,setStages]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[stageFilter,setStageFilter]=useState("الكل"),[search,setSearch]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saving,setSaving]=useState("");
+  const load=async()=>{setLoading(true);setError("");try{const data=await apiJson("/api/trainee-progress");setRows(data.trainees||[]);setStages(data.stages||[]);setStatuses(data.statuses||[]);}catch(cause){setError((cause as Error).message);}finally{setLoading(false)}};
+  useEffect(()=>{void load();},[]);
+  const update=async(row:TraineeProgressRow,patch:Partial<TraineeProgressRow>)=>{const next={...row,...patch};setSaving(row.enrollment_id);setError("");try{await apiJson("/api/trainee-progress",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enrollmentId:row.enrollment_id,stage:next.stage,status:next.stage_status,note:next.note||""})});setRows(current=>current.map(item=>item.enrollment_id===row.enrollment_id?next:item));window.dispatchEvent(new CustomEvent("sulukera:success",{detail:{message:"تم تحديث تقدم المتدرب"}}));}catch(cause){setError((cause as Error).message);}finally{setSaving("")}};
+  if(loading||error&&!rows.length)return <LiveState loading={loading} error={error} empty={false}/>;
+  const filtered=rows.filter(row=>(stageFilter==="الكل"||row.stage===stageFilter)&&`${row.customer_name} ${row.order_number||""} ${row.email||""}`.toLowerCase().includes(search.toLowerCase()));
+  const completed=rows.filter(row=>row.stage==="المشروع"&&row.stage_status==="مكتمل").length,waiting=rows.filter(row=>row.stage_status==="بانتظار المتدرب").length;
+  return <div className="trainee-progress-page">
+    <section className="trainee-progress-summary"><div><ChartNoAxesCombined size={22}/><span><b>مسار مستقل بعد التفعيل</b><small>تُسحب هوية المتدرب من سجل العميل، ويُحفظ التقدم منفصلًا استعدادًا لنقله إلى نظام الطلاب.</small></span></div><dl><div><dt>إجمالي المتدربين</dt><dd>{rows.length}</dd></div><div><dt>بانتظار المتدرب</dt><dd>{waiting}</dd></div><div><dt>أكملوا المشروع</dt><dd>{completed}</dd></div></dl></section>
+    <section className="trainee-progress-toolbar"><label><Search size={17}/><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="ابحث باسم المتدرب أو رقم الطلب"/></label><div role="tablist" aria-label="تصفية حسب المرحلة"><button className={stageFilter==="الكل"?"active":""} onClick={()=>setStageFilter("الكل")}>الكل <em>{rows.length}</em></button>{stages.map(stage=><button key={stage} className={stageFilter===stage?"active":""} onClick={()=>setStageFilter(stage)}>{stage}<em>{rows.filter(row=>row.stage===stage).length}</em></button>)}</div></section>
+    {error&&<div className="inline-error" role="alert">{error}</div>}
+    <section className="trainee-progress-list">{filtered.length?filtered.map(row=><article key={row.enrollment_id}>
+      <header><i>{row.customer_name.slice(0,2)}</i><div><b>{row.customer_name}</b><span>{row.order_number||row.enrollment_id} · {row.track||"المسار غير محدد"}</span></div><em className={`status-${row.stage_status.replaceAll(" ","-")}`}>{row.stage_status}</em></header>
+      <div className="trainee-stage-rail" aria-label={`تقدم ${row.customer_name}`}>{stages.map((stage,index)=>{const current=stages.indexOf(row.stage),done=index<current||(index===current&&row.stage_status==="مكتمل");return <span className={done?"done":index===current?"current":""} key={stage}><i>{done?<Check size={14}/>:index+1}</i><b>{stage}</b></span>})}</div>
+      <div className="trainee-progress-details"><span><small>الدفعة</small><b>{row.cohort_label||"غير محددة"}</b></span><span><small>مسؤول المتابعة</small><b>{row.owner_email?.split("@")[0]||"غير مسند"}</b></span><span><small>آخر تحديث</small><b>{row.updated_at?new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn"):"لم يبدأ بعد"}</b></span></div>
+      <div className="trainee-progress-controls"><label><span>المرحلة الحالية</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage} onChange={event=>void update(row,{stage:event.target.value,stage_status:"لم يبدأ"})}>{stages.map(stage=><option key={stage}>{stage}</option>)}</select></label><label><span>حالة المرحلة</span><select disabled={!canManage||saving===row.enrollment_id} value={row.stage_status} onChange={event=>void update(row,{stage_status:event.target.value})}>{statuses.map(status=><option key={status}>{status}</option>)}</select></label><label className="progress-note"><span>ملاحظة المتابعة</span><input disabled={!canManage||saving===row.enrollment_id} defaultValue={row.note||""} placeholder="مثال: سلّم التطبيق وبانتظار المراجعة" onBlur={event=>{if(event.target.value!==String(row.note||""))void update(row,{note:event.target.value})}}/></label></div>
+    </article>):<div className="guided-empty"><ChartNoAxesCombined size={28}/><b>لا يوجد متدربون ضمن هذا العرض</b><span>يظهر متدرب إدارة السلوك التنظيمي هنا تلقائيًا بعد اكتمال تهيئته وتفعيله.</span></div>}</section>
+  </div>;
 }
 
 type OperationsCenterData = {

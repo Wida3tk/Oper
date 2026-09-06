@@ -876,3 +876,17 @@ test("keeps seat transfers compact and exposes a month-selectable collection das
   assert.match(page,/المتبقي من أقساط الشهر/);
   assert.match(css,/\.collection-dashboard/);
 });
+
+test("tracks OBM trainees in a portable post-activation module", async()=>{
+  const page=await read("../app/page.tsx");
+  const api=await read("../app/api/trainee-progress/route.ts");
+  const schema=await read("../db/schema.ts");
+  assert.match(page,/تقدم المتدربين/);
+  assert.match(api,/الممارس/);
+  assert.match(api,/الخبير \/ المستشار/);
+  assert.match(api,/المشروع/);
+  assert.match(api,/e\.status='مكتمل'/);
+  assert.match(api,/إدارة السلوك التنظيمي/);
+  assert.match(api,/UPDATE_TRAINEE_PROGRESS/);
+  assert.match(schema,/traineeProgress/);
+});

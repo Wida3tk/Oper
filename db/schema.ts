@@ -211,6 +211,19 @@ export const workflowTasks = sqliteTable("workflow_tasks", {
   completedAt: text("completed_at"),
 }, (table) => [index("workflow_tasks_entity_idx").on(table.entityType, table.entityId), index("workflow_tasks_assignee_idx").on(table.assigneeEmail, table.status)]);
 
+// Deliberately isolated from onboarding so this module can move to the student system later.
+export const traineeProgress = sqliteTable("trainee_progress", {
+  enrollmentId: text("enrollment_id").primaryKey().references(() => enrollments.id),
+  stage: text("stage").notNull().default("الممارس"),
+  stageStatus: text("stage_status").notNull().default("لم يبدأ"),
+  note: text("note"),
+  stageStartedAt: text("stage_started_at"),
+  stageCompletedAt: text("stage_completed_at"),
+  updatedByEmail: text("updated_by_email"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const staffRoles = sqliteTable("staff_roles", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
