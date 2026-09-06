@@ -55,6 +55,10 @@ export async function DELETE(req: Request) {
   if (!customer || customer.deleted_at) return Response.json({ error: "العميل غير موجود أو محذوف مسبقًا" }, { status: 404 });
 
   const now = new Date().toISOString();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS trainee_progress(
+    enrollment_id TEXT PRIMARY KEY,stage TEXT NOT NULL DEFAULT 'الممارس',stage_status TEXT NOT NULL DEFAULT 'لم يبدأ',note TEXT,
+    stage_started_at TEXT,stage_completed_at TEXT,updated_by_email TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL
+  )`).run();
   await db.batch([
     db.prepare(`UPDATE workflow_tasks SET status='مكتملة',completed_at=? WHERE status!='مكتملة' AND (
       (entity_type='enrollment' AND entity_id IN (SELECT id FROM enrollments WHERE customer_id=?))
@@ -68,6 +72,7 @@ export async function DELETE(req: Request) {
     db.prepare("DELETE FROM installments WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId),
     db.prepare("DELETE FROM finance_notes WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId),
     db.prepare("DELETE FROM attention_followups WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId),
+    db.prepare("DELETE FROM trainee_progress WHERE enrollment_id IN (SELECT id FROM enrollments WHERE customer_id=?)").bind(customerId),
     db.prepare("DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId),
     db.prepare("DELETE FROM payment_intents WHERE resulting_customer_id=? OR resulting_order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId, customerId),
     db.prepare("UPDATE seat_reservations SET fee_amount=0,status='ملغي',updated_at=? WHERE customer_id=?").bind(now, customerId),

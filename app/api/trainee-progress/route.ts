@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     COALESCE(tp.stage,'الممارس') stage,COALESCE(tp.stage_status,'لم يبدأ') stage_status,tp.note,tp.stage_started_at,tp.stage_completed_at,tp.updated_by_email,tp.updated_at
     FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id JOIN orders o ON o.id=e.order_id
     LEFT JOIN trainee_progress tp ON tp.enrollment_id=e.id
-    WHERE p.name LIKE '%إدارة السلوك التنظيمي%' AND e.status='مكتمل'
+    WHERE p.name LIKE '%إدارة السلوك التنظيمي%' AND e.status='مكتمل' AND c.deleted_at IS NULL AND o.status!='محذوف'
     ORDER BY CASE COALESCE(tp.stage_status,'لم يبدأ') WHEN 'بانتظار المتدرب' THEN 0 WHEN 'قيد التقدم' THEN 1 WHEN 'لم يبدأ' THEN 2 ELSE 3 END,COALESCE(tp.updated_at,e.completed_at,e.updated_at) DESC`).all();
   return Response.json({ trainees: results, stages, statuses });
 }
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const body = await req.json() as Record<string, unknown>, enrollmentId = String(body.enrollmentId || ""), stage = String(body.stage || ""), status = String(body.status || ""), note = String(body.note || "").trim();
   if (!enrollmentId || !stages.includes(stage) || !statuses.includes(status)) return Response.json({ error: "بيانات مرحلة التقدم غير مكتملة" }, { status: 400 });
   const db = operationalDb(); await ensureSchema(db);
-  const eligible = await db.prepare("SELECT 1 ok FROM enrollments e JOIN programs p ON p.id=e.program_id WHERE e.id=? AND e.status='مكتمل' AND p.name LIKE '%إدارة السلوك التنظيمي%'").bind(enrollmentId).first();
+  const eligible = await db.prepare("SELECT 1 ok FROM enrollments e JOIN programs p ON p.id=e.program_id JOIN customers c ON c.id=e.customer_id JOIN orders o ON o.id=e.order_id WHERE e.id=? AND e.status='مكتمل' AND c.deleted_at IS NULL AND o.status!='محذوف' AND p.name LIKE '%إدارة السلوك التنظيمي%'").bind(enrollmentId).first();
   if (!eligible) return Response.json({ error: "المتدرب غير مؤهل لمسار تقدم إدارة السلوك التنظيمي" }, { status: 409 });
   const now = new Date().toISOString(), startedAt = status === "لم يبدأ" ? null : now, completedAt = status === "مكتمل" ? now : null;
   await db.batch([
