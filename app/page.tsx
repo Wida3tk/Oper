@@ -4247,9 +4247,10 @@ function OperationsCustomerCard({
       </button>
       <div className="ops-row-cell">
         <span>البرنامج</span>
-        <b>{row.program_name}</b>
+        <b>{programFamily(row.program_name)}</b>
         <div className="ops-program-tags">
-          {row.program_track && row.program_track !== "غير محدد" && <small className="ops-program-track">البرنامج الفرعي: {row.program_track}</small>}
+          {liveProgramClassification(row) && <small className="ops-program-track">التصنيف: {liveProgramClassification(row)}</small>}
+          {liveProgramOperationalNote(row) && <small className="ops-program-note">ملاحظة تشغيلية: {liveProgramOperationalNote(row)}</small>}
           {row.program_delivery && row.program_track?.toUpperCase() !== "ABAT" && <small className={`ops-program-delivery ${row.program_delivery === "مباشر" ? "live" : "recorded"}`}>{row.program_delivery}</small>}
           {Boolean(row.competency_assessment) && <small className="ops-competency-badge">مع تقييم كفاءة</small>}
         </div>
@@ -4397,12 +4398,7 @@ function LiveAcademy({
   const availableStatuses = Array.from(
     new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
   );
-  const programPathLabel = (row: LiveEnrollment) => {
-    const track = String(row.program_track || "").trim();
-    return track && track !== "غير محدد"
-      ? track
-      : row.program_name;
-  };
+  const programPathLabel = (row: LiveEnrollment) => liveProgramClassification(row);
   const pathFilterPrograms = ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي", "التعليم المستمر"];
   const availableSubprograms = pathFilterPrograms.includes(programFilter)
     ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === programFilter).map(programPathLabel).filter(Boolean)))
@@ -4471,7 +4467,7 @@ function LiveAcademy({
           <i>{selectedRow.customer_name.slice(0, 2)}</i>
           <div>
             <h2>{selectedRow.customer_name}</h2>
-            <div className="profile-meta-line"><p>{selectedRow.program_name}</p>{selectedRow.program_delivery&&<em className={`profile-delivery ${selectedRow.program_delivery === "مباشر" ? "live" : "recorded"}`}>{selectedRow.program_delivery}</em>}</div>
+            <div className="profile-meta-line"><p>{programFamily(selectedRow.program_name)}</p>{selectedRow.program_delivery&&<em className={`profile-delivery ${selectedRow.program_delivery === "مباشر" ? "live" : "recorded"}`}>{selectedRow.program_delivery}</em>}</div>
             {selectedRow.created_at&&<small className="profile-created-at">أضيف في {new Date(selectedRow.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
           </div>
         </div>
@@ -4526,7 +4522,7 @@ function LiveAcademy({
           </div>
           <div className="info customer-data">
             <label>
-              البرنامج<b>{selectedRow.program_name}{selectedRow.program_track && selectedRow.program_track !== "غير محدد" && <small className="drawer-program-track">البرنامج الفرعي: {selectedRow.program_track}</small>}{selectedRow.program_delivery && selectedRow.program_track?.toUpperCase() !== "ABAT" && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}{Boolean(selectedRow.competency_assessment) && <small className="drawer-competency-badge">مع تقييم كفاءة</small>}</b>
+              البرنامج<b>{programFamily(selectedRow.program_name)}{liveProgramClassification(selectedRow) && <small className="drawer-program-track">التصنيف: {liveProgramClassification(selectedRow)}</small>}{liveProgramOperationalNote(selectedRow) && <small className="drawer-program-note">ملاحظة تشغيلية: {liveProgramOperationalNote(selectedRow)}</small>}{selectedRow.program_delivery && selectedRow.program_track?.toUpperCase() !== "ABAT" && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}{Boolean(selectedRow.competency_assessment) && <small className="drawer-competency-badge">مع تقييم كفاءة</small>}</b>
             </label>
             <label>
               رقم الطلب<b>{selectedRow.order_number || selectedRow.order_id}</b>
@@ -4679,7 +4675,7 @@ function LiveAcademy({
           subcategories={availableSubprograms}
           subcategory={subprogramFilter}
           onSubcategory={setSubprogramFilter}
-          tertiaryLabel={programFilter === "التعليم المستمر" ? "البرنامج الفرعي" : "المسار"}
+          tertiaryLabel={programFilter === "التعليم المستمر" ? "التصنيف المعتمد" : "المسار"}
         />}
         {board}
         {detailPanel}
@@ -4700,7 +4696,7 @@ function LiveAcademy({
         subcategories={availableSubprograms}
         subcategory={subprogramFilter}
         onSubcategory={setSubprogramFilter}
-        tertiaryLabel={programFilter === "التعليم المستمر" ? "البرنامج الفرعي" : "المسار"}
+        tertiaryLabel={programFilter === "التعليم المستمر" ? "التصنيف المعتمد" : "المسار"}
       />
       <div className="assignment-workspace">
         <div className="assignment-banner">
@@ -8903,6 +8899,27 @@ function programFamily(programName: string) {
   if (value.includes("إدارة السلوك التنظيمي") || value.includes("ادارة السلوك التنظيمي") || value.includes("obm")) return "إدارة السلوك التنظيمي";
   if (value.includes("تحليل السلوك التطبيقي") || value.includes("aba")) return "تحليل السلوك التطبيقي";
   return "التعليم المستمر";
+}
+
+const continuingEducationClassifications = ["الاقتصاد السلوكي", "انتقائية الطعام"] as const;
+
+function liveProgramClassification(row: LiveEnrollment) {
+  const family = programFamily(row.program_name);
+  const track = String(row.program_track || "").trim();
+  if (family !== "التعليم المستمر")
+    return track && !["—", "غير محدد"].includes(track) ? track : "";
+  const source = `${row.program_name || ""} ${track}`;
+  return continuingEducationClassifications.find((name) => source.includes(name)) || "";
+}
+
+function liveProgramOperationalNote(row: LiveEnrollment) {
+  if (programFamily(row.program_name) !== "التعليم المستمر") return "";
+  const generic = new Set(["", "—", "غير محدد", "التعليم المستمر"]);
+  const track = String(row.program_track || "").trim();
+  const program = String(row.program_name || "").trim();
+  if (!generic.has(track) && !continuingEducationClassifications.some((name) => track.includes(name))) return track;
+  if (!generic.has(program) && !continuingEducationClassifications.some((name) => program.includes(name))) return program;
+  return "";
 }
 
 function customerProgramCategory(customer: (typeof initialPeople)[number]) {

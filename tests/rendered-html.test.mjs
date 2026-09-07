@@ -514,7 +514,7 @@ test("routes every eligible direct program to program activation", async () => {
 test("offers track filtering for ABA and OBM operational lists", async () => {
   const page = await read("../app/page.tsx");
   assert.match(page, /const pathFilterPrograms = \["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي", "التعليم المستمر"\]/);
-  assert.match(page, /tertiaryLabel=\{programFilter === "التعليم المستمر" \? "البرنامج الفرعي" : "المسار"\}/);
+  assert.match(page, /tertiaryLabel=\{programFilter === "التعليم المستمر" \? "التصنيف المعتمد" : "المسار"\}/);
   assert.match(page, /programPathLabel\(row\) === subprogramFilter/);
 });
 
@@ -536,6 +536,14 @@ test("removes the seat reservation page and routes active reservations into onbo
   assert.doesNotMatch(page, /view === "reservations" && <Reservations/);
   assert.match(operations, /converted_enrollment_id IS NULL AND status NOT IN/);
   assert.match(operations, /'تهيئة العميل واستكمال بياناته'/);
+});
+
+test("treats manual continuing education titles as operational notes in activation", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /const continuingEducationClassifications = \["الاقتصاد السلوكي", "انتقائية الطعام"\]/);
+  assert.match(page, /const programPathLabel = \(row: LiveEnrollment\) => liveProgramClassification\(row\)/);
+  assert.match(page, /ملاحظة تشغيلية: \{liveProgramOperationalNote\(row\)\}/);
+  assert.match(page, /التصنيف: \{liveProgramClassification\(row\)\}/);
 });
 
 test("keeps continuing education notes out of classifications and search", async () => {
