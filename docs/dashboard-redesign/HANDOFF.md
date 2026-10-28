@@ -39,6 +39,8 @@
   matches what is live. Before the merge, live was version `0f568512-f4de-47b5-9fa5-837d798f5798` (same code,
   deployed from the branch). The push of `main` deploys the same code again. `npx wrangler deployments list
   --config wrangler.deploy.jsonc` shows its version ID.
+- Live after the merge: version `cd37fcd2-7bc8-439f-b41e-83716d6fc27e` (18:15 UTC). Checked: home 200, today's
+  features in the served code, APIs 401 without a session. The user then signed in and confirmed the site works.
 - What this release carries over the morning one: the registration redesign and data map, the existing-customer
   alert, the seller in `orders.owner`, store order numbers, the seat-fee and list-price suggestions, assignment-date
   holding, supervision without a cohort, and the before/after-VAT amounts (see [REGISTRATION.md](REGISTRATION.md)).
