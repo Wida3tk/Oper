@@ -11,7 +11,20 @@
   and committed on `design/phase-0-shell` (cut from this branch at `ac9335a`). See
   [PHASE-0-SHELL.md](PHASE-0-SHELL.md). The user then approved Phase 1 (Operations Center), committed on the
   same branch at the user's request. See [PHASE-1-OPERATIONS-CENTER.md](PHASE-1-OPERATIONS-CENTER.md), including
-  the suggestions waiting for the user's decision. Phase 2 (Customers) followed on the same branch: see [PHASE-2-CUSTOMERS.md](PHASE-2-CUSTOMERS.md). Phase 3 started with the academy pages (onboarding review and fixes): see [PHASE-3-ACADEMY.md](PHASE-3-ACADEMY.md), including the open question on academy permissions. "تسليم العميل" (contact) is still to do in Phase 3.
+  the suggestions waiting for the user's decision. Phase 2 (Customers) followed on the same branch: see [PHASE-2-CUSTOMERS.md](PHASE-2-CUSTOMERS.md). Phase 3 started with the academy pages (onboarding review and fixes): see [PHASE-3-ACADEMY.md](PHASE-3-ACADEMY.md), The academy-permission question is resolved: real academy accounts see the page.
+
+## Next steps (agreed with the user, 2026-10-28)
+
+The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
+Never merge, never push to `main`, never open a PR unless asked.
+1. Finance: `LiveFinance` still uses UTC for "today" and its default collection month (`toISOString()`). Switch it to local dates, as the dashboard now does.
+2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). Review first, then fix/redesign.
+3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
+4. Open user decision: Phase 1 suggestion #8, one window for upcoming items (schedule 30 days vs. team events 90).
+
+Local QA recipe that worked on the second machine: a copy of the repo in `%TEMP%oper-preview` (no node_modules), `CI=true npx pnpm@10 install --frozen-lockfile`,
+`compatibility_date` set to 2026-05-22, start `npx vinext dev --port 3011`, POST `/api/auth` once to create the D1 file, stop, apply `drizzle/*.sql`
+with node:sqlite, run `dev/seed-synthetic.mjs`, restart. Some routes read runtime columns (`orders.order_number`). Call `/api/enrollments` once first.
 - `main` locally had 28 commits not on `origin/main` at handoff time. They reach GitHub only as history of
   this branch. `origin/main` was not touched.
 

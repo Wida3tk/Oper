@@ -84,12 +84,10 @@ In the running app (local copy, synthetic data):
 | "تفعيل المقررات" (6) and "تفعيل البرامج" (2) render with the new board | ✅ |
 | Escape closes the file; no horizontal scroll and no text under 12px at 375, 1024, 1440px | ✅ |
 
-## Needs a decision
+## Open items
 
-- **Academy needs `customers.manage` to open these pages.** The menu shows "تسليم العميل" and "تهيئة العميل"
-  only to `customers.manage`. The synthetic academy account had only `customers.view`, so it couldn't open the
-  page it's meant to work in. Check that real academy accounts have `customers.manage`. Otherwise the menu
-  rule should also allow the academy role.
+- ~~Academy needs `customers.manage` to open these pages.~~ **Resolved:** the user confirmed that real academy
+  accounts see "تهيئة العميل". The synthetic academy account just lacked the permission. No change needed.
 - "تسليم العميل" (contact) renders a different screen (`TrialHandoff` + `Registration`), not this board. It's
   untouched and stays for later in Phase 3.
 
