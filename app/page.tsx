@@ -1101,9 +1101,9 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
                 <h3 id="cp-money-title">الملخص المالي</h3>
                 {selected.total > 0 ? <>
                   <dl className="cp-ledger cp-money">
-                    <div><dt>قيمة الطلب</dt><dd>{sar(selected.total)}</dd></div>
-                    <div><dt>المدفوع من قيمة البرنامج</dt><dd>{sar(selected.paid)}</dd></div>
-                    <div><dt>المتبقي من قيمة البرنامج</dt><dd>{sar(Math.max(selected.total - selected.paid, 0))}</dd></div>
+                    <div><dt>قيمة الطلب (شامل الضريبة)</dt><dd>{sar(selected.total)}<small className="cp-vat">بدون ضريبة {sar(withoutVat(selected.total))}</small></dd></div>
+                    <div><dt>المدفوع من قيمة البرنامج</dt><dd>{sar(selected.paid)}<small className="cp-vat">بدون ضريبة {sar(withoutVat(selected.paid))}</small></dd></div>
+                    <div><dt>المتبقي من قيمة البرنامج</dt><dd>{sar(Math.max(selected.total - selected.paid, 0))}<small className="cp-vat">بدون ضريبة {sar(withoutVat(Math.max(selected.total - selected.paid, 0)))}</small></dd></div>
                     {Number(selectedDetails.seatFee || 0)>0&&<div className="seat-fee-paid"><dt>رسوم المقعد المدفوعة</dt><dd>{sar(Number(selectedDetails.seatFee))}</dd></div>}
                     {Number(selectedDetails.seatFee || 0)>0&&<div className="actual-paid-total"><dt>إجمالي المدفوع فعلياً</dt><dd>{sar(selected.paid+Number(selectedDetails.seatFee))}</dd></div>}
                   </dl>
@@ -1771,6 +1771,7 @@ function Registration({ done }: { done: () => void }) {
     seatBookingType: "حجز مع تسجيل",
     seatFee: "",
     competencyAssessment: "لا",
+    priceEdited: false,
   });
   const [proof, setProof] = useState({ name: "", data: "" });
   const blankForm = useRef(form);
@@ -1813,6 +1814,8 @@ function Registration({ done }: { done: () => void }) {
         seatBookingType: "حجز مع تسجيل",
         seatFee: "",
         competencyAssessment: "لا",
+        contractTotal: "",
+        priceEdited: false,
       }));
     }
   };
@@ -1844,7 +1847,12 @@ function Registration({ done }: { done: () => void }) {
       !form.startDate ||
       !form.assignmentDate ||
       form.assignmentDate > form.startDate);
-  const baseTotal = Number(form.contractTotal || 0);
+  // Base amount follows the approved list price until the employee types their own.
+  const priceDelivery = isSupervision ? "مباشر" : isCompetencyService ? "خدمة" : isAbat ? "مسجل" : form.delivery;
+  const programPrices = selectedProgram?.prices || [];
+  const listPrice = Number((programPrices.find((p) => p.track === form.track.trim() && p.delivery === priceDelivery) || programPrices.find((p) => p.track === "" && p.delivery === priceDelivery))?.price || 0);
+  const baseInput = form.priceEdited || !listPrice ? form.contractTotal : String(listPrice);
+  const baseTotal = Number(baseInput || 0);
   const discountPercent = Number(form.discount || 0);
   const discountedTotal = Math.round(
     baseTotal * (1 - discountPercent / 100) * 100,
@@ -2421,14 +2429,19 @@ function Registration({ done }: { done: () => void }) {
                     </select>
                   </Field>
                 )}
-                {!seatOnly && <Field label="المبلغ الأساسي *">
+                {!seatOnly && <Field label="المبلغ الأساسي (شامل الضريبة) *">
                   <input
                     inputMode="decimal"
                     dir="ltr"
-                    value={form.contractTotal}
-                    onChange={(e) => set("contractTotal", e.target.value)}
+                    value={baseInput}
+                    onChange={(e) => setForm((f) => ({ ...f, contractTotal: e.target.value, priceEdited: true }))}
                     placeholder="0.00 ر.س"
                   />
+                  <small className="field-help">
+                    {listPrice
+                      ? `السعر المعتمد: ${money(listPrice)} شامل الضريبة · ${money(withoutVat(listPrice))} بدون ضريبة.${baseTotal !== listPrice ? " المبلغ المكتوب مختلف عن السعر المعتمد." : ""}`
+                      : "لا يوجد سعر معتمد لهذا الاختيار في إدارة البرامج؛ اكتب المبلغ شامل الضريبة."}
+                  </small>
                 </Field>}
                 {!seatOnly && <Field label="قيمة الخصم">
                   <select
@@ -2632,7 +2645,7 @@ function Registration({ done }: { done: () => void }) {
                     <Review label="الخصم" value={`${discountPercent}%`} />
                     <Review
                       label="سعر البرنامج بعد الخصم"
-                      value={`${discountedTotal.toLocaleString("en-US")} ر.س`}
+                      value={`${discountedTotal.toLocaleString("en-US")} ر.س شامل الضريبة · ${withoutVat(discountedTotal).toLocaleString("en-US")} بدون ضريبة`}
                     />
                     {hasSeatReservation && (
                       <Review
@@ -2755,8 +2768,10 @@ function Registration({ done }: { done: () => void }) {
             {!seatOnly && <p><span>المبلغ الأساسي</span><b>{money(baseTotal)}</b></p>}
             {!seatOnly && discountPercent > 0 && <p><span>الخصم {discountPercent}%</span><b>− {money(baseTotal - discountedTotal)}</b></p>}
             {!seatOnly && <p><span>سعر البرنامج</span><b>{money(discountedTotal)}</b></p>}
+            {!seatOnly && <small>بدون ضريبة: {money(withoutVat(discountedTotal))}</small>}
             {seatFee > 0 && <p><span>رسوم المقعد</span><b>{money(seatFee)}</b></p>}
             <p className="total"><span>{seatOnly ? "رسوم المقعد المسجَّلة" : form.payment === "أقساط" ? "الدفعة الأولى" : "يُسجَّل الآن"}</span><b>{money(payableAmount)}</b></p>
+            <small>شامل ضريبة 15% · بدون ضريبة: {money(withoutVat(payableAmount))}</small>
             {!seatOnly && form.payment === "أقساط" && finalTotal > payableAmount && <small>المتبقي على الأقساط: {money(finalTotal - payableAmount)}</small>}
           </div>
         )}
@@ -2909,7 +2924,12 @@ type Program = {
   seatFee?: number;
   active?: number;
   tracks?: ProgramTrack[];
+  prices?: ProgramPrice[];
 };
+// List price for a track ("" = any track) and delivery; VAT included.
+type ProgramPrice = { track: string; delivery: string; price: number };
+// Every amount in the system includes 15% VAT; this gives the amount before VAT for display.
+const withoutVat = (amount: number) => Math.round((Number(amount || 0) / 1.15) * 100) / 100;
 
 async function apiJson(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -4897,6 +4917,8 @@ function Programs() {
     [tracks, setTracks] = useState(""),
     [editingId, setEditingId] = useState(""),
     [editTracks, setEditTracks] = useState(""),
+    [priceEditingId, setPriceEditingId] = useState(""),
+    [priceRows, setPriceRows] = useState<{ track: string; delivery: string; price: string }[]>([]),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -4984,6 +5006,25 @@ function Programs() {
       setSaving(false);
     }
   };
+  const savePrices = async (row: Program) => {
+    setSaving(true);
+    setError("");
+    try {
+      await apiJson("/api/programs", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ programId: row.id, prices: priceRows.map((p) => ({ ...p, price: Number(p.price) })) }),
+      });
+      setPriceEditingId("");
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const setPriceRow = (index: number, patch: Partial<{ track: string; delivery: string; price: string }>) =>
+    setPriceRows((list) => list.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   return (
     <div className="programs-layout">
       <section className="card program-form">
@@ -5112,6 +5153,11 @@ function Programs() {
                       </button>
                     </div>
                   )}
+                  {priceEditingId !== row.id && (
+                    <small className="program-price-count">
+                      {!row.prices?.length ? "لا توجد أسعار معتمدة" : row.prices.length === 1 ? "سعر معتمد واحد" : `${row.prices.length} أسعار معتمدة`}
+                    </small>
+                  )}
                 </div>
                 <p>
                   <span>نوع الرحلة</span>
@@ -5137,6 +5183,15 @@ function Programs() {
                     تعديل المسارات
                   </button>
                   <button
+                    className="link"
+                    onClick={() => {
+                      setPriceEditingId(row.id);
+                      setPriceRows((row.prices || []).map((p) => ({ track: p.track, delivery: p.delivery, price: String(p.price) })));
+                    }}
+                  >
+                    تعديل الأسعار
+                  </button>
+                  <button
                     className={`permission-toggle ${row.active ? "stop" : "start"}`}
                     disabled={saving}
                     onClick={() => toggle(row)}
@@ -5144,6 +5199,33 @@ function Programs() {
                     {row.active ? "إيقاف" : "تفعيل"}
                   </button>
                 </div>
+                {priceEditingId === row.id && (
+                  <div className="price-editor">
+                    <p>الأسعار شاملة ضريبة القيمة المضافة 15%. «كل المسارات» يُستخدم حين لا يوجد سعر للمسار نفسه.</p>
+                    {priceRows.map((p, index) => (
+                      <div className="price-row" key={index}>
+                        <select aria-label="المسار" value={p.track} onChange={(e) => setPriceRow(index, { track: e.target.value })}>
+                          <option value="">كل المسارات</option>
+                          {row.tracks?.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                          {p.track && !row.tracks?.some((t) => t.name === p.track) && <option value={p.track}>{p.track}</option>}
+                        </select>
+                        <select aria-label="النمط" value={p.delivery} onChange={(e) => setPriceRow(index, { delivery: e.target.value })}>
+                          <option>مسجل</option>
+                          <option>مباشر</option>
+                          <option>خدمة</option>
+                        </select>
+                        <input aria-label="السعر شامل الضريبة" inputMode="decimal" dir="ltr" value={p.price} onChange={(e) => setPriceRow(index, { price: e.target.value })} placeholder="شامل الضريبة" />
+                        <span>بدون ضريبة {withoutVat(Number(p.price)).toLocaleString("en-US", { maximumFractionDigits: 2 })} ر.س</span>
+                        <button type="button" className="link" aria-label={`حذف سعر ${p.track || "كل المسارات"} ${p.delivery}`} onClick={() => setPriceRows((list) => list.filter((_, i) => i !== index))}>حذف</button>
+                      </div>
+                    ))}
+                    <div className="price-editor-actions">
+                      <button type="button" className="secondary" onClick={() => setPriceRows((list) => [...list, { track: "", delivery: "مسجل", price: "" }])}>إضافة سعر</button>
+                      <button type="button" className="primary" disabled={saving} onClick={() => savePrices(row)}>حفظ الأسعار</button>
+                      <button type="button" className="secondary" onClick={() => setPriceEditingId("")}>إلغاء</button>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>

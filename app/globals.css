@@ -1012,6 +1012,15 @@ html,body{max-width:100%;overflow-x:hidden}
 .cp-ledger dd{min-width:0;color:var(--sk-ink);font-weight:600;text-align:left;overflow-wrap:anywhere}
 .cp-money dd{font-variant-numeric:tabular-nums}
 .cp-ledger .customer-cohort-field dd{display:grid;justify-items:end;gap:6px}
+.program-price-count{display:block;margin-top:6px;color:var(--sk-muted);font-size:var(--sk-fs-xs)}
+.program-list article>.price-editor{grid-column:1/-1}
+.price-editor{display:grid;gap:8px;min-width:0;margin-top:10px;padding:12px;border:1px solid var(--sk-line);border-radius:var(--sk-radius);background:var(--sk-sunken)}
+.price-editor p{margin:0;color:var(--sk-muted);font-size:var(--sk-fs-xs);line-height:1.6}
+.price-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--sk-line)}
+.price-row select,.price-row input{flex:1 1 110px;height:36px;min-width:0;padding:0 8px;border:1px solid var(--sk-line-strong);border-radius:var(--sk-radius-sm);background:var(--sk-surface);color:var(--sk-ink);font:inherit;font-size:var(--sk-fs-sm)}
+.price-row span{color:var(--sk-muted);font-size:var(--sk-fs-xs);font-variant-numeric:tabular-nums;white-space:nowrap}
+.price-editor-actions{display:flex;flex-wrap:wrap;gap:6px}
+.cp-ledger .cp-vat{display:block;margin-top:2px;color:var(--sk-muted);font-size:var(--sk-fs-xs);font-weight:500}
 .cp-progress{margin-top:10px}
 .cp-progress small{display:block;margin-top:6px;color:var(--sk-muted);font-size:var(--sk-fs-xs)}
 

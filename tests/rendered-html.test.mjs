@@ -659,7 +659,7 @@ test("renders the customer directory and the customer profile sheet from live fi
   assert.match(page, /const customerJourneySteps = \["الشراء", "التواصل", "إنشاء الحساب", "إسناد المقررات", "التحقق من الوصول"\];/);
   assert.match(page, /"تم الإسناد": \[4, /);
   assert.match(page, /<aside\s+className="cp-sheet"\s+role="dialog"\s+aria-modal="true"\s+aria-labelledby="customer-drawer-title"/);
-  assert.match(page, /<dt>المتبقي من قيمة البرنامج<\/dt><dd>\{sar\(Math\.max\(selected\.total - selected\.paid, 0\)\)\}<\/dd>/);
+  assert.match(page, /<dt>المتبقي من قيمة البرنامج<\/dt><dd>\{sar\(Math\.max\(selected\.total - selected\.paid, 0\)\)\}<small className="cp-vat">/);
   assert.match(page, /date: date\.toLocaleDateString\("en-GB", \{/);
   assert.doesNotMatch(page, /className="drawer customer-drawer"/);
   assert.doesNotMatch(css, /\.customer-drawer[{ .>,:]/);
@@ -1139,4 +1139,29 @@ test("supervision asks only for the fixed 50 SAR seat, with no cohort or schedul
   assert.match(page, /cohort: scheduledJourney \? form\.cohort : ""/);
   assert.match(page, /const autoAsara = asara && !isStandaloneService && !hasSeatReservation;/);
   assert.match(page, /!selected\.program\.includes\("الإشراف"\) && <div className="customer-cohort-field">/);
+});
+
+test("keeps approved list prices with VAT and shows amounts before and after VAT", async () => {
+  const page = await read("../app/page.tsx");
+  const programs = await read("../app/api/programs/route.ts");
+  const ops = await read("../app/api/_lib/operations.ts");
+  // Prices from the pricing guide, VAT included, seeded once and then edited by admins only.
+  assert.match(ops, /\["PRG-ABA","QBA","مباشر",15525\]/);
+  assert.match(ops, /\["PRG-COMP","","خدمة",375\]/);
+  assert.match(ops, /\["PRG-SUP","","مباشر",1200\]/);
+  assert.match(ops, /key='program-prices-v1'/);
+  assert.match(programs, /export async function PATCH\(req: Request\) \{\s*const auth = await authorize\(req, \[\]\);/);
+  assert.match(programs, /'UPDATE_PROGRAM_PRICES'/);
+  assert.match(programs, /\["مسجل","مباشر","خدمة"\]\.includes\(delivery\)\|\|!\(price>0\)/);
+  // Registration suggests the list price (exact track first, then any track) and stays editable.
+  assert.match(page, /p\.track === form\.track\.trim\(\) && p\.delivery === priceDelivery\) \|\| programPrices\.find\(\(p\) => p\.track === "" && p\.delivery === priceDelivery\)/);
+  assert.match(page, /const baseInput = form\.priceEdited \|\| !listPrice \? form\.contractTotal : String\(listPrice\);/);
+  assert.match(page, /contractTotal: e\.target\.value, priceEdited: true/);
+  // Amounts stay VAT-inclusive; the amount before VAT is shown beside them.
+  assert.match(page, /const withoutVat = \(amount: number\) => Math\.round\(\(Number\(amount \|\| 0\) \/ 1\.15\) \* 100\) \/ 100;/);
+  assert.match(page, /<dt>قيمة الطلب \(شامل الضريبة\)<\/dt>/);
+  assert.match(page, /شامل ضريبة 15% · بدون ضريبة:/);
+  assert.match(page, /تعديل الأسعار/);
+  // Discount approval levels are internal policy and are not enforced in the form.
+  assert.match(page, /\[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50\]\.map/);
 });

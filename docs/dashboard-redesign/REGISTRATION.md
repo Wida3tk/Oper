@@ -152,3 +152,43 @@ Checks: 18 / 18 API scenarios on synthetic data:
 - All the earlier assignment-date scenarios still pass.
 
 The form was checked in the browser. Tests: 94 / 94.
+
+## Price list and VAT (decided 2026-10-28)
+
+Source: the pricing guide spreadsheet (`دليل التسعير والخصومات.xlsx`, updated 2026-08-22). The user's decisions:
+- Only the prices and amounts go into the system.
+- The approval table (sales 0–15%, 16–30% direct manager, 31–50% CFO) is internal policy and is **not
+  enforced**. The discount list stays 0–50%.
+- Every amount in the system **includes 15% VAT**, as before. The amount before VAT is shown beside it.
+- Competency assessment is 375 including VAT.
+
+| Where | Change |
+|---|---|
+| `program_prices` table | One price per programme + track name ("" = any track) + delivery (مسجل/مباشر/خدمة), VAT included. Created by `ensureProgramPriceSchema()` and seeded **once** (`system_migrations` key `program-prices-v1`) with 16 prices from the guide. A price an admin deletes is not re-seeded. |
+| `GET /api/programs` | Each programme carries its `prices`. |
+| `PATCH /api/programs` (admin only) | `prices: [{track, delivery, price}]` replaces the programme's list. A price must be > 0 with a known delivery. Writes `UPDATE_PROGRAM_PRICES` to the audit log with before/after. |
+| Programmes admin (لوحة التحكم ← إدارة البرامج) | «تعديل الأسعار» per programme: track, delivery and price including VAT, with the amount before VAT shown live. Each row shows how many prices it has. |
+| Registration | The base amount fills from the list price (exact track first, then "any track"). It stays editable, and the help text gives the approved price with and without VAT and flags a typed amount that differs. Changing programme resets it to the new list price. The receipt and the review show the amount before VAT. |
+| Customer file | Order value, paid and remaining each show the amount before VAT underneath. |
+
+Seeded prices (VAT included):
+- ABA: QBA live 15,525, QASP-S live 10,350, QBA recorded 7,865, QASP-S recorded 5,277, ABAT recorded 599.
+- OBM: P recorded 2,157, P live 3,115, E/C recorded 4,817, E/C live 6,038.
+- Competency assessment 375. Supervision 1,200.
+- Continuing education: recorded courses 260 (any course), الاقتصاد السلوكي live 1,200, ACT recorded 800.
+
+Not seeded because the guide has no clear price: انتقائية الطعام. Admins can add it, and any other price, from the
+screen.
+
+Checks:
+- 12 / 12 API checks on synthetic data: seeded on first use, sales can read but not edit, bad prices refused, admin
+  edit replaces the list, deleted rows are not re-seeded, the audit log is written.
+- In the browser: pre-fill for ABA, OBM, competency assessment and continuing education. Before-VAT figures match
+  the guide (13,500 · 6,839.13 · 326.09 · 226.09). A typed amount is kept and flagged. The receipt, saving from the
+  admin screen, and the customer file were all checked.
+- Tests: 95 / 95. Lint and type errors unchanged.
+
+Limits:
+- The ABAT + competency-assessment add-on is not priced automatically; the employee adds it to the amount.
+- The old programmes screen is still cramped below about 1100px (its row grid predates the redesign; Phase 6).
+- Finance screens don't show before-VAT amounts yet (Phase 4).

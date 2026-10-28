@@ -12,6 +12,7 @@ export function operationalDb() {
 let directProgramSchemaReady:Promise<void>|null=null;
 let financeClassificationSchemaReady:Promise<void>|null=null;
 let orderNumberSchemaReady:Promise<void>|null=null;
+let programPriceSchemaReady:Promise<void>|null=null;
 
 export function orderNumberPrefix(programName:string){
   const name=String(programName||"").trim();
@@ -74,6 +75,28 @@ export function ensureFinanceClassificationSchema(db:ReturnType<typeof operation
   })().catch(error=>{financeClassificationSchemaReady=null;throw error});
   return financeClassificationSchemaReady;
 }
+// Approved list prices, VAT included like every amount in the system. Seeded once from «دليل التسعير والخصومات» (updated 2026-08-22); edited in إدارة البرامج afterwards.
+const initialProgramPrices:[string,string,string,number][]=[
+  ["PRG-ABA","QBA","مباشر",15525],["PRG-ABA","QASP-S","مباشر",10350],["PRG-ABA","QBA","مسجل",7865],["PRG-ABA","QASP-S","مسجل",5277],["PRG-ABA","ABAT","مسجل",599],
+  ["PRG-OBM","P","مسجل",2157],["PRG-OBM","P","مباشر",3115],["PRG-OBM","E","مسجل",4817],["PRG-OBM","C","مسجل",4817],["PRG-OBM","E","مباشر",6038],["PRG-OBM","C","مباشر",6038],
+  ["PRG-COMP","","خدمة",375],["PRG-SUP","","مباشر",1200],
+  ["PRG-CE","","مسجل",260],["PRG-CE","الاقتصاد السلوكي","مباشر",1200],["PRG-CE","ACT","مسجل",800],
+];
+export function ensureProgramPriceSchema(db:ReturnType<typeof operationalDb>){
+  if(programPriceSchemaReady)return programPriceSchemaReady;
+  programPriceSchemaReady=(async()=>{
+    await db.prepare("CREATE TABLE IF NOT EXISTS program_prices(program_id TEXT NOT NULL,track TEXT NOT NULL DEFAULT '',delivery TEXT NOT NULL DEFAULT '',price REAL NOT NULL,updated_by_email TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(program_id,track,delivery))").run();
+    await db.prepare("CREATE TABLE IF NOT EXISTS system_migrations(key TEXT PRIMARY KEY,applied_at TEXT NOT NULL)").run();
+    if(await db.prepare("SELECT key FROM system_migrations WHERE key='program-prices-v1'").first())return;
+    const now=new Date().toISOString();
+    await db.batch([
+      ...initialProgramPrices.map(([programId,track,delivery,price])=>db.prepare("INSERT OR IGNORE INTO program_prices(program_id,track,delivery,price,updated_by_email,updated_at) VALUES(?,?,?,?,'system',?)").bind(programId,track,delivery,price,now)),
+      db.prepare("INSERT OR IGNORE INTO system_migrations(key,applied_at) VALUES('program-prices-v1',?)").bind(now),
+    ]);
+  })().catch(error=>{programPriceSchemaReady=null;throw error});
+  return programPriceSchemaReady;
+}
+
 export function ensureDirectProgramSchema(db:ReturnType<typeof operationalDb>){
   if(directProgramSchemaReady)return directProgramSchemaReady;
   directProgramSchemaReady=(async()=>{

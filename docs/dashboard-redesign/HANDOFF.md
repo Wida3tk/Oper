@@ -37,6 +37,10 @@
   deployed): existing-customer alert, seller in `orders.owner`, store order number for سلة/عصارة, seat-fee suggestion.
   See "Data-entry improvements" in [REGISTRATION.md](REGISTRATION.md). These change the intake API (new
   `POST /api/intake/lookup`, `orders.owner` value), which the user approved by choosing this option.
+- **Price list and VAT (decided 2026-10-28):** list prices per programme/track/delivery (VAT included) fill the
+  base amount; amounts show before/after VAT. Discount approval levels are internal and not enforced. See
+  "Price list and VAT" in [REGISTRATION.md](REGISTRATION.md). The pricing spreadsheet in the repo root holds
+  customer names and salaries: never commit it.
 - **Supervision (decided 2026-10-28):** no cohort and no dates. It only asks "seat reserved?", with a fixed fee of
   50 SAR, and goes straight to onboarding.
 - **Assignment date (decided 2026-10-28):** every scheduled live programme (live without a seat, seat with
@@ -44,8 +48,7 @@
   This reverses the 6 September behaviour, where reservations went to onboarding at once. See "Assignment date" in
   [REGISTRATION.md](REGISTRATION.md).
 - **Still waiting on the user:**
-  - The remaining map suggestions: errors under each field, phone formatting, remember last source/method, a
-    programme price list.
+  - The remaining map suggestions: errors under each field, phone formatting, remember last source/method.
 
 ## To continue at home
 
@@ -86,7 +89,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (94 / 94 on `design/phase-0-shell`) |
+| `npm test` | 80 / 80 (95 / 95 on `design/phase-0-shell`) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 
