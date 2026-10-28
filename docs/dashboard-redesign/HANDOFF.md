@@ -51,6 +51,26 @@
   reservations waiting for their assignment date. The old code moves those waiting reservations into onboarding
   at once (its old behaviour) and ignores the rest.
 
+## Released: Phase 4 Finance and the finance fixes (2026-10-29, at the user's request)
+
+- `design/phase-0-shell` fast-forwarded into `main` (`2c28633` → this commit) and pushed. The push deploys
+  automatically (see "Released again" below).
+- Carries three commits:
+  - Phase 4 Finance, with before/after-VAT amounts ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md));
+  - the finance calculations audit;
+  - its fixes ([FINANCE-AUDIT.md](FINANCE-AUDIT.md)).
+- **Behaviour the team will notice:**
+  - Sales and collections on the finance page now count confirmed payments only, net of refunds, like the home
+    dashboard. Figures that included money still under review will drop.
+  - That money now shows on its own in «بانتظار المراجعة».
+  - Seat fees from the registration form appear in finance and in the customer file.
+  - Cancelled installments of withdrawn customers no longer count as late.
+- No `drizzle/` migrations and no schema change.
+- **Rollback** to the release the user verified on 2026-10-28 (version `f1a736e2`, deployed 18:26:52 UTC):
+  `npx wrangler rollback f1a736e2-d993-423e-a4ce-c13a32e2d0ce --config wrangler.deploy.jsonc`.
+  Data is unaffected either way. The only stored change is that instalment payments recorded after this release
+  carry the date as `YYYY-MM-DDT12:00:00.000Z`, which the old code reads the same way.
+
 ## Where we stopped (end of day 2026-10-28, office machine)
 
 - Branch `design/phase-0-shell` is pushed and **2+ commits ahead of `main`**. *(Corrected in the evening: it was
