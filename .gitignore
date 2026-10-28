@@ -44,3 +44,7 @@ next-env.d.ts
 /tmp/
 __pycache__/
 *.py[cod]
+
+# Internal spreadsheets (pricing, salaries, customer names) stay local
+/*.xlsx
+/*.xls
