@@ -51,6 +51,36 @@
   reservations waiting for their assignment date. The old code moves those waiting reservations into onboarding
   at once (its old behaviour) and ignores the rest.
 
+## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
+
+- **Live = `main` = `design/phase-0-shell`.** Last release: the finance file layout (see below). Everything is
+  pushed and nothing is waiting on the branch.
+- **Done today:**
+  - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
+    before/after-VAT amounts.
+  - A finance calculations audit and its fixes ([FINANCE-AUDIT.md](FINANCE-AUDIT.md)).
+- **Waiting for the user's answer:**
+  1. **Audit #3b:** should a seat fee paid with registration be recorded as its own payment
+     (`flow_type = 'seat_fee'`) so it counts in finance totals? Today it shows in the file but is in no total.
+  2. **Audit #5:** roughly how many orders are in production? `GET /api/finance` loads only the latest 200.
+     If there are more, compute the totals over all orders.
+- **Next phases:** 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Small items: registration's
+  default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
+- **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
+
+## Released: finance file layout (2026-10-29 evening, at the user's request)
+
+- `design/phase-0-shell` fast-forwarded into `main` (`1340147` → this commit) and pushed, so it deploys
+  automatically.
+- Carries:
+  - the finance file laid out like the customer file (sticky header, review action first, balance block,
+    ledgers);
+  - the restyled seat-transfer requests card.
+  No calculation or API change. All controls are the same.
+- **Rollback** to the finance release verified the same evening (version `8fb3097f`, deployed 19:41:35 UTC):
+  `npx wrangler rollback 8fb3097f-4a00-474f-9296-bb47e18cc0fb --config wrangler.deploy.jsonc`.
+  No data is involved.
+
 ## Released: Phase 4 Finance and the finance fixes (2026-10-29, at the user's request)
 
 - `design/phase-0-shell` fast-forwarded into `main` (`2c28633` → this commit) and pushed. The push deploys
