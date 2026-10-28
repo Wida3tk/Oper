@@ -620,6 +620,13 @@ test("lets academy record attention actions while team events stay admin-only", 
   assert.match(api, /const canTakeAttentionAction = auth\.roles\.includes\("academy"\);/);
 });
 
+test("closes withdrawal follow-ups for good and hides them from the attention list", async () => {
+  const api = await read("../app/api/operations-center/route.ts");
+  assert.match(api, /AND COALESCE\(f\.state,''\)!='closed'\r?\n      AND \(w\.id IS NOT NULL OR/);
+  assert.match(api, /INSERT INTO attention_followups\(order_id,state,final_action_by_email,final_action_at,updated_at\) VALUES\(\?,'closed',\?,\?,\?\) ON CONFLICT\(order_id\) DO UPDATE SET state='closed'/);
+  assert.doesNotMatch(api, /UPDATE attention_followups SET state='closed'/);
+});
+
 test("renders the operations center as a filterable priority queue with one agenda", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");

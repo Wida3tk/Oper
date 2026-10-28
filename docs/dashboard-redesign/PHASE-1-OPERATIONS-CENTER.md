@@ -46,7 +46,7 @@ Removed CSS: 146 rules that matched only the old markup (`operations-command`, `
 
 | Check | After Phase 0 | Phase 1 |
 |---|---|---|
-| `npm test` | 81 / 81 | **82 / 82** (1 new test), **83 / 83** with the permission fix |
+| `npm test` | 81 / 81 | **82 / 82** (1 new test), **84 / 84** with both API fixes |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings | 30 errors, 31 warnings (no new findings) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 | 20 |
 
@@ -63,7 +63,7 @@ In the running app (local copy, synthetic data, headless Edge):
 | Agenda merges team events and schedule, grouped by day | ✅ |
 | Roles: sales doesn't see the finance-department overdue task (8 cases) and sees only events meant for everyone; finance sees 9; academy sees the "تم اتخاذ الإجراء" buttons | ✅ |
 | No horizontal scroll and no text under 12px at 375, 768, 1024, 1440px | ✅ |
-| "تم اتخاذ الإجراء" as academy | Before the fix: 403 (a bug that predates this phase). After the fix: policy case → `waiting_finance` ✅. Withdrawal: see Suggestions, #1b |
+| "تم اتخاذ الإجراء" as academy | Before the fixes: 403 (a bug that predates this phase). After them: policy case → `waiting_finance` ✅, withdrawal → `closed` and gone from the list ✅ |
 
 ## Suggestions (need a decision, not done)
 
@@ -73,11 +73,12 @@ These need API, permission or product changes, which are outside this phase's ru
    `POST /api/operations-center` now calls `authorize(req, ["academy"])`. Checked against the local copy:
    academy moves a policy case to `waiting_finance` (200), a repeat is refused (409), sales gets 403, and
    academy still gets 403 when creating team events, which stay admin-only.
-1b. **Closing a withdrawal case changes nothing (bug, now reachable).** For a withdrawal, the action answers
-   `200 {"state":"closed"}` and writes the audit log. But the `UPDATE attention_followups` finds no row,
-   because withdrawals never get one. And the GET query shows withdrawals whatever their state
-   (`w.id IS NOT NULL OR …`). So the case never leaves the list. The fix needs an upsert on close plus
-   excluding `closed` withdrawals in the query: a business-logic change, waiting for approval.
+1b. ~~**A closed withdrawal case never leaves the list.**~~ **Fixed after the user approved it** (separate commit).
+   Withdrawals registered through Finance get a `finance_resolved` follow-up, so closing one did save
+   `closed`. But the GET query listed withdrawals whatever their state (`w.id IS NOT NULL OR …`), so the case
+   stayed, and a second click got 409. The query now skips `closed` follow-ups, and the close step is an
+   upsert, so a withdrawal with no follow-up row (recorded before that hand-off existed) closes too. Checked
+   locally: both kinds close (200), a repeat is refused (409), and both leave the list.
 2. **Customer drawer → side sheet with a journey timeline:** left for Phase 2. The same drawer serves the
    Customers page, so it should be redesigned once with the customer profile.
 3. **Names instead of email prefixes:** "المسؤول" and "آخر إجراء" show `academy.qa`. The API could join

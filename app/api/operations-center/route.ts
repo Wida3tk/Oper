@@ -48,6 +48,7 @@ export async function GET(req: Request) {
       FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN programs p ON p.id=o.program_id LEFT JOIN attention_followups f ON f.order_id=o.id
       LEFT JOIN withdrawals w ON w.order_id=o.id AND w.status='مكتمل'
       WHERE (w.id IS NOT NULL OR EXISTS(SELECT 1 FROM installments i WHERE i.order_id=o.id AND i.status='تطبيق السياسة') OR f.state IN ('needs_operations','waiting_finance','finance_resolved'))
+      AND COALESCE(f.state,'')!='closed'
       AND (w.id IS NOT NULL OR COALESCE(f.state,CASE WHEN w.id IS NOT NULL THEN 'finance_resolved' ELSE 'needs_operations' END) NOT IN ('closed','finance_resolved')) ORDER BY c.name LIMIT 50`).all(),
     db.prepare(`SELECT 'data-'||e.id id,e.order_id,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,o.order_number,o.purchase_source,o.track,o.delivery,o.total,o.paid,'بيانات العميل غير مكتملة' title,'التشغيلية' department,NULL due_at,'enrollment' entity_type,e.owner_email responsible_email,e.updated_at last_action_at,NULL last_action_by_email,'عالية' priority
       FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id
@@ -102,7 +103,8 @@ export async function POST(req: Request) {
     }
     if (state === "finance_resolved") {
       await db.batch([
-        db.prepare("UPDATE attention_followups SET state='closed',final_action_by_email=?,final_action_at=?,updated_at=? WHERE order_id=?").bind(auth.email, now, now, orderId),
+        // Upsert: withdrawals recorded before the follow-up hand-off existed have no row to update.
+        db.prepare("INSERT INTO attention_followups(order_id,state,final_action_by_email,final_action_at,updated_at) VALUES(?,'closed',?,?,?) ON CONFLICT(order_id) DO UPDATE SET state='closed',final_action_by_email=excluded.final_action_by_email,final_action_at=excluded.final_action_at,updated_at=excluded.updated_at").bind(orderId, auth.email, now, now),
         db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'ATTENTION_OPERATIONAL_ACTION','order',?,'{\"stage\":\"final\"}',?)").bind(id("AUD"), auth.email, orderId, now),
       ]);
       return Response.json({ ok: true, state: "closed" });
