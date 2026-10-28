@@ -1103,3 +1103,26 @@ test("warns about existing customers and records seller, store order number and 
   assert.match(page, /const programSeatFee = Number\(selectedProgram\?\.seatFee \|\| 0\)/);
   assert.match(page, /set\("seatFee", String\(programSeatFee\)\)/);
 });
+
+test("holds scheduled live programmes until the assignment date", async () => {
+  const page = await read("../app/page.tsx");
+  const intake = await read("../app/api/intake/route.ts");
+  const ops = await read("../app/api/_lib/operations.ts");
+  const center = await read("../app/api/operations-center/route.ts");
+  const finance = await read("../app/api/finance/route.ts");
+  const customers = await read("../app/api/customers/route.ts");
+  // Intake keeps a future assignment date as a waiting reservation, without an enrollment yet.
+  assert.match(intake, /heldUntilAssignment=\(\(!isAsara&&isDirectProgram\)\|\|isSupervision\|\|hasSeatReservation\)&&assignmentDate>riyadhToday/);
+  assert.match(intake, /enrollmentId=seatOnly\|\|heldUntilAssignment\?null:id\("ENR"\)/);
+  assert.match(intake, /else if\(!heldUntilAssignment\)statements\.push\(db\.prepare\("INSERT INTO enrollments/);
+  assert.match(intake, /heldUntilAssignment\?"بانتظار الإسناد"/);
+  assert.match(intake, /hasSeatReservation\?"حجز مع تسجيل":"برنامج مباشر"/);
+  // Promotion waits for the Riyadh day and never revives cancelled or withdrawn reservations.
+  assert.match(ops, /status NOT IN \('منسحب','ملغي','تم النقل','تم التحويل','نقل قيد المراجعة'\) AND \(assignment_date IS NULL OR assignment_date='' OR date\(assignment_date\)<=date\('now','\+3 hours'\)\)/);
+  assert.match(finance, /UPDATE seat_reservations SET status='منسحب',updated_at=\? WHERE order_id=\? AND converted_enrollment_id IS NULL/);
+  // Waiting customers show in the Operations Center and in their file.
+  assert.match(center, /'بانتظار الإسناد','حجز فقط'\)/);
+  assert.match(customers, /r\.converted_enrollment_id IS NULL AND r\.status IN \('بانتظار الإسناد','حجز فقط'\)\) assignment_date/);
+  assert.match(page, /ينتقل إلى التهيئة تلقائياً في \$\{row\.assignment_date\}/);
+  assert.match(page, /بانتظار الإسناد حتى ذلك اليوم/);
+});

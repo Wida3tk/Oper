@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const [schedule, events, overdue, attention, incomplete, staff] = await Promise.all([
     db.prepare(`SELECT r.id,r.assignment_date,r.start_date,r.reservation_kind,r.cohort_label,r.status,c.name customer_name,p.name program_name
       FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id
-      WHERE r.converted_enrollment_id IS NULL AND r.status IN ('مؤكد','بانتظار البدء','بانتظار الإسناد')
+      WHERE r.converted_enrollment_id IS NULL AND r.status IN ('مؤكد','بانتظار البدء','بانتظار الإسناد','حجز فقط')
       AND (date(r.assignment_date) BETWEEN date('now','+3 hours') AND date('now','+3 hours','+30 days')
         OR date(r.start_date) BETWEEN date('now','+3 hours') AND date('now','+3 hours','+30 days'))
       ORDER BY COALESCE(r.assignment_date,r.start_date),r.start_date LIMIT 100`).all(),

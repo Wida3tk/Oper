@@ -2336,9 +2336,10 @@ function Registration({ done }: { done: () => void }) {
             </div>
             {scheduledJourney ? (
               <div className="hint required-hint">
-                ستبقى البطاقة في البرامج المباشرة، ثم تنتقل تلقائياً إلى تهيئة
-                العميل في تاريخ الإسناد. يجب ألا يتجاوز تاريخ الإسناد تاريخ بدء
-                البرنامج.
+                يبقى العميل «بانتظار الإسناد» ويظهر في «القادم» بمركز العمليات،
+                ثم ينتقل تلقائياً إلى تهيئة العميل في تاريخ الإسناد. إذا كان
+                تاريخ الإسناد اليوم أو قبله ينتقل فوراً. يجب ألا يتجاوز تاريخ
+                الإسناد تاريخ بدء البرنامج.
               </div>
             ) : null}
           </>
@@ -2662,7 +2663,11 @@ function Registration({ done }: { done: () => void }) {
                     <span>
                       <b>النقل التلقائي إلى تهيئة العميل</b>
                       <small>
-                        {form.assignmentDate || "حسب تاريخ الإسناد المحدد"}
+                        {!form.assignmentDate
+                          ? "حسب تاريخ الإسناد المحدد"
+                          : form.assignmentDate > todayISO
+                            ? `في ${form.assignmentDate} · بانتظار الإسناد حتى ذلك اليوم`
+                            : "فوراً · تاريخ الإسناد اليوم أو قبله"}
                       </small>
                     </span>
                   </p>
@@ -3711,7 +3716,9 @@ function LiveCustomers({
               due:
                 state === "غير مهتم" || state === "مكتمل"
                   ? "لا إجراء مطلوب"
-                  : "متابعة الملف",
+                  : row.assignment_date
+                    ? `ينتقل إلى التهيئة تلقائياً في ${row.assignment_date}`
+                    : "متابعة الملف",
               paid: Number(row.paid || 0),
               total: Number(row.total || 0),
               seatFee: Number(row.seat_fee || 0),

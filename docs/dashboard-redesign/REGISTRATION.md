@@ -89,3 +89,44 @@ unchanged (101 project-wide, all from the missing Cloudflare types).
 
 The synthetic seed now stores phones as `00966…`, as real records are. Before, seeded phones couldn't be found by
 phone lookup.
+
+## Assignment date (decided 2026-10-28)
+
+**Problem (from the map):** the form required an assignment date and promised the customer would "move
+automatically on the assignment date". Since 6 September (`9260c21`) nothing waited, though: every reservation was
+promoted to onboarding on the next page load, and a live programme without a seat stored no date at all.
+
+**Decision:** every scheduled live programme waits for its assignment date. That covers live without a seat,
+supervision, seat with registration, and seat only. While waiting, the customer shows in the Operations Center
+"القادم" list and in their file.
+
+| Where | Change |
+|---|---|
+| `POST /api/intake` | If the journey is scheduled and the assignment date is **after today (Riyadh)**, no enrollment or onboarding task yet. A `seat_reservations` row holds the dates: `reservation_kind` «برنامج مباشر» when there is no seat, status «بانتظار الإسناد» («حجز فقط» for seat only). The order's `academy_status` is «بانتظار الإسناد». Today or earlier: unchanged, straight to onboarding. عصارة without a seat: unchanged (auto-complete). |
+| `promoteDueReservations()` | Back to waiting for the date: `date(assignment_date) <= date('now','+3 hours')`. Rows with no date still move at once. It also skips «ملغي», so reservations of deleted customers never come back. It runs when the Operations Center, onboarding, dashboard "today" or reservations API is loaded. |
+| Finance withdrawal | Also withdraws the order's waiting reservation, so it is never promoted. |
+| Operations Center | The upcoming list also shows «حجز فقط» reservations (30-day window, as before). |
+| `GET /api/customers` + customer file | Waiting files read «بانتظار الإسناد · ينتقل إلى التهيئة تلقائياً في <date>». |
+| Form | The hint and the review timeline now say whether the move happens on a future date or immediately. |
+
+### Checks (local copy, synthetic data)
+
+16 / 16 API scenarios passed:
+- Live without a seat waits, shows in the upcoming list and the customer file, then on its date gets one
+  enrollment and one onboarding task, with no second promotion.
+- A date of today goes straight to onboarding.
+- Seat with registration waits and keeps its 300 fee.
+- Seat only waits, is listed, and moves on its date.
+- Supervision waits.
+- عصارة without a seat still auto-completes.
+- A withdrawal before the date means it is never promoted. So does a deletion before the date.
+
+In the browser, the customer file text and the review step were checked for both a future and a past date. Tests:
+93 / 93. Lint and type errors are unchanged.
+
+**Limits:**
+- The move happens the first time someone opens one of the pages above on or after the date. There is no
+  scheduled job.
+- The upcoming list only shows the next 30 days.
+- Supervision without a seat is stored as «برنامج مباشر». The kinds «حجز مقعد»/«إشراف» are avoided on purpose: the
+  legacy seat-fee action marks those «تم التحويل», which would stop the promotion.

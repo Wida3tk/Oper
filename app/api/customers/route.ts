@@ -12,6 +12,7 @@ export async function GET(req: Request) {
            COALESCE(o.created_at,c.created_at) created_at,
            o.id order_id,o.order_number,o.program,o.track,o.delivery,o.purchase_source source,COALESCE(NULLIF(sa.display_name,''),o.owner) owner,
            o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,o.scheduled_start_date,
+           (SELECT MIN(r.assignment_date) FROM seat_reservations r WHERE r.order_id=o.id AND r.converted_enrollment_id IS NULL AND r.status IN ('بانتظار الإسناد','حجز فقط')) assignment_date,
            CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee,
            p.name program_name
     FROM customers c

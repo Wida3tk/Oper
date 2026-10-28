@@ -37,9 +37,11 @@
   deployed): existing-customer alert, seller in `orders.owner`, store order number for سلة/عصارة, seat-fee suggestion.
   See "Data-entry improvements" in [REGISTRATION.md](REGISTRATION.md). These change the intake API (new
   `POST /api/intake/lookup`, `orders.owner` value), which the user approved by choosing this option.
+- **Assignment date (decided 2026-10-28):** every scheduled live programme (live without a seat, supervision, seat
+  with registration, seat only) now waits until its assignment date, then moves into onboarding automatically.
+  This reverses the 6 September behaviour, where reservations went to onboarding at once. See "Assignment date" in
+  [REGISTRATION.md](REGISTRATION.md).
 - **Still waiting on the user:**
-  - The assignment date (**decision needed**): store it and move the customer into onboarding on that date, or
-    drop the field and its sentence for live programmes without a seat reservation.
   - The remaining map suggestions: errors under each field, phone formatting, remember last source/method, a
     programme price list.
 
@@ -82,7 +84,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (92 / 92 on `design/phase-0-shell`) |
+| `npm test` | 80 / 80 (93 / 93 on `design/phase-0-shell`) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 

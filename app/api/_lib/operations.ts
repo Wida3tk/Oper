@@ -145,7 +145,8 @@ export function id(prefix: string) {
 }
 
 export async function promoteDueReservations(db:ReturnType<typeof operationalDb>,actorEmail="system@sulukera"){
-  const {results}=await db.prepare("SELECT * FROM seat_reservations WHERE converted_enrollment_id IS NULL AND status NOT IN ('منسحب','تم النقل','تم التحويل','نقل قيد المراجعة') ORDER BY created_at LIMIT 250").all<Record<string,unknown>>();
+  // Waits for the assignment date (Riyadh day); reservations without one move straight away, as before.
+  const {results}=await db.prepare("SELECT * FROM seat_reservations WHERE converted_enrollment_id IS NULL AND status NOT IN ('منسحب','ملغي','تم النقل','تم التحويل','نقل قيد المراجعة') AND (assignment_date IS NULL OR assignment_date='' OR date(assignment_date)<=date('now','+3 hours')) ORDER BY created_at LIMIT 250").all<Record<string,unknown>>();
   for(const reservation of results){
     const enrollmentId=id("ENR"),now=new Date().toISOString();
     try{await db.batch([
