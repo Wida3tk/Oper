@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Armchair,
@@ -667,6 +667,8 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     currentUser.roles.includes("admin") ||
     currentUser.permissions.includes("*") ||
     currentUser.permissions.includes(permission);
+  // POST /api/enrollments/transition accepts academy (and admin) only; other roles get a read-only queue.
+  const canAdvanceEnrollments = currentUser.roles.includes("admin") || currentUser.roles.includes("academy");
   const canOpen = (id: View) =>
     ["dashboard", "work"].includes(id) ||
     (id === "trainee-progress" && (has("customers.view") || has("programs.activate"))) ||
@@ -982,15 +984,15 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           {view === "work" && <LiveWork onNavigate={go} onOpenCustomer={open} currentEmail={currentUser.email} />}
           {view === "trainee-progress" && <TraineeProgress canManage={currentUser.roles.includes("admin") || currentUser.roles.includes("academy")} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
-          {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
+          {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} canAdvance={canAdvanceEnrollments} />}
           {view === "contact" && (
             <>
               <TrialHandoff />
               <Registration done={() => setView("customers")} />
             </>
           )}
-          {view === "registration" && <LiveAcademy focus="registration" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
-          {view === "assignment" && <LiveAcademy focus="assignment" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
+          {view === "registration" && <LiveAcademy focus="registration" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} canAdvance={canAdvanceEnrollments} />}
+          {view === "assignment" && <LiveAcademy focus="assignment" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} canAdvance={canAdvanceEnrollments} />}
           {view === "finance" && (
             <>
               <TransferReviews />
@@ -4309,179 +4311,170 @@ function PaymentReferenceControl({
     <button className="payment-reference-empty" onClick={() => setEditing(true)}><ReceiptText size={17} />{reference ? "استبدال المرجع الحالي برابط" : "إضافة مرجع السداد"}</button>
   ) : null;
 }
+// Days since the enrollment last changed: how long a case has been sitting in its current column.
+function academyAge(updatedAt?: string) {
+  if (!updatedAt) return { label: "دون تاريخ", tone: "", days: -1 };
+  const started = new Date(updatedAt), today = new Date();
+  const days = Math.max(0, Math.round((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(started.getFullYear(), started.getMonth(), started.getDate())) / 864e5));
+  const label = days === 0 ? "اليوم" : days === 1 ? "منذ يوم" : days === 2 ? "منذ يومين" : `منذ ${days} ${days <= 10 ? "أيام" : "يومًا"}`;
+  return { label, tone: days >= 7 ? "late" : days >= 3 ? "today" : "", days };
+}
 function OperationsCustomerCard({
   row,
-  stage,
   nextLabel,
-  moving,
+  canAdvance,
   onOpen,
   onWhatsapp,
   onEmail,
   onAdvance,
 }: {
   row: LiveEnrollment;
-  stage: string;
   nextLabel?: string;
-  moving: boolean;
+  canAdvance: boolean;
   onOpen: () => void;
   onWhatsapp: () => void;
   onEmail: () => void;
   onAdvance?: () => void;
 }) {
+  const age = academyAge(row.updated_at);
   return (
-    <article
-      className={`ops-customer-row ${row.needs_attention?"needs-attention":""} ${moving ? "card-moving" : "card-enter"}`}
-      style={{ gridColumn: "1 / -1" }}
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onOpen();
-      }}
-    >
-      <button
-        className="ops-row-identity"
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen();
-        }}
-      >
-        <i>{row.customer_name.slice(0, 2)}</i>
-        <div>
-          <b>{row.customer_name}</b>
-          <span className="ops-order-number">{row.order_number || row.order_id}</span>
-          {Boolean(row.needs_attention)&&<em className="attention-badge">تطبيق السياسة · بحاجة للانتباه</em>}
-        </div>
-      </button>
-      <div className="ops-row-cell">
-        <span>البرنامج</span>
+    <article className={`ac-case ${age.tone}`} onClick={onOpen}>
+      <i className="oc-mark" aria-hidden="true" />
+      <div className="ac-who">
+        <button type="button" className="ac-name" onClick={(event) => { event.stopPropagation(); onOpen(); }}>{row.customer_name}</button>
+        <span>{row.order_number || row.order_id}</span>
+        {Boolean(row.needs_attention) && <em className="cu-status danger">تطبيق السياسة</em>}
+      </div>
+      <div className="ac-program">
         <b>{programFamily(row.program_name)}</b>
-        <div className="ops-program-tags">
-          {liveProgramClassification(row) && <small className="ops-program-track">التصنيف: {liveProgramClassification(row)}</small>}
-          {liveProgramOperationalNote(row) && <small className="ops-program-note">ملاحظة تشغيلية: {liveProgramOperationalNote(row)}</small>}
-          {row.program_delivery && row.program_track?.toUpperCase() !== "ABAT" && <small className={`ops-program-delivery ${row.program_delivery === "مباشر" ? "live" : "recorded"}`}>{row.program_delivery}</small>}
-          {Boolean(row.competency_assessment) && <small className="ops-competency-badge">مع تقييم كفاءة</small>}
-        </div>
+        <span className="ac-tags">
+          {liveProgramClassification(row) && <small>التصنيف: {liveProgramClassification(row)}</small>}
+          {liveProgramOperationalNote(row) && <small className="note">ملاحظة تشغيلية: {liveProgramOperationalNote(row)}</small>}
+          {row.program_delivery && row.program_track?.toUpperCase() !== "ABAT" && <small className="ops-program-delivery">{row.program_delivery}</small>}
+          {Boolean(row.competency_assessment) && <small>مع تقييم كفاءة</small>}
+        </span>
       </div>
-      <div className="ops-row-cell contact">
-        <span>بيانات التواصل</span>
-        <b dir="ltr">{row.phone || "غير مسجل"}</b>
-        <small dir="ltr">{row.email || "غير مسجل"}</small>
+      <div className="ac-contact">
+        <span dir="ltr">{row.phone || "غير مسجل"}</span>
+        <small dir="ltr">{row.email || "دون بريد"}</small>
+        <small>{row.purchase_source || "مصدر غير محدد"}</small>
       </div>
-      <div className="ops-row-cell source">
-        <span>المصدر</span>
-        <b>{row.purchase_source || "غير محدد"}</b>
+      <div className="ac-age">
+        <em className={`oc-due ${age.tone}`}>{age.label}</em>
+        <small>آخر تغيير {row.updated_at ? new Date(row.updated_at).toLocaleDateString("en-GB", { timeZone: "Asia/Riyadh" }) : "غير محدد"}</small>
       </div>
-      <div className="ops-row-cell status">
-        <span>المرحلة</span>
-        <em>{stage}</em>
-      </div>
-      <div className="ops-row-cell next">
-        <span>الإجراء التالي</span>
-        <b>{nextLabel || "لا يوجد إجراء مطلوب"}</b>
-        <small>
-          آخر تحديث{" "}
-          {row.updated_at
-            ? new Date(row.updated_at).toLocaleDateString("ar-SA-u-nu-latn")
-            : "غير محدد"}
-        </small>
-      </div>
-      <div className="ops-row-actions">
-        <button
-          className="whatsapp"
-          aria-label={`واتساب ${row.customer_name}`}
-          disabled={!row.phone}
-          onClick={(event) => {
-            event.stopPropagation();
-            onWhatsapp();
-          }}
-        >
-          <FaWhatsapp size={15} />
-        </button>
-        <button
-          aria-label={`إيميل ${row.customer_name}`}
-          disabled={!row.email}
-          onClick={(event) => {
-            event.stopPropagation();
-            onEmail();
-          }}
-        >
-          <Mail size={14} />
-        </button>
-        {nextLabel && onAdvance && (
-          <button
-            className="advance"
-            disabled={moving}
-            onClick={(event) => {
-              event.stopPropagation();
-              onAdvance();
-            }}
-          >
-            {moving ? "..." : nextLabel}
-          </button>
-        )}
+      <div className="ac-actions">
+        <button type="button" className="oh-btn icon" aria-label={`واتساب ${row.customer_name}`} disabled={!row.phone} onClick={(event) => { event.stopPropagation(); onWhatsapp(); }}><FaWhatsapp size={15} aria-hidden="true" /></button>
+        <button type="button" className="oh-btn icon" aria-label={`إيميل ${row.customer_name}`} disabled={!row.email} onClick={(event) => { event.stopPropagation(); onEmail(); }}><Mail size={15} aria-hidden="true" /></button>
+        {canAdvance && nextLabel && onAdvance && <button type="button" className="oh-btn primary" onClick={(event) => { event.stopPropagation(); onAdvance(); }}>{nextLabel}</button>}
       </div>
     </article>
   );
 }
+type PendingAcademyMove = { row: LiveEnrollment; action: string; label: string };
 function LiveAcademy({
   focus,
   canManagePaymentReference,
+  canAdvance,
 }: {
   focus: "contact" | "registration" | "assignment" | "program-activation";
   canManagePaymentReference: boolean;
+  canAdvance: boolean;
 }) {
   const [rows, setRows] = useState<LiveEnrollment[]>([]),
+    [loaded, setLoaded] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [moving, setMoving] = useState(""),
+    [pendingMove, setPendingMove] = useState<PendingAcademyMove | null>(null),
     [programFilter, setProgramFilter] = useState(focus === "registration" ? "تحليل السلوك التطبيقي" : "الكل"),
     [subprogramFilter, setSubprogramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل"),
     [selectedRow, setSelectedRow] = useState<LiveEnrollment | null>(null);
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null), pendingRef = useRef<PendingAcademyMove | null>(null);
+  // Refreshes keep the current list on screen; only the first load shows a skeleton.
   const load = async () => {
     setLoading(true);
-    setError("");
     try {
       setRows((await apiJson("/api/enrollments")).enrollments || []);
+      setError("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   };
-  useEffect(() => {
-    void load();
-  }, []);
-  const advance = async (row: LiveEnrollment) => {
-    const step = focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status)
-      ? ["activated", "تفعيل البرنامج"] as [string, string]
-      : enrollmentStep(row);
-    if (!step) return;
-    setMoving(row.id);
+  // A move waits a few seconds so it can be undone, then it is sent. Leaving the page sends it at once.
+  const commitMove = async (move: PendingAcademyMove, keepalive = false) => {
+    pendingRef.current = null;
+    if (moveTimer.current) clearTimeout(moveTimer.current);
+    moveTimer.current = null;
+    setPendingMove(null);
     try {
       await apiJson("/api/enrollments/transition", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ enrollmentId: row.id, action: step[0] }),
+        body: JSON.stringify({ enrollmentId: move.row.id, action: move.action }),
+        keepalive,
       });
-      setRows((current) => current.filter((item) => item.id !== row.id));
-      window.dispatchEvent(
-        new CustomEvent("sulukera:data-changed", {
-          detail: { entity: "customer", id: row.customer_id },
-        }),
-      );
-      setTimeout(() => void load(), 350);
+      window.dispatchEvent(new CustomEvent("sulukera:data-changed", { detail: { entity: "customer", id: move.row.customer_id } }));
     } catch (e) {
-      setError((e as Error).message);
-      setMoving("");
+      setError(`تعذر تنفيذ «${move.label}» لـ ${move.row.customer_name}: ${(e as Error).message}`);
     }
+    void load();
+  };
+  const commitRef = useRef(commitMove);
+  useEffect(() => { commitRef.current = commitMove; });
+  useEffect(() => {
+    void load();
+    const refresh = () => { if (!pendingRef.current) void load(); };
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    const flush = () => { if (pendingRef.current) void commitRef.current(pendingRef.current, true); };
+    const timer = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 60_000);
+    window.addEventListener("sulukera:data-changed", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("sulukera:data-changed", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("beforeunload", flush);
+      flush();
+    };
+  }, []);
+  useEffect(() => {
+    if (!selectedRow) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedRow(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedRow]);
+  const isCompetency = (row: LiveEnrollment) => row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة");
+  const stepFor = (row: LiveEnrollment) =>
+    focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status)
+      ? ["activated", "تفعيل البرنامج"] as [string, string]
+      : enrollmentStep(row);
+  const advance = (row: LiveEnrollment) => {
+    const step = stepFor(row);
+    if (!step || !canAdvance) return;
+    if (pendingRef.current) void commitMove(pendingRef.current);
+    const move = { row, action: step[0], label: actionLabel(row) || step[1] };
+    pendingRef.current = move;
+    setPendingMove(move);
+    setSelectedRow(null);
+    moveTimer.current = setTimeout(() => { if (pendingRef.current === move) void commitMove(move); }, 6000);
+  };
+  const undoMove = () => {
+    if (moveTimer.current) clearTimeout(moveTimer.current);
+    moveTimer.current = null;
+    pendingRef.current = null;
+    setPendingMove(null);
   };
   const whatsapp = (row: LiveEnrollment) => {
-    const digits = row.phone
+    const digits = String(row.phone || "")
       .replace(/\D/g, "")
       .replace(/^00/, "")
       .replace(/^0/, "966");
+    if (!digits) return;
     window.open(
       `https://wa.me/${digits}?text=${encodeURIComponent(`مرحباً ${row.customer_name}، معك فريق سلوكيرا بخصوص تهيئة تسجيلك في برنامج ${row.program_name}.`)}`,
       "_blank",
@@ -4500,46 +4493,53 @@ function LiveAcademy({
       : focus === "registration"
         ? ["تم التواصل", "بانتظار إنشاء الحساب"]
         : ["اكتمل التسجيل"];
+  const visibleRows = rows.filter((row) => row.id !== pendingMove?.row.id);
   const availablePrograms = Array.from(
-    new Set(rows.map((row) => programFamily(row.program_name)).filter(Boolean)),
+    new Set(visibleRows.map((row) => programFamily(row.program_name)).filter(Boolean)),
   );
   const availableStatuses = Array.from(
-    new Set(rows.map((row) => displayState(row.status)).filter(Boolean)),
+    new Set(visibleRows.map((row) => displayState(row.status)).filter(Boolean)),
   );
   const programPathLabel = (row: LiveEnrollment) => liveProgramClassification(row);
   const pathFilterPrograms = ["تحليل السلوك التطبيقي", "إدارة السلوك التنظيمي", "التعليم المستمر"];
   const availableSubprograms = pathFilterPrograms.includes(programFilter)
-    ? Array.from(new Set(rows.filter((row) => programFamily(row.program_name) === programFilter).map(programPathLabel).filter(Boolean)))
+    ? Array.from(new Set(visibleRows.filter((row) => (focus === "registration" ? onboardingCategory(row) : programFamily(row.program_name)) === programFilter).map(programPathLabel).filter(Boolean)))
     : [];
   const isDirectProgram = (row: LiveEnrollment) =>
     (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة") || row.program_delivery === "مباشر" || ["الاقتصاد السلوكي", "انتقائية الطعام"].includes(row.program_name)) &&
     row.order_type !== "إشراف" &&
     !row.program_name.includes("الإشراف");
-  const onboardingCategory = (row: LiveEnrollment) => {
+  function onboardingCategory(row: LiveEnrollment) {
     const family=programFamily(row.program_name);
     return family === "تقييم الكفاءة" ? "تحليل السلوك التطبيقي" : family;
-  };
-
-  const actionLabel = (row: LiveEnrollment) =>
-    focus === "program-activation" && (row.order_type === "تقييم كفاءة" || row.program_name.includes("تقييم الكفاءة"))
+  }
+  function actionLabel(row: LiveEnrollment) {
+    return focus === "program-activation" && isCompetency(row)
       ? "ربط المقيم وإكمال التقييم"
       : focus === "program-activation"
         ? "تم تفعيل البرنامج"
         : focus === "registration" && row.status === "تم التواصل"
-          ? "تمت إضافته للمنصة"
+          // The API sends competency assessments to "ربط المقيم", not to account creation.
+          ? isCompetency(row) ? "إضافة خدمة التقييم" : "تمت إضافته للمنصة"
           : focus === "registration" && row.status === "بانتظار إنشاء الحساب"
             ? "أكد العميل إنشاء الحساب"
         : enrollmentStep(row)?.[1];
-  const filteredRows = rows.filter(
+  }
+  const inPageScope = (row: LiveEnrollment) =>
+    (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
+    states.includes(displayState(row.status));
+  const filteredRows = visibleRows.filter(
     (row) =>
       (focus === "program-activation" ? isDirectProgram(row) : focus === "assignment" ? !isDirectProgram(row) : true) &&
       (programFilter === "الكل" || (focus === "registration" ? onboardingCategory(row) : programFamily(row.program_name)) === programFilter) &&
       (subprogramFilter === "الكل" || programPathLabel(row) === subprogramFilter) &&
       (statusFilter === "الكل" || displayState(row.status) === statusFilter),
   );
-  const attentionRows=rows.filter(row=>Boolean(row.needs_attention));
-  if (loading || error || !rows.length)
-    return <LiveState loading={loading} error={error} empty={!rows.length} />;
+  // Only customers who are actually waiting in this page's columns; finished files belong elsewhere.
+  const attentionRows = visibleRows.filter((row) => Boolean(row.needs_attention) && inPageScope(row));
+  if (!loaded) return <HomeDashboardSkeleton />;
+  if (!rows.length)
+    return <LiveState loading={false} error={error} empty />;
   const count = (state: string) =>
     filteredRows.filter((x) => displayState(x.status) === state).length;
   const stageLabel = (state: string) =>
@@ -4554,250 +4554,148 @@ function LiveAcademy({
               مكتمل: "مكتمل",
             } as Record<string, string>
           )[state] || state;
-  const stageIndex = (status: string) =>
-    [
-      "جديد",
-      "تم التواصل",
-      "اكتمل التسجيل",
-      "تم إنشاء الحساب",
-      "تم الإسناد",
-      "نشط",
-      "مكتمل",
-    ].indexOf(status);
+  const columnNote = (state: string) =>
+    focus === "assignment"
+      ? "جاهز لتفعيل البرنامج والمقررات"
+      : focus === "program-activation"
+        ? "برامج مباشرة جاهزة للتفعيل"
+        : focus === "contact"
+          ? "عملاء جدد بانتظار التواصل الأول وتسليمهم للتشغيل"
+          : state === "تم التواصل"
+            ? "أضف العميل للمنصة ثم سجّل تنفيذ الإجراء"
+            : "الموظف أنهى الإضافة؛ ننتظر تأكيد العميل إنشاء حسابه";
+  const selectedJourneyStage = selectedRow ? customerJourneyStages[selectedRow.status] : undefined;
+  const selectedLabel = selectedRow ? actionLabel(selectedRow) : undefined;
   const detailPanel = selectedRow && (
     <>
       <div className="overlay" onClick={() => setSelectedRow(null)} />
-      <aside className="drawer operations-drawer">
-        <button className="close" onClick={() => setSelectedRow(null)}>
-          ×
-        </button>
-        <div className="person">
-          <i>{selectedRow.customer_name.slice(0, 2)}</i>
-          <div>
-            <h2>{selectedRow.customer_name}</h2>
-            <div className="profile-meta-line"><p>{programFamily(selectedRow.program_name)}</p>{selectedRow.program_delivery&&<em className={`profile-delivery ${selectedRow.program_delivery === "مباشر" ? "live" : "recorded"}`}>{selectedRow.program_delivery}</em>}</div>
-            {selectedRow.created_at&&<small className="profile-created-at">أضيف في {new Date(selectedRow.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
-          </div>
-        </div>
-        {Boolean(selectedRow.needs_attention)&&<div className="drawer-attention-note"><ShieldCheck size={18}/><div><b>عميل بحاجة للانتباه</b><span>سلوك السداد الحالي: تطبيق السياسة. مراجعة الملف المالي قبل متابعة الإجراء.</span></div></div>}
-        <div className="operations-contact-actions">
-          <button className="whatsapp" onClick={() => whatsapp(selectedRow)}>
-            <FaWhatsapp size={18} />
-            واتساب
-          </button>
-          <button
-            className="email-action"
-            disabled={!selectedRow.email}
-            onClick={() =>
-              (window.location.href = `mailto:${selectedRow.email}`)
-            }
-          >
-            <Mail size={17} />
-            إيميل
-          </button>
-          <PaymentReferenceControl
-            paymentId={selectedRow.payment_id}
-            initialReference={selectedRow.payment_reference}
-            canEdit={canManagePaymentReference}
-            onSaved={(paymentReference) => {
-              setSelectedRow({
-                ...selectedRow,
-                payment_reference: paymentReference,
-              });
-              setRows((current) =>
-                current.map((row) =>
-                  row.id === selectedRow.id
-                    ? { ...row, payment_reference: paymentReference }
-                    : row,
-                ),
-              );
-            }}
-          />
-        </div>
-        <Section title="ملاحظات العميل">
-          <CustomerNotes customerId={selectedRow.customer_id} />
-        </Section>
-        <Section title="بيانات العميل">
-          <div className="detail-contact">
+      <aside className="cp-sheet" role="dialog" aria-modal="true" aria-labelledby="ac-sheet-title">
+        <header className="cp-head">
+          <button type="button" className="cp-close" aria-label="إغلاق ملف العميل" onClick={() => setSelectedRow(null)}><X size={18} /></button>
+          <div className="cp-identity">
+            <span className="cp-avatar" aria-hidden="true">{selectedRow.customer_name.trim().slice(0, 2)}</span>
             <div>
-              <span>رقم الجوال</span>
-              <b dir="ltr">{selectedRow.phone}</b>
-            </div>
-            <div>
-              <span>البريد الإلكتروني</span>
-              <b dir="ltr">{selectedRow.email}</b>
+              <h2 id="ac-sheet-title">{selectedRow.customer_name}</h2>
+              <p className="cp-meta"><span dir="ltr">{selectedRow.phone || "دون جوال"}</span><span>طلب {selectedRow.order_number || selectedRow.order_id}</span></p>
             </div>
           </div>
-          <div className="info customer-data">
-            <label>
-              البرنامج<b>{programFamily(selectedRow.program_name)}{liveProgramClassification(selectedRow) && <small className="drawer-program-track">التصنيف: {liveProgramClassification(selectedRow)}</small>}{liveProgramOperationalNote(selectedRow) && <small className="drawer-program-note">ملاحظة تشغيلية: {liveProgramOperationalNote(selectedRow)}</small>}{selectedRow.program_delivery && selectedRow.program_track?.toUpperCase() !== "ABAT" && <small className="drawer-program-delivery">نمط البرنامج: {selectedRow.program_delivery}</small>}{Boolean(selectedRow.competency_assessment) && <small className="drawer-competency-badge">مع تقييم كفاءة</small>}</b>
-            </label>
-            <label>
-              رقم الطلب<b>{selectedRow.order_number || selectedRow.order_id}</b>
-            </label>
+          <div className="cp-tags">
+            <em className={`cu-status ${customerStateTone(selectedRow.status)}`}>{stageLabel(displayState(selectedRow.status))}</em>
+            {selectedRow.program_delivery&&<em className={`cp-tag profile-delivery ${selectedRow.program_delivery === "مباشر" ? "live" : "recorded"}`}>{selectedRow.program_delivery}</em>}
+            {selectedRow.created_at&&<small>أضيف في {new Date(selectedRow.created_at).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
           </div>
-        </Section>
-        <Section title="مراحل العملية">
-          <div className="operation-steps">
-            {[
-              ["تسليم العميل", 0],
-              ["تهيئة العميل", 1],
-              ["تفعيل المقررات", 3],
-            ].map(([label, min], index) => {
-              const done = stageIndex(selectedRow.status) > Number(min),
-                current =
-                  (index === 0 && stageIndex(selectedRow.status) === 0) ||
-                  (index === 1 && stageIndex(selectedRow.status) === 1) ||
-                  (index === 2 &&
-                    stageIndex(selectedRow.status) >= 2 &&
-                    stageIndex(selectedRow.status) < 6);
-              return (
-                <div
-                  className={done ? "done" : current ? "current" : "pending"}
-                  key={label}
-                >
-                  <i>{done ? "✓" : index + 1}</i>
-                  <span>
-                    <b>{label}</b>
-                    <small>
-                      {done
-                        ? "تمت الخطوة"
-                        : current
-                          ? "الخطوة الحالية"
-                          : "بانتظار الخطوة السابقة"}
-                    </small>
-                  </span>
-                </div>
-              );
-            })}
+          <div className="cp-contact">
+            <button type="button" className="oh-btn" disabled={!selectedRow.phone} onClick={() => whatsapp(selectedRow)}><FaWhatsapp size={16} aria-hidden="true" />واتساب</button>
+            <button type="button" className="oh-btn" disabled={!selectedRow.email} onClick={() => (window.location.href = `mailto:${selectedRow.email}`)}><Mail size={16} aria-hidden="true" />إيميل</button>
           </div>
-          {actionLabel(selectedRow) && (
-            <button
-              className="primary drawer-next"
-              disabled={moving === selectedRow.id}
-              onClick={async () => {
-                await advance(selectedRow);
-                setSelectedRow(null);
+        </header>
+        <div className="cp-body">
+          {Boolean(selectedRow.needs_attention) && <section className="cp-section cp-danger" aria-labelledby="ac-attention-title"><h3 id="ac-attention-title">عميل بحاجة للانتباه</h3><p className="cp-next">سلوك السداد الحالي: تطبيق السياسة. راجع الملف المالي قبل متابعة الإجراء.</p></section>}
+          <section className="cp-section" aria-labelledby="ac-journey-title">
+            <h3 id="ac-journey-title">رحلة العميل</h3>
+            {selectedJourneyStage ? <>
+              <ol className="cp-steps">
+                {customerJourneySteps.map((step, index) => {
+                  const state = index < selectedJourneyStage[0] ? "done" : index === selectedJourneyStage[0] ? "current" : "todo";
+                  return <li key={step} className={state} aria-current={state === "current" ? "step" : undefined}><i aria-hidden="true">{state === "done" ? <Check size={13} /> : index + 1}</i><span>{step}</span></li>;
+                })}
+              </ol>
+              <p className="cp-next">{selectedJourneyStage[1]}</p>
+            </> : <p className="cp-next">الحالة الحالية: <b>{selectedRow.status}</b></p>}
+            {selectedLabel && stepFor(selectedRow) && (canAdvance
+              ? <button type="button" className="oh-btn primary cp-advance" onClick={() => advance(selectedRow)}>{selectedLabel}</button>
+              : <p className="cp-next ac-readonly-note">تنفيذ «{selectedLabel}» متاح لفريق التشغيل (الأكاديمية).</p>)}
+          </section>
+          <section className="cp-section" aria-labelledby="ac-notes-title">
+            <h3 id="ac-notes-title">ملاحظات العميل</h3>
+            <CustomerNotes customerId={selectedRow.customer_id} />
+          </section>
+          <section className="cp-section" aria-labelledby="ac-data-title">
+            <h3 id="ac-data-title">بيانات العميل</h3>
+            <dl className="cp-ledger">
+              <div><dt>رقم الجوال</dt><dd dir="ltr">{selectedRow.phone || "—"}</dd></div>
+              <div><dt>البريد الإلكتروني</dt><dd dir="ltr">{selectedRow.email || "—"}</dd></div>
+              <div><dt>البرنامج</dt><dd>{programFamily(selectedRow.program_name)}{liveProgramClassification(selectedRow) && <small className="ac-dd-note">التصنيف: {liveProgramClassification(selectedRow)}</small>}{liveProgramOperationalNote(selectedRow) && <small className="ac-dd-note">ملاحظة تشغيلية: {liveProgramOperationalNote(selectedRow)}</small>}{selectedRow.program_delivery && selectedRow.program_track?.toUpperCase() !== "ABAT" && <small className="ac-dd-note">نمط البرنامج: {selectedRow.program_delivery}</small>}{Boolean(selectedRow.competency_assessment) && <small className="ac-dd-note">مع تقييم كفاءة</small>}</dd></div>
+              <div><dt>رقم الطلب</dt><dd>{selectedRow.order_number || selectedRow.order_id}</dd></div>
+              <div><dt>المصدر</dt><dd>{selectedRow.purchase_source || "غير محدد"}</dd></div>
+            </dl>
+            <PaymentReferenceControl
+              paymentId={selectedRow.payment_id}
+              initialReference={selectedRow.payment_reference}
+              canEdit={canManagePaymentReference}
+              onSaved={(paymentReference) => {
+                setSelectedRow({
+                  ...selectedRow,
+                  payment_reference: paymentReference,
+                });
+                setRows((current) =>
+                  current.map((row) =>
+                    row.id === selectedRow.id
+                      ? { ...row, payment_reference: paymentReference }
+                      : row,
+                  ),
+                );
               }}
-            >
-              {moving === selectedRow.id
-                ? "جارٍ التحديث..."
-                : actionLabel(selectedRow)}
-            </button>
-          )}
-        </Section>
+            />
+          </section>
+        </div>
       </aside>
     </>
   );
   const board = (
-    <div className={`kanban live-kanban simplified journey-board ${focus}`}>
-      {states.map((state, index) => (
-        <section className={`journey-column column-${index}`} key={state}>
-          <header>
-            <div>
-              <i>{index + 1}</i>
-              <b>{stageLabel(state)}</b>
-            </div>
-            <span>{count(state)}</span>
-          </header>
-          <p className="column-note">
-            {focus === "assignment"
-              ? [
-                  "جاهز لتفعيل البرنامج والمقررات",
-                  "تم التفعيل ويجري تنفيذ البرنامج",
-                  "أتم البرنامج بنجاح",
-                ][index]
-              : focus === "contact"
-                ? "فتح البطاقة يعرض ملف العميل"
-                : focus === "registration" && state === "تم التواصل"
-                  ? "أضف العميل للمنصة ثم سجّل تنفيذ الإجراء"
-                  : focus === "registration"
-                    ? "الموظف أنهى الإضافة؛ ننتظر تأكيد العميل إنشاء حسابه"
-                    : "فتح البطاقة يعرض بيانات العميل وخطواته"}
-          </p>
-          {!!count(state) && (
-            <div className="ops-list-head" aria-hidden="true">
-              <span>العميل</span>
-              <span>البرنامج</span>
-              <span>بيانات التواصل</span>
-              <span>المصدر</span>
-              <span>المرحلة</span>
-              <span>الإجراء التالي</span>
-              <span>الإجراءات</span>
-            </div>
-          )}
-          <div className="column-cards">
-            {filteredRows
-              .filter((x) => displayState(x.status) === state)
-              .map((row) => (
+    <div className={`ac-board ${focus}`}>
+      {states.map((state, index) => {
+        // Oldest first: the case that has waited longest is the one to pick up next.
+        const columnRows = filteredRows.filter((x) => displayState(x.status) === state).sort((a, b) => String(a.updated_at || "").localeCompare(String(b.updated_at || "")));
+        return (
+          <section className="oh-panel ac-column" key={state} aria-labelledby={`ac-column-${index}`}>
+            <header className="oh-panel-head">
+              <span className="ac-step" aria-hidden="true">{index + 1}</span>
+              <div><h3 id={`ac-column-${index}`}>{stageLabel(state)}</h3><p>{columnNote(state)}</p></div>
+              <span className="oh-count">{columnRows.length}</span>
+            </header>
+            {columnRows.length ? <ul className="ac-list">{columnRows.map((row) => (
+              <li key={row.id}>
                 <OperationsCustomerCard
-                  key={row.id}
                   row={row}
-                  stage={stageLabel(state)}
                   nextLabel={actionLabel(row)}
-                  moving={moving === row.id}
+                  canAdvance={canAdvance}
                   onOpen={() => setSelectedRow(row)}
                   onWhatsapp={() => whatsapp(row)}
                   onEmail={() => {
                     window.location.href = `mailto:${row.email}`;
                   }}
-                  onAdvance={
-                    (focus === "program-activation" && ["اكتمل التسجيل", "تم إنشاء الحساب"].includes(row.status)) || enrollmentStep(row)
-                      ? () => void advance(row)
-                      : undefined
-                  }
+                  onAdvance={stepFor(row) ? () => advance(row) : undefined}
                 />
-              ))}
-          </div>
-          {!count(state) && (
-            <div className="column-empty">
-              <i>✓</i>
-              <b>لا توجد حالات هنا</b>
-              <span>ستظهر تلقائياً عند انتقال العميل</span>
-            </div>
-          )}
-        </section>
-      ))}
+              </li>
+            ))}</ul> : <div className="oh-empty">لا توجد حالات هنا. ستظهر تلقائيًا عند انتقال العميل.</div>}
+          </section>
+        );
+      })}
     </div>
   );
-  const attentionPanel=focus!=="contact"&&attentionRows.length>0&&<section className="operations-attention"><header><div><ShieldCheck size={19}/><span><b>عملاء بحاجة للانتباه</b><small>تم تطبيق السياسة المالية على ملفاتهم</small></span></div><em>{attentionRows.length}</em></header><div>{attentionRows.map(row=><button key={row.id} onClick={()=>setSelectedRow(row)}><span><b>{row.customer_name}</b><small>{row.program_name} · {row.order_number||row.order_id}</small></span><em>فتح الملف ←</em></button>)}</div></section>;
-  const onboardingTabs=focus==="registration"&&<div className="onboarding-tabs" role="tablist" aria-label="برامج تهيئة العملاء">{[
+  const attentionPanel=focus!=="contact"&&attentionRows.length>0&&<section className="oh-panel ac-attention" aria-labelledby="ac-attention-list"><header className="oh-panel-head"><span className="oh-icon warm"><ShieldCheck size={18}/></span><div><h3 id="ac-attention-list">عملاء بحاجة للانتباه</h3><p>طُبّقت السياسة المالية على ملفاتهم؛ راجع الملف المالي قبل متابعة الإجراء</p></div><span className="oh-count">{attentionRows.length}</span></header><ul>{attentionRows.map(row=><li key={row.id}><button type="button" onClick={()=>setSelectedRow(row)}><span><b>{row.customer_name}</b><small>{row.program_name} · {row.order_number||row.order_id}</small></span><ChevronLeft size={15} aria-hidden="true"/></button></li>)}</ul></section>;
+  const onboardingTabs=focus==="registration"&&<div className="ac-filters"><div className="oh-segment"><div className="onboarding-tabs" role="tablist" aria-label="برامج تهيئة العملاء">{[
     ["تحليل السلوك التطبيقي","شهادة تحليل السلوك التطبيقي"],
     ["إدارة السلوك التنظيمي","شهادة إدارة السلوك التنظيمي"],
     ["التعليم المستمر","التعليم المستمر"],
-  ].map(([value,label])=><button type="button" role="tab" aria-selected={programFilter===value} className={programFilter===value?"active":""} key={value} onClick={()=>{setProgramFilter(value);setStatusFilter("الكل");setSubprogramFilter("الكل")}}><span>{label}</span><em>{rows.filter(row=>["تم التواصل","بانتظار إنشاء الحساب"].includes(row.status)&&onboardingCategory(row)===value).length}</em></button>)}</div>;
-  if (focus !== "assignment")
-    return (
-      <>
-        {attentionPanel}
-        {onboardingTabs}
-        {focus!=="registration"&&<CustomerSmartFilters
-          programs={availablePrograms}
-          statuses={availableStatuses}
-          program={programFilter}
-          status={statusFilter}
-          total={rows.length}
-          visible={filteredRows.length}
-          onProgram={(value) => { setProgramFilter(value); setSubprogramFilter("الكل"); }}
-          onStatus={setStatusFilter}
-          subcategories={availableSubprograms}
-          subcategory={subprogramFilter}
-          onSubcategory={setSubprogramFilter}
-          tertiaryLabel={programFilter === "التعليم المستمر" ? "التصنيف المعتمد" : "المسار"}
-        />}
-        {board}
-        {detailPanel}
-      </>
-    );
+  ].map(([value,label])=><button type="button" role="tab" aria-selected={programFilter===value} className={programFilter===value?"active":""} key={value} onClick={()=>{setProgramFilter(value);setStatusFilter("الكل");setSubprogramFilter("الكل")}}><span>{label}</span><span className="oc-seg-count">{visibleRows.filter(row=>["تم التواصل","بانتظار إنشاء الحساب"].includes(row.status)&&onboardingCategory(row)===value).length}</span></button>)}</div></div>{availableSubprograms.length>0&&<label className="cu-select"><span>{programFilter === "التعليم المستمر" ? "التصنيف المعتمد" : "المسار"}</span><select value={subprogramFilter} onChange={(event)=>setSubprogramFilter(event.target.value)}><option value="الكل">الكل</option>{availableSubprograms.map((value)=><option key={value} value={value}>{value}</option>)}</select></label>}</div>;
+  const assignmentStats = focus === "assignment" && <div className="chart-total-cards ac-stats">
+    <p><span>بانتظار التفعيل</span><b>{count("اكتمل التسجيل")}</b></p>
+    <p><span>مقررات مفعّلة</span><b>{count("تم الإسناد")}</b></p>
+    <p><span>مكتمل</span><b>{count("مكتمل")}</b></p>
+  </div>;
   return (
-    <>
+    <div className="ops-home ops-academy" aria-busy={loading}>
+      {error && <div className="oh-alert" role="alert">{error}</div>}
       {attentionPanel}
-      <CustomerSmartFilters
+      {onboardingTabs}
+      {focus!=="registration"&&<CustomerSmartFilters
         programs={availablePrograms}
         statuses={availableStatuses}
         program={programFilter}
         status={statusFilter}
-        total={rows.length}
+        total={visibleRows.length}
         visible={filteredRows.length}
         onProgram={(value) => { setProgramFilter(value); setSubprogramFilter("الكل"); }}
         onStatus={setStatusFilter}
@@ -4805,36 +4703,13 @@ function LiveAcademy({
         subcategory={subprogramFilter}
         onSubcategory={setSubprogramFilter}
         tertiaryLabel={programFilter === "التعليم المستمر" ? "التصنيف المعتمد" : "المسار"}
-      />
-      <div className="assignment-workspace">
-        <div className="assignment-banner">
-          <div>
-            <span>متابعة تفعيل المقررات</span>
-            <h2>مراجعة العميل وتفعيل البرنامج</h2>
-            <p>
-              مراجعة بيانات العميل وتفعيل المقررات ومتابعة اكتمال البرنامج من
-              مكان واحد.
-            </p>
-          </div>
-          <div className="assignment-stats">
-            <p>
-              <span>بانتظار التفعيل</span>
-              <b>{count("اكتمل التسجيل")}</b>
-            </p>
-            <p>
-              <span>مقررات مفعّلة</span>
-              <b>{count("تم الإسناد")}</b>
-            </p>
-            <p>
-              <span>مكتمل</span>
-              <b>{count("مكتمل")}</b>
-            </p>
-          </div>
-        </div>
-        {board}
-      </div>
+      />}
+      {assignmentStats}
+      {!canAdvance && <p className="oh-footnote ac-readonly"><Info size={14} aria-hidden="true" />تنفيذ إجراءات هذه الصفحة متاح لفريق التشغيل (الأكاديمية). يمكنك متابعة الحالات وفتح ملفاتها.</p>}
+      {board}
+      {pendingMove && <div className="ac-undo" role="status"><Check size={16} aria-hidden="true" /><span>«{pendingMove.label}» لـ <b>{pendingMove.row.customer_name}</b></span><button type="button" onClick={undoMove}>تراجع</button></div>}
       {detailPanel}
-    </>
+    </div>
   );
 }
 

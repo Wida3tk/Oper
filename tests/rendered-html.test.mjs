@@ -695,10 +695,28 @@ test("organizes onboarding by certificate and distinguishes employee work from c
   assert.match(page, /أكد العميل إنشاء الحساب/);
   assert.match(transition, /to:"بانتظار إنشاء الحساب"/);
   assert.match(transition, /account_created:\{from:\["بانتظار إنشاء الحساب","اكتمل التسجيل"\]/);
-  assert.match(css, /\.journey-board\.registration\{grid-template-columns:minmax\(0,1fr\)!important/);
-  assert.match(css, /\.journey-board\.registration \.column-empty\{min-height:96px/);
-  assert.match(css, /\.journey-board\.registration \.ops-customer-row\{position:relative!important/);
-  assert.match(css, /border-top:1px solid #e1e7ef!important/);
+  assert.match(page, /<div className=\{`ac-board \$\{focus\}`\}>/);
+  assert.match(page, /<section className="oh-panel ac-column"/);
+  assert.match(css, /\.ac-board\{display:grid;gap:16px\}/);
+  assert.match(css, /\.ac-list>li\+li\{border-top:1px solid var\(--sk-line\)\}/);
+});
+
+test("keeps academy queues usable: read-only roles, correct journey, undo, scoped attention", async () => {
+  const page = await read("../app/page.tsx");
+  const transition = await read("../app/api/enrollments/transition/route.ts");
+  assert.match(transition, /authorize\(req,\["academy"\]\)/);
+  assert.match(page, /const canAdvanceEnrollments = currentUser\.roles\.includes\("admin"\) \|\| currentUser\.roles\.includes\("academy"\);/);
+  assert.match(page, /\{canAdvance && nextLabel && onAdvance && <button/);
+  assert.match(page, /"بانتظار إنشاء الحساب": \[2, /);
+  assert.match(page, /const selectedJourneyStage = selectedRow \? customerJourneyStages\[selectedRow\.status\] : undefined;/);
+  assert.match(page, /isCompetency\(row\) \? "إضافة خدمة التقييم" : "تمت إضافته للمنصة"/);
+  assert.match(page, /const attentionRows = visibleRows\.filter\(\(row\) => Boolean\(row\.needs_attention\) && inPageScope\(row\)\);/);
+  assert.match(page, /if \(!loaded\) return <HomeDashboardSkeleton \/>;/);
+  assert.match(page, /moveTimer\.current = setTimeout\(\(\) => \{ if \(pendingRef\.current === move\) void commitMove\(move\); \}, 6000\);/);
+  assert.match(page, /window\.addEventListener\("beforeunload", flush\);/);
+  assert.match(page, /keepalive,/);
+  assert.match(page, /<button type="button" onClick=\{undoMove\}>تراجع<\/button>/);
+  assert.doesNotMatch(page, /const stageIndex = \(status: string\) =>/);
 });
 
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {

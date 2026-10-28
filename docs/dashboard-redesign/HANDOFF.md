@@ -11,7 +11,7 @@
   and committed on `design/phase-0-shell` (cut from this branch at `ac9335a`). See
   [PHASE-0-SHELL.md](PHASE-0-SHELL.md). The user then approved Phase 1 (Operations Center), committed on the
   same branch at the user's request. See [PHASE-1-OPERATIONS-CENTER.md](PHASE-1-OPERATIONS-CENTER.md), including
-  the suggestions waiting for the user's decision. Phase 2 (Customers) followed on the same branch: see [PHASE-2-CUSTOMERS.md](PHASE-2-CUSTOMERS.md). Do not start Phase 3 until they say so.
+  the suggestions waiting for the user's decision. Phase 2 (Customers) followed on the same branch: see [PHASE-2-CUSTOMERS.md](PHASE-2-CUSTOMERS.md). Phase 3 started with the academy pages (onboarding review and fixes): see [PHASE-3-ACADEMY.md](PHASE-3-ACADEMY.md), including the open question on academy permissions. "تسليم العميل" (contact) is still to do in Phase 3.
 - `main` locally had 28 commits not on `origin/main` at handoff time. They reach GitHub only as history of
   this branch. `origin/main` was not touched.
 
@@ -32,7 +32,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (87 / 87 on `design/phase-0-shell` after Phase 2) |
+| `npm test` | 80 / 80 (88 / 88 on `design/phase-0-shell` after the Phase 3 academy pages) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 
