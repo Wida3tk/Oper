@@ -302,6 +302,21 @@ test("explains live dashboard metrics and removes the seat reservation reflectio
   assert.doesNotMatch(api, /activeReservations/);
 });
 
+test("renders the redesigned operations dashboard from live data only", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<div className="ops-home" aria-busy=\{loading\}>/);
+  assert.match(page, /data\.tasks\.map\(task=>/);
+  assert.match(page, /onOpenFinanceReview\(key\)/);
+  assert.match(page, /if\(!data\)return loading\?<HomeDashboardSkeleton\/>/);
+  assert.match(page, /\{f&&<section className="oh-panel oh-finance"/);
+  assert.doesNotMatch(page, /className="home-dashboard"/);
+  assert.match(css, /--sk-brand:#315efb/);
+  assert.match(css, /prefers-reduced-motion:reduce\)\{\.ops-home \*/);
+  assert.match(css, /\.oh-main,\.oh-aside\{display:contents\}/);
+  assert.doesNotMatch(css, /\.home-metric\{/);
+});
+
 test("tracks motivational weekly targets from Saturday through Thursday", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
