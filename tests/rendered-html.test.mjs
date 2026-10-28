@@ -726,6 +726,20 @@ test("uses the local date for every 'today' default in the app", async () => {
   assert.match(page, /const todayKey = new Date\(\)\.toLocaleDateString\("en-CA"\);/);
 });
 
+test("aligns the contact page with the trials API and surfaces stuck new enrollments", async () => {
+  const page = await read("../app/page.tsx");
+  const trials = await read("../app/api/trials/route.ts");
+  assert.match(trials, /authorize\(req,\["sales","academy","viewer"\]\)/);
+  assert.match(trials, /authorize\(req,\["sales"\]\)/);
+  assert.match(page, /const canDecideTrials = currentUser\.roles\.includes\("admin"\) \|\| currentUser\.roles\.includes\("sales"\);/);
+  assert.match(page, /\{canViewTrials && <TrialHandoff canDecide=\{canDecideTrials\} \/>\}/);
+  assert.match(page, /\{canDecide && <div className="tr-actions">/);
+  assert.match(page, /decisionTimer\.current = setTimeout\(\(\) => \{ if \(pendingRef\.current === decision\) void commitDecision\(decision\); \}, 6000\);/);
+  assert.match(page, /<LiveAcademy focus="contact"/);
+  assert.match(page, /if \(focus === "contact" && !pendingMove && \(!loaded \|\| !visibleRows\.some\(\(row\) => row\.status === "جديد"\)\)\) return null;/);
+  assert.match(page, /\.sort\(\(a, b\) => daysLeft\(a\) - daysLeft\(b\)\);/);
+});
+
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");

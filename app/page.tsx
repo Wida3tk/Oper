@@ -669,6 +669,9 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     currentUser.permissions.includes(permission);
   // POST /api/enrollments/transition accepts academy (and admin) only; other roles get a read-only queue.
   const canAdvanceEnrollments = currentUser.roles.includes("admin") || currentUser.roles.includes("academy");
+  // /api/trials: GET allows sales, academy and viewer; POST allows sales only (admin always passes).
+  const canViewTrials = ["admin", "sales", "academy", "viewer"].some((role) => currentUser.roles.includes(role));
+  const canDecideTrials = currentUser.roles.includes("admin") || currentUser.roles.includes("sales");
   const canOpen = (id: View) =>
     ["dashboard", "work"].includes(id) ||
     (id === "trainee-progress" && (has("customers.view") || has("programs.activate"))) ||
@@ -987,7 +990,8 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} canAdvance={canAdvanceEnrollments} />}
           {view === "contact" && (
             <>
-              <TrialHandoff />
+              {canViewTrials && <TrialHandoff canDecide={canDecideTrials} />}
+              <LiveAcademy focus="contact" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} canAdvance={canAdvanceEnrollments} />
               <Registration done={() => setView("customers")} />
             </>
           )}
@@ -4098,135 +4102,124 @@ function LegacyLiveWork() {
   );
 }
 
-function TrialHandoff() {
+type PendingTrialDecision = { row: LiveTrial; action: "subscribe" | "not_interested"; label: string };
+function TrialHandoff({ canDecide }: { canDecide: boolean }) {
   const [rows, setRows] = useState<LiveTrial[]>([]),
+    [loaded, setLoaded] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [moving, setMoving] = useState(""),
+    [pendingDecision, setPendingDecision] = useState<PendingTrialDecision | null>(null),
     [programFilter, setProgramFilter] = useState("الكل"),
     [statusFilter, setStatusFilter] = useState("الكل");
+  const decisionTimer = useRef<ReturnType<typeof setTimeout> | null>(null), pendingRef = useRef<PendingTrialDecision | null>(null);
+  // Refreshes keep the list on screen; only the first load shows a loading line.
   const load = async () => {
     setLoading(true);
-    setError("");
     try {
       setRows((await apiJson("/api/trials")).trials || []);
+      setError("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   };
-  useEffect(() => {
-    void load();
-  }, []);
-  const decide = async (
-    row: LiveTrial,
-    action: "subscribe" | "not_interested",
-  ) => {
-    setMoving(row.id);
-    setError("");
+  // A decision waits a few seconds so it can be undone, then it is sent. Leaving the page sends it at once.
+  const commitDecision = async (decision: PendingTrialDecision, keepalive = false) => {
+    pendingRef.current = null;
+    if (decisionTimer.current) clearTimeout(decisionTimer.current);
+    decisionTimer.current = null;
+    setPendingDecision(null);
     try {
       await apiJson("/api/trials", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ trialId: row.id, action }),
+        body: JSON.stringify({ trialId: decision.row.id, action: decision.action }),
+        keepalive,
       });
-      setRows((current) => current.filter((x) => x.id !== row.id));
       window.dispatchEvent(new CustomEvent("sulukera:data-changed"));
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setMoving("");
+      setError(`تعذر تنفيذ «${decision.label}» لـ ${decision.row.customer_name}: ${(e as Error).message}`);
     }
+    void load();
   };
-  if (!loading && !error && !rows.length) return null;
-  const trialPrograms = Array.from(
-    new Set(rows.map((row) => row.program_name).filter(Boolean)),
-  );
-  const trialStatus = (row: LiveTrial) =>
-    new Date(row.ends_at).getTime() < Date.now() ? "انتهت التجربة" : "تجربة نشطة";
-  const trialStatuses = Array.from(new Set(rows.map(trialStatus)));
-  const filteredTrials = rows.filter(
-    (row) =>
-      (programFilter === "الكل" || row.program_name === programFilter) &&
-      (statusFilter === "الكل" || trialStatus(row) === statusFilter),
-  );
+  const commitRef = useRef(commitDecision);
+  useEffect(() => { commitRef.current = commitDecision; });
+  useEffect(() => {
+    void load();
+    const refresh = () => { if (!pendingRef.current) void load(); };
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    const flush = () => { if (pendingRef.current) void commitRef.current(pendingRef.current, true); };
+    window.addEventListener("sulukera:data-changed", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("sulukera:data-changed", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("beforeunload", flush);
+      flush();
+    };
+  }, []);
+  const decide = (row: LiveTrial, action: "subscribe" | "not_interested") => {
+    if (!canDecide) return;
+    if (pendingRef.current) void commitDecision(pendingRef.current);
+    const decision = { row, action, label: action === "subscribe" ? "اشتراك ونقل إلى التهيئة" : "غير مهتم" };
+    pendingRef.current = decision;
+    setPendingDecision(decision);
+    decisionTimer.current = setTimeout(() => { if (pendingRef.current === decision) void commitDecision(decision); }, 6000);
+  };
+  const undoDecision = () => {
+    if (decisionTimer.current) clearTimeout(decisionTimer.current);
+    decisionTimer.current = null;
+    pendingRef.current = null;
+    setPendingDecision(null);
+  };
+  const visibleRows = rows.filter((row) => row.id !== pendingDecision?.row.id);
+  if (loaded && !error && !visibleRows.length && !pendingDecision) return null;
+  const now = new Date(), todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysLeft = (row: LiveTrial) => { const end = new Date(row.ends_at); return Math.round((Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()) - todayUtc) / 864e5); };
+  const trialStatus = (row: LiveTrial) => (daysLeft(row) < 0 ? "انتهت التجربة" : "تجربة نشطة");
+  const trialChip = (row: LiveTrial) => {
+    const left = daysLeft(row), days = Math.abs(left), unit = days === 1 ? "يوم" : days === 2 ? "يومين" : days <= 10 ? `${days} أيام` : `${days} يومًا`;
+    return left < 0 ? { label: `انتهت منذ ${unit}`, tone: "late" } : left === 0 ? { label: "تنتهي اليوم", tone: "today" } : { label: `باقٍ ${unit}`, tone: left <= 2 ? "today" : "" };
+  };
+  const trialPrograms = Array.from(new Set(visibleRows.map((row) => row.program_name).filter(Boolean)));
+  const trialStatuses = Array.from(new Set(visibleRows.map(trialStatus)));
+  // Expired trials first (they need a decision now), then the ones ending soonest.
+  const filteredTrials = visibleRows
+    .filter((row) => (programFilter === "الكل" || row.program_name === programFilter) && (statusFilter === "الكل" || trialStatus(row) === statusFilter))
+    .sort((a, b) => daysLeft(a) - daysLeft(b));
   return (
-    <section className="trial-handoff">
-      <header>
-        <div>
-          <span>عملاء التجربة</span>
-          <h2>متابعة قرار العميل بعد التجربة</h2>
-          <p>
-            اختر اشتراك لنقل العميل مباشرة إلى التهيئة، أو غير مهتم لإغلاق
-            التجربة وتصنيف الملف.
-          </p>
-        </div>
-        <b>{rows.length}</b>
+    <div className="ops-home ops-contact">
+    <section className="oh-panel tr-panel" aria-labelledby="tr-title" aria-busy={loading}>
+      <header className="oh-panel-head">
+        <span className="oh-icon"><UsersRound size={18} /></span>
+        <div><h3 id="tr-title">عملاء التجربة: متابعة القرار</h3><p>اشتراك ينقل العميل مباشرة إلى التهيئة، وغير مهتم يغلق التجربة ويصنّف الملف.</p></div>
+        <span className="oh-count">{visibleRows.length}</span>
       </header>
-      <CustomerSmartFilters
-        programs={trialPrograms}
-        statuses={trialStatuses}
-        program={programFilter}
-        status={statusFilter}
-        total={rows.length}
-        visible={filteredTrials.length}
-        onProgram={setProgramFilter}
-        onStatus={setStatusFilter}
-      />
-      {error && <div className="ops-error compact">{error}</div>}
-      {loading ? (
-        <div className="ops-empty compact">جارٍ تحميل عملاء التجربة…</div>
-      ) : (
-        <div className="trial-cards">
-          {filteredTrials.map((row) => (
-            <article key={row.id}>
-              <div className="trial-person">
-                <i>{row.customer_name.slice(0, 2)}</i>
-                <div>
-                  <b>{row.customer_name}</b>
-                  <span>
-                    {row.program_name} · {row.program_code}
-                  </span>
-                </div>
-              </div>
-              <div className="trial-contact">
-                <p>
-                  <span>رقم الجوال</span>
-                  <b dir="ltr">{row.phone}</b>
-                </p>
-                <p>
-                  <span>البريد الإلكتروني</span>
-                  <b dir="ltr">{row.email}</b>
-                </p>
-              </div>
-              <p className="trial-period">
-                تنتهي التجربة:{" "}
-                <b>
-                  {new Date(row.ends_at).toLocaleDateString("ar-SA-u-nu-latn")}
-                </b>
-              </p>
-              <div className="trial-actions">
-                <button
-                  className="primary"
-                  disabled={moving === row.id}
-                  onClick={() => decide(row, "subscribe")}
-                >
-                  اشتراك ونقل إلى التهيئة
-                </button>
-                <button
-                  className="secondary danger"
-                  disabled={moving === row.id}
-                  onClick={() => decide(row, "not_interested")}
-                >
-                  غير مهتم
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+      {error && <div className="oh-alert tr-alert" role="alert">{error}</div>}
+      {visibleRows.length > 1 && <div className="tr-filters">
+        <div className="oh-segment" role="tablist" aria-label="حالة التجربة">{["الكل", ...trialStatuses].map((status) => <button key={status} type="button" role="tab" aria-selected={statusFilter === status} onClick={() => setStatusFilter(status)}>{status}<span className="oc-seg-count">{status === "الكل" ? visibleRows.length : visibleRows.filter((row) => trialStatus(row) === status).length}</span></button>)}</div>
+        {trialPrograms.length > 1 && <label className="cu-select"><span>البرنامج</span><select value={programFilter} onChange={(event) => setProgramFilter(event.target.value)}><option value="الكل">كل البرامج</option>{trialPrograms.map((program) => <option key={program} value={program}>{program}</option>)}</select></label>}
+      </div>}
+      {!canDecide && <p className="oh-footnote tr-readonly"><Info size={14} aria-hidden="true" />قرار الاشتراك أو عدم الاهتمام متاح لفريق المبيعات. يمكنك متابعة عملاء التجربة.</p>}
+      {!loaded ? <div className="oh-empty">جارٍ تحميل عملاء التجربة…</div> : filteredTrials.length ? <ul className="tr-list">{filteredTrials.map((row) => {
+        const chip = trialChip(row);
+        return <li key={row.id} className={`tr-row ${chip.tone}`}>
+          <i className="oc-mark" aria-hidden="true" />
+          <div className="tr-who"><b>{row.customer_name}</b><span>{row.program_name} · {row.program_code}</span></div>
+          <div className="tr-contact"><span dir="ltr">{row.phone || "غير مسجل"}</span><small dir="ltr">{row.email || "دون بريد"}</small></div>
+          <div className="tr-period"><em className={`oc-due ${chip.tone}`}>{chip.label}</em><small>تنتهي {new Date(row.ends_at).toLocaleDateString("en-GB", { timeZone: "Asia/Riyadh" })}</small></div>
+          {canDecide && <div className="tr-actions">
+            <button type="button" className="oh-btn primary" onClick={() => decide(row, "subscribe")}>اشتراك ونقل إلى التهيئة</button>
+            <button type="button" className="oh-btn danger" onClick={() => decide(row, "not_interested")}>غير مهتم</button>
+          </div>}
+        </li>;
+      })}</ul> : <div className="oh-empty">لا توجد تجارب تطابق التصفية الحالية.</div>}
+      {pendingDecision && <div className="ac-undo" role="status"><Check size={16} aria-hidden="true" /><span>«{pendingDecision.label}» لـ <b>{pendingDecision.row.customer_name}</b></span><button type="button" onClick={undoDecision}>تراجع</button></div>}
     </section>
+    </div>
   );
 }
 
@@ -4537,6 +4530,8 @@ function LiveAcademy({
   );
   // Only customers who are actually waiting in this page's columns; finished files belong elsewhere.
   const attentionRows = visibleRows.filter((row) => Boolean(row.needs_attention) && inPageScope(row));
+  // On "تسليم العميل" the board only appears when enrollments are still in "جديد" (no API creates that status now).
+  if (focus === "contact" && !pendingMove && (!loaded || !visibleRows.some((row) => row.status === "جديد"))) return null;
   if (!loaded) return <HomeDashboardSkeleton />;
   if (!rows.length)
     return <LiveState loading={false} error={error} empty />;
@@ -4560,7 +4555,7 @@ function LiveAcademy({
       : focus === "program-activation"
         ? "برامج مباشرة جاهزة للتفعيل"
         : focus === "contact"
-          ? "عملاء جدد بانتظار التواصل الأول وتسليمهم للتشغيل"
+          ? "ملفات سُجّلت قبل تحديث المسار ولم يُسجَّل التواصل معها بعد"
           : state === "تم التواصل"
             ? "أضف العميل للمنصة ثم سجّل تنفيذ الإجراء"
             : "الموظف أنهى الإضافة؛ ننتظر تأكيد العميل إنشاء حسابه";
@@ -4690,7 +4685,7 @@ function LiveAcademy({
       {error && <div className="oh-alert" role="alert">{error}</div>}
       {attentionPanel}
       {onboardingTabs}
-      {focus!=="registration"&&<CustomerSmartFilters
+      {focus!=="registration"&&focus!=="contact"&&<CustomerSmartFilters
         programs={availablePrograms}
         statuses={availableStatuses}
         program={programFilter}
