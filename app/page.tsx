@@ -119,6 +119,18 @@ function BrandMark({ withText = true }: { withText?: boolean }) {
     </div>
   );
 }
+// Enrollment statuses in transition order (app/api/enrollments/transition): [steps done, what happens next].
+const customerJourneySteps = ["الشراء", "التواصل", "إنشاء الحساب", "إسناد المقررات", "التحقق من الوصول"];
+const customerJourneyStages: Record<string, [number, string]> = {
+  "جديد": [1, "بانتظار تسليم العميل والتواصل معه"],
+  "تم التواصل": [2, "بانتظار استكمال التسجيل"],
+  "بانتظار إنشاء الحساب": [2, "بانتظار إنشاء حساب العميل على المنصة"],
+  "اكتمل التسجيل": [2, "بانتظار إنشاء الحساب أو إسناد المقررات"],
+  "تم إنشاء الحساب": [3, "بانتظار إسناد المقررات أو تفعيل البرنامج"],
+  "تم الإسناد": [4, "بانتظار التحقق من وصول العميل للمقررات"],
+  "نشط": [5, "العميل يدرس حاليًا"],
+  "مكتمل": [5, "اكتملت رحلة العميل"],
+};
 const navGroups: {
   id: string;
   label: string;
@@ -319,7 +331,7 @@ const tasks = [
 const titles: Record<View, [string, string]> = {
   dashboard: ["الرئيسية", "ملخص شامل لحركة العمليات والمبيعات والتحصيل"],
   work: ["مركز العمليات", "المواعيد التشغيلية والاستثناءات التي تحتاج تدخلاً"],
-  customers: ["قاعدة بيانات العملاء", "العملاء الذين اكتملت رحلتهم التشغيلية"],
+  customers: ["قاعدة بيانات العملاء", "كل ملفات العملاء مع برنامجهم وحالتهم ومدفوعاتهم"],
   reservations: [
     "حجوزات المقاعد",
     "الحجوزات المؤكدة وطلبات النقل والتحويل إلى تسجيل",
@@ -646,7 +658,11 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     orderId?: string;
     seatFee?: number;
     delivery?: string;
+    createdAt?: string;
+    journeyStatus?: string;
   };
+  const selectedJourney = customerJourneyStages[String(selectedDetails.journeyStatus || "")];
+  const sar = (value: number) => `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
   const has = (permission: string) =>
     currentUser.roles.includes("admin") ||
     currentUser.permissions.includes("*") ||
@@ -999,153 +1015,115 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
         <>
           <div className="overlay" onClick={() => setPanel(false)} />
           <aside
-            className="drawer customer-drawer"
+            className="cp-sheet"
             role="dialog"
             aria-modal="true"
             aria-labelledby="customer-drawer-title"
           >
-            <button
-              className="close"
-              aria-label="إغلاق ملف العميل"
-              onClick={() => setPanel(false)}
-            >
-              ×
-            </button>
-            <div className="person">
-              <i>{selected.name.slice(0, 2)}</i>
-              <div>
-                <h2 id="customer-drawer-title">{selected.name}</h2>
-                <div className="profile-meta-line">
-                  {selectedDetails.delivery && <em className={`profile-delivery ${selectedDetails.delivery === "مباشر" ? "live" : "recorded"}`}>{selectedDetails.delivery}</em>}
-                  {(selected as typeof selected & { createdAt?: string }).createdAt && <small className="profile-created-at">أضيف في {new Date((selected as typeof selected & { createdAt?: string }).createdAt || "").toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
+            <header className="cp-head">
+              <button type="button" className="cp-close" aria-label="إغلاق ملف العميل" onClick={() => setPanel(false)}>
+                <X size={18} />
+              </button>
+              <div className="cp-identity">
+                <span className="cp-avatar" aria-hidden="true">{selected.name.trim().slice(0, 2)}</span>
+                <div>
+                  <h2 id="customer-drawer-title">{selected.name}</h2>
+                  <p className="cp-meta"><span dir="ltr">{selected.phone}</span><span>{selected.id}</span>{selectedDetails.orderId && selectedDetails.orderId !== "—" && <span>طلب {selectedDetails.orderId}</span>}</p>
                 </div>
-                <p>
-                  {selected.id} · {selected.phone}
-                </p>
               </div>
-            </div>
-            <div className="actions">
-              <button className="whatsapp" onClick={openWhatsApp}>
-                <FaWhatsapp size={18} />
-                واتساب
-              </button>
-              <button
-                className="email-action"
-                disabled={!selectedDetails.email}
-                onClick={() =>
-                  (window.location.href = `mailto:${selectedDetails.email}`)
-                }
-              >
-                <Mail size={17} />
-                إيميل
-              </button>
-            </div>
-            <Section title="ملاحظات العميل">
-              <CustomerNotes customerId={selected.id} />
-            </Section>
-            <Section title="بيانات العميل والتسجيل">
-              <div className="info customer-data">
-                <label>
-                  البريد الإلكتروني<b>{selectedDetails.email || "—"}</b>
-                </label>
-                <label>
-                  رقم الجوال<b>{selected.phone}</b>
-                </label>
-                <label>
-                  البرنامج<b>{selected.program}</b>
-                </label>
-                <label>
-                  المسار<b>{selected.track}</b>
-                </label>
-                <label>
-                  قناة الشراء<b>{selected.source}</b>
-                </label>
-                <label>
-                  رقم الطلب<b>{selectedDetails.orderId || "—"}</b>
-                </label>
-                {selectedDetails.delivery !== "مسجل" && <label className="customer-cohort-field">
-                  رقم الدفعة
-                  <b>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}</b>
-                  {has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}
-                </label>}
+              <div className="cp-tags">
+                <em className={`cu-status ${customerStateTone(selected.state)}`}>{selected.state}</em>
+                {selectedDetails.delivery && <em className="cp-tag">{selectedDetails.delivery === "مباشر" ? "برنامج مباشر" : selectedDetails.delivery === "مسجل" ? "برنامج مسجل" : selectedDetails.delivery}</em>}
+                {selectedDetails.createdAt && <small>أضيف في {new Date(selectedDetails.createdAt).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Riyadh"})}</small>}
               </div>
-              {has("customers.manage") && (
-                <CustomerDataEditor
-                  customer={selectedDetails}
-                  onSaved={(customer) => {
-                    setSelected({
-                      ...selected,
-                      name: customer.name,
-                      phone: customer.phone,
-                      source: customer.source,
-                      email: customer.email,
-                    } as typeof selected);
-                    window.dispatchEvent(new CustomEvent("sulukera:data-changed"));
-                  }}
-                />
+              <div className="cp-contact">
+                <button type="button" className="oh-btn" onClick={openWhatsApp}><FaWhatsapp size={16} aria-hidden="true" />واتساب</button>
+                <button type="button" className="oh-btn" disabled={!selectedDetails.email || selectedDetails.email.includes("محجوب")} onClick={() => (window.location.href = `mailto:${selectedDetails.email}`)}><Mail size={16} aria-hidden="true" />إيميل</button>
+              </div>
+            </header>
+            <div className="cp-body">
+              {selectedJourney ? (
+                <section className="cp-section" aria-labelledby="cp-journey-title">
+                  <h3 id="cp-journey-title">رحلة العميل</h3>
+                  <ol className="cp-steps">
+                    {customerJourneySteps.map((step, index) => {
+                      const state = index < selectedJourney[0] ? "done" : index === selectedJourney[0] ? "current" : "todo";
+                      return <li key={step} className={state} aria-current={state === "current" ? "step" : undefined}><i aria-hidden="true">{state === "done" ? <Check size={13} /> : index + 1}</i><span>{step}</span></li>;
+                    })}
+                  </ol>
+                  <p className="cp-next">{selectedJourney[1]}</p>
+                </section>
+              ) : (
+                <section className="cp-section" aria-labelledby="cp-state-title">
+                  <h3 id="cp-state-title">حالة العميل</h3>
+                  <p className="cp-next"><b>{selected.state}</b> · {selected.due}</p>
+                </section>
               )}
-            </Section>
-            <Section title="حالة العميل">
-              <div className={`status ${selected.tone}`}>
-                <b>{selected.state}</b>
-                <span>{selected.due}</span>
-              </div>
-              <p className="workflow-help live-note">
-                تتحدث هذه الحالة تلقائياً عند تنفيذ الإجراء من قائمة التواصل أو
-                التسجيل أو الإسناد.
-              </p>
-            </Section>
-            <Section title="الملخص المالي">
-              <div className="money">
-                <p>
-                  قيمة الطلب
-                  <b>
-                    {selected.total.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    ر.س
-                  </b>
-                </p>
-                <p>
-                  المدفوع من قيمة البرنامج
-                  <b>
-                    {selected.paid.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    ر.س
-                  </b>
-                </p>
-                {Number(selectedDetails.seatFee || 0)>0&&<p className="seat-fee-paid">رسوم المقعد المدفوعة<b>{Number(selectedDetails.seatFee).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ر.س</b></p>}
-                {Number(selectedDetails.seatFee || 0)>0&&<p className="actual-paid-total">إجمالي المدفوع فعلياً<b>{(selected.paid+Number(selectedDetails.seatFee)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ر.س</b></p>}
-              </div>
-              <div className="progress">
-                <i
-                  style={{
-                    width: `${selected.total ? (selected.paid / selected.total) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </Section>
-            <Section title="آخر النشاطات">
-              <CustomerEditHistory customerId={selected.id} />
-            </Section>
-            {currentUser.roles.includes("admin") && (
-              <Section title="إدارة الملف">
-                <AdminDeleteCustomer
-                  customerId={selected.id}
-                  customerName={selected.name}
-                  onDeleted={() => {
-                    setPanel(false);
-                    setPeople((current) =>
-                      current.filter((customer) => customer.id !== selected.id),
-                    );
-                    window.dispatchEvent(new Event("sulukera:data-changed"));
-                  }}
-                />
-              </Section>
-            )}
+              <section className="cp-section" aria-labelledby="cp-notes-title">
+                <h3 id="cp-notes-title">ملاحظات العميل</h3>
+                <CustomerNotes customerId={selected.id} />
+              </section>
+              <section className="cp-section" aria-labelledby="cp-data-title">
+                <h3 id="cp-data-title">بيانات العميل والتسجيل</h3>
+                <dl className="cp-ledger">
+                  <div><dt>البريد الإلكتروني</dt><dd dir="ltr">{selectedDetails.email || "—"}</dd></div>
+                  <div><dt>رقم الجوال</dt><dd dir="ltr">{selected.phone}</dd></div>
+                  <div><dt>البرنامج</dt><dd>{selected.program}</dd></div>
+                  <div><dt>المسار</dt><dd>{selected.track}</dd></div>
+                  <div><dt>قناة الشراء</dt><dd>{selected.source}</dd></div>
+                  <div><dt>رقم الطلب</dt><dd>{selectedDetails.orderId || "—"}</dd></div>
+                  {selectedDetails.delivery !== "مسجل" && <div className="customer-cohort-field"><dt>رقم الدفعة</dt><dd>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}{has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}</dd></div>}
+                </dl>
+                {has("customers.manage") && (
+                  <CustomerDataEditor
+                    customer={selectedDetails}
+                    onSaved={(customer) => {
+                      setSelected({
+                        ...selected,
+                        name: customer.name,
+                        phone: customer.phone,
+                        source: customer.source,
+                        email: customer.email,
+                      } as typeof selected);
+                      window.dispatchEvent(new CustomEvent("sulukera:data-changed"));
+                    }}
+                  />
+                )}
+              </section>
+              <section className="cp-section" aria-labelledby="cp-money-title">
+                <h3 id="cp-money-title">الملخص المالي</h3>
+                {selected.total > 0 ? <>
+                  <dl className="cp-ledger cp-money">
+                    <div><dt>قيمة الطلب</dt><dd>{sar(selected.total)}</dd></div>
+                    <div><dt>المدفوع من قيمة البرنامج</dt><dd>{sar(selected.paid)}</dd></div>
+                    <div><dt>المتبقي من قيمة البرنامج</dt><dd>{sar(Math.max(selected.total - selected.paid, 0))}</dd></div>
+                    {Number(selectedDetails.seatFee || 0)>0&&<div className="seat-fee-paid"><dt>رسوم المقعد المدفوعة</dt><dd>{sar(Number(selectedDetails.seatFee))}</dd></div>}
+                    {Number(selectedDetails.seatFee || 0)>0&&<div className="actual-paid-total"><dt>إجمالي المدفوع فعلياً</dt><dd>{sar(selected.paid+Number(selectedDetails.seatFee))}</dd></div>}
+                  </dl>
+                  <div className="cp-progress"><span className="cu-bar" aria-hidden="true"><i style={{ width: `${Math.min(100, selected.paid / selected.total * 100)}%` }} /></span><small>{Math.min(100, Math.round(selected.paid / selected.total * 100))}% من قيمة البرنامج مدفوع</small></div>
+                </> : <p className="cp-next">لا يوجد طلب مالي مرتبط بهذا الملف.</p>}
+              </section>
+              <section className="cp-section" aria-labelledby="cp-history-title">
+                <h3 id="cp-history-title">سجل تعديل البيانات</h3>
+                <CustomerEditHistory customerId={selected.id} />
+              </section>
+              {currentUser.roles.includes("admin") && (
+                <section className="cp-section cp-danger" aria-labelledby="cp-admin-title">
+                  <h3 id="cp-admin-title">إدارة الملف</h3>
+                  <AdminDeleteCustomer
+                    customerId={selected.id}
+                    customerName={selected.name}
+                    onDeleted={() => {
+                      setPanel(false);
+                      setPeople((current) =>
+                        current.filter((customer) => customer.id !== selected.id),
+                      );
+                      window.dispatchEvent(new Event("sulukera:data-changed"));
+                    }}
+                  />
+                </section>
+              )}
+            </div>
           </aside>
         </>
       )}
@@ -3613,7 +3591,8 @@ function LiveCustomers({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [programFilter, setProgramFilter] = useState("الكل"),
-    [categoryFilter, setCategoryFilter] = useState("الكل");
+    [categoryFilter, setCategoryFilter] = useState("الكل"),
+    [statusFilter, setStatusFilter] = useState("الكل");
   const load = () => {
     apiJson("/api/customers")
       .then((data) =>
@@ -3660,6 +3639,8 @@ function LiveCustomers({
               seatFee: Number(row.seat_fee || 0),
               delivery: String(row.delivery || ""),
               createdAt: String(row.created_at || ""),
+              // The order's academy_status moves with every enrollment transition, so it drives the journey.
+              journeyStatus: String(row.state || ""),
             };
           }),
         ),
@@ -3700,94 +3681,67 @@ function LiveCustomers({
               customerProgramCategory(row) === programFilter,
           )
           .map((row) => customerProgramLabel(row))
-          .filter((classification) => classification && classification !== "—"),
+          .filter(label=>label!=="—")
+          .filter(Boolean),
       ),
-    );
+    ),
+    statuses = Array.from(new Set(directoryRows.map((row) => row.state).filter((state) => state && state !== "—")));
+  const matchesQuery = (row: (typeof initialPeople)[number]) =>
+    `${row.name} ${row.id} ${row.phone} ${(row as typeof row & { orderId?: string }).orderId || ""} ${customerProgramCategory(row) === "التعليم المستمر" ? customerProgramLabel(row) : `${row.program} ${row.track}`} ${customerProgramLabel(row)}`.includes(query);
   const filtered = directoryRows
     .filter(
       (row) =>
-        `${row.name} ${row.id} ${row.phone} ${customerProgramCategory(row) === "التعليم المستمر" ? customerProgramLabel(row) : `${row.program} ${row.track}`} ${customerProgramLabel(row)}`.includes(query) &&
+        matchesQuery(row) &&
         (programFilter === "الكل" || customerProgramCategory(row) === programFilter) &&
-        (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter),
+        (categoryFilter === "الكل" || customerProgramLabel(row) === categoryFilter) &&
+        (statusFilter === "الكل" || row.state === statusFilter),
     )
     .sort((a, b) =>
       String((b as typeof b & { createdAt?: string }).createdAt || "").localeCompare(
         String((a as typeof a & { createdAt?: string }).createdAt || ""),
       ),
     );
-  const exportCustomers=()=>{
-    const headers=["الرقم","اسم العميل","رقم العميل","رقم الطلب","رقم الجوال","البرنامج","التصنيف","الملاحظة العملياتية","تاريخ الإضافة"],escape=(value:unknown)=>`"${String(value??"").replaceAll('"','""')}"`,lines=filtered.map((row,index)=>[index+1,row.name,row.id,row.orderId,row.phone,customerProgramCategory(row),customerProgramLabel(row),customerOperationalNote(row),(row as typeof row&{createdAt?:string}).createdAt||""]);
-    const blob=new Blob(["\uFEFF"+[headers,...lines].map(line=>line.map(escape).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
-    link.href=url;link.download=`عملاء-سلوكيرا-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  const programCount = (program: string) => directoryRows.filter((row) => matchesQuery(row) && (program === "الكل" || customerProgramCategory(row) === program)).length;
+  const filtersActive = programFilter !== "الكل" || categoryFilter !== "الكل" || statusFilter !== "الكل";
+  const clearFilters = () => { setProgramFilter("الكل"); setCategoryFilter("الكل"); setStatusFilter("الكل"); };
+  const selectProgram = (program: string) => {
+    setProgramFilter(program);
+    if (
+      categoryFilter !== "الكل" &&
+      !directoryRows.some(
+        (row) =>
+          customerProgramLabel(row) === categoryFilter &&
+          (program === "الكل" || customerProgramCategory(row) === program),
+      )
+    )
+      setCategoryFilter("الكل");
   };
-  if (loading || error)
+  const exportCustomers=()=>{
+    const headers=["الرقم","اسم العميل","رقم العميل","رقم الطلب","رقم الجوال","البرنامج","التصنيف","الحالة","الملاحظة العملياتية","تاريخ الإضافة"],escape=(value:unknown)=>`"${String(value??"").replaceAll('"','""')}"`,lines=filtered.map((row,index)=>[index+1,row.name,row.id,row.orderId,row.phone,customerProgramCategory(row),customerProgramLabel(row),row.state,customerOperationalNote(row),(row as typeof row&{createdAt?:string}).createdAt||""]);
+    const blob=new Blob(["﻿"+[headers,...lines].map(line=>line.map(escape).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`عملاء-سلوكيرا-${new Date().toLocaleDateString("en-CA")}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  };
+  if (!rows.length && (loading || error))
     return <LiveState loading={loading} error={error} empty={false} />;
   return (
-    <>
-      <div className="customer-summary">
-        <div>
-          <span>إجمالي العملاء</span>
-          <b>{directoryRows.length}</b>
-        </div>
-        <div className="highlight">
-          <span>النتائج المعروضة</span>
-          <b>{filtered.length}</b>
-        </div>
-        <div>
-          <span>البرامج</span>
-          <b>
-            {
-              new Set(
-                directoryRows.map((row) => customerProgramCategory(row)),
-              ).size
-            }
-          </b>
-        </div>
-        <div>
-          <span>التصنيفات</span>
-          <b>{new Set(directoryRows.map((row) => customerProgramLabel(row)).filter(label=>label!=="—")).size}</b>
-        </div>
-      </div>
-      <div className="card full customer-directory">
-        <div className="directory-head">
-          <div>
-            <h2>قاعدة بيانات العملاء</h2>
-            <p>قائمة مرتبة للعملاء وبياناتهم التشغيلية؛ التصدير يلتزم بنتائج البحث والتصفية الحالية.</p>
+    <div className="ops-home ops-customers">
+      <section className="oh-panel cu-directory" aria-labelledby="cu-title">
+        <header className="oh-panel-head">
+          <span className="oh-icon"><Database size={18} /></span>
+          <div><h3 id="cu-title">قاعدة بيانات العملاء</h3><p>ملف واحد لكل عميل مع آخر طلب له. التصدير يلتزم بالبحث والتصفية الحالية.</p></div>
+          <button type="button" className="oh-btn customer-export" disabled={!filtered.length} onClick={exportCustomers}><Download size={15} aria-hidden="true" />تصدير النتائج <em>{filtered.length}</em></button>
+        </header>
+        <div className="cu-filters">
+          <div className="oh-segment" role="tablist" aria-label="البرنامج">{["الكل", ...programs].map((program) => <button key={program} type="button" role="tab" aria-selected={programFilter === program} onClick={() => selectProgram(program)}>{program === "الكل" ? "كل البرامج" : program}<span className="oc-seg-count">{programCount(program)}</span></button>)}</div>
+          <div className="cu-selects">
+            <label className="cu-select"><span>التصنيف</span><select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="الكل">كل التصنيفات</option>{classifications.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label className="cu-select"><span>الحالة</span><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="الكل">كل الحالات</option>{statuses.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
           </div>
-          <button type="button" className="customer-export" disabled={!filtered.length} onClick={exportCustomers}><Download size={16}/>تصدير النتائج <em>{filtered.length}</em></button>
         </div>
-        <CustomerSmartFilters
-          programs={programs}
-          statuses={classifications}
-          program={programFilter}
-          status={categoryFilter}
-          total={directoryRows.length}
-          visible={filtered.length}
-          onProgram={(program) => {
-            setProgramFilter(program);
-            if (
-              categoryFilter !== "الكل" &&
-              !directoryRows.some(
-                (row) =>
-                  customerProgramLabel(row) === categoryFilter &&
-                  (program === "الكل" || customerProgramCategory(row) === program),
-              )
-            )
-              setCategoryFilter("الكل");
-          }}
-          onStatus={setCategoryFilter}
-          title="تصنيف قاعدة العملاء"
-          description="عرض العملاء حسب البرنامج أو التصنيف"
-          secondaryLabel="التصنيف"
-          secondaryAllLabel="كل التصنيفات"
-        />
-        {filtered.length ? (
-          <CompletedCustomerTable list={filtered} open={open} />
-        ) : (
-          <LiveState loading={false} error="" empty />
-        )}
-      </div>
-    </>
+        <p className="oc-result-line cu-result" aria-live="polite">{filtered.length} من {directoryRows.length} عميل{query && <> · نتائج البحث عن «{query}»</>}{filtersActive && <button type="button" onClick={clearFilters}>مسح التصفية</button>}</p>
+        {filtered.length ? <CompletedCustomerTable list={filtered} open={open} /> : <div className="oh-empty">لا يوجد عملاء يطابقون البحث والتصفية الحالية.</div>}
+      </section>
+    </div>
   );
 }
 
@@ -9113,6 +9067,14 @@ function customerOperationalNote(customer: (typeof initialPeople)[number]) {
   return "";
 }
 
+function customerStateTone(state: string) {
+  if (["مكتمل", "نشط", "مدفوع"].includes(state)) return "success";
+  if (state === "منسحب") return "danger";
+  if (state === "جديد" || state.includes("انتظار")) return "warning";
+  if (state === "غير مهتم") return "neutral";
+  return "brand";
+}
+
 function CompletedCustomerTable({
   list,
   open,
@@ -9126,7 +9088,8 @@ function CompletedCustomerTable({
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
     return {
-      date: date.toLocaleDateString("ar-SA-u-nu-latn", {
+      // en-GB gives a plain dd/mm/yyyy; the Arabic locale adds direction marks that scramble it inside dir="ltr".
+      date: date.toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -9140,8 +9103,9 @@ function CompletedCustomerTable({
       }),
     };
   };
+  const money = (value: number) => Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
   return (
-    <div className="table-wrap completed-customer-table">
+    <div className="table-wrap completed-customer-table cu-table">
       <table>
         <thead>
           <tr>
@@ -9149,29 +9113,31 @@ function CompletedCustomerTable({
             <th>اسم العميل</th>
             <th>البرنامج</th>
             <th>التصنيف</th>
+            <th>الحالة</th>
+            <th>المدفوع</th>
             <th>ملاحظة عملياتية</th>
             <th>تاريخ الإضافة</th>
           </tr>
         </thead>
         <tbody>
           {list.map((customer,index) => {
-            const added = additionDate(customer),classification=customerProgramLabel(customer),operationalNote=customerOperationalNote(customer);
+            const added = additionDate(customer),classification=customerProgramLabel(customer),operationalNote=customerOperationalNote(customer),orderId=(customer as typeof customer & { orderId?: string }).orderId,paidRatio=customer.total?Math.min(100,customer.paid/customer.total*100):0;
             return <tr key={customer.id} onClick={() => open(customer)}>
               <td className="customer-row-number"><b>{index+1}</b></td>
               <td className="customer-name-cell">
-                <i>{customer.name.trim().slice(0,2)}</i><span><b>{customer.name}</b><small>{customer.orderId||customer.id} · فتح الملف</small></span>
+                <i aria-hidden="true">{customer.name.trim().slice(0,2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(customer); }}>{customer.name}</button><small>{orderId && orderId !== "—" ? orderId : customer.id}</small></span>
               </td>
-              <td>
+              <td data-label="البرنامج">
                 <b>{customerProgramCategory(customer)}</b>
-                <small>
-                  {customer.cohort !== "—" ? ` · ${customer.cohort}` : ""}
-                </small>
+                {customer.cohort !== "—" && <small>{customer.cohort}</small>}
               </td>
-              <td>
+              <td data-label="التصنيف">
                 <b className={classification==="—"?"empty":""}>{classification}</b>
               </td>
-              <td className="operational-note-cell">{operationalNote?<span title={operationalNote}>{operationalNote}</span>:<small>لا توجد ملاحظة</small>}</td>
-              <td className="customer-added-at">
+              <td data-label="الحالة"><em className={`cu-status ${customerStateTone(customer.state)}`}>{customer.state || "—"}</em></td>
+              <td data-label="المدفوع" className="cu-paid">{customer.total ? <><b>{money(customer.paid)} <small>من {money(customer.total)} ر.س</small></b><span className="cu-bar" aria-hidden="true"><i style={{ width: `${paidRatio}%` }} /></span></> : <small>لا يوجد طلب مالي</small>}</td>
+              <td className="operational-note-cell" data-label="ملاحظة" data-empty={operationalNote ? undefined : "true"}>{operationalNote?<span title={operationalNote}>{operationalNote}</span>:<small>لا توجد ملاحظة</small>}</td>
+              <td className="customer-added-at" data-label="أضيف في">
                 {added ? <><b dir="ltr">{added.date}</b><small dir="ltr">{added.time}</small></> : <span>—</span>}
               </td>
             </tr>;

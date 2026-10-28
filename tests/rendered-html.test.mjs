@@ -650,6 +650,22 @@ test("counts dashboard customers once, on Riyadh dates, without deleted or withd
   assert.match(page, /const todayKey=now\.toLocaleDateString\("en-CA"\);/);
 });
 
+test("renders the customer directory and the customer profile sheet from live fields", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<div className="ops-home ops-customers">/);
+  assert.match(page, /\(statusFilter === "الكل" \|\| row\.state === statusFilter\)/);
+  assert.match(page, /journeyStatus: String\(row\.state \|\| ""\)/);
+  assert.match(page, /const customerJourneySteps = \["الشراء", "التواصل", "إنشاء الحساب", "إسناد المقررات", "التحقق من الوصول"\];/);
+  assert.match(page, /"تم الإسناد": \[4, /);
+  assert.match(page, /<aside\s+className="cp-sheet"\s+role="dialog"\s+aria-modal="true"\s+aria-labelledby="customer-drawer-title"/);
+  assert.match(page, /<dt>المتبقي من قيمة البرنامج<\/dt><dd>\{sar\(Math\.max\(selected\.total - selected\.paid, 0\)\)\}<\/dd>/);
+  assert.match(page, /date: date\.toLocaleDateString\("en-GB", \{/);
+  assert.doesNotMatch(page, /className="drawer customer-drawer"/);
+  assert.doesNotMatch(css, /\.customer-drawer[{ .>,:]/);
+  assert.match(css, /\.cp-sheet \.primary\{width:auto;padding:0 14px;font-size:var\(--sk-fs-sm\)\}/);
+});
+
 test("renders the operations center as a filterable priority queue with one agenda", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
