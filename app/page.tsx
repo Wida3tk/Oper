@@ -42,6 +42,7 @@ import {
   PanelRightOpen,
   PhoneCall,
   ReceiptText,
+  RefreshCw,
   Search,
   Settings2,
   ShieldCheck,
@@ -962,7 +963,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
               <HomeDashboard onOpenTasks={() => setView("work")} onOpenCustomers={()=>setView("customers")} onOpenFinance={()=>{setFinanceReviewFilter("الكل");setView("finance")}} onOpenFinanceReview={(kind) => { setFinanceReviewFilter(kind); setView("finance"); }} />
             </>
           )}
-          {view === "work" && <LiveWork onNavigate={go} onOpenCustomer={open} />}
+          {view === "work" && <LiveWork onNavigate={go} onOpenCustomer={open} currentEmail={currentUser.email} />}
           {view === "trainee-progress" && <TraineeProgress canManage={currentUser.roles.includes("admin") || currentUser.roles.includes("academy")} />}
           {view === "customers" && <LiveCustomers query={query} open={open} />}
           {view === "program-activation" && <LiveAcademy focus="program-activation" canManagePaymentReference={currentUser.roles.some((role) => ["admin", "sales", "finance"].includes(role))} />}
@@ -3867,11 +3868,16 @@ function dailyOperationsMessage(date = new Date()) {
   return DAILY_OPERATIONS_MESSAGES[dayNumber % DAILY_OPERATIONS_MESSAGES.length];
 }
 
-function LiveWork({ onNavigate,onOpenCustomer }: { onNavigate: (view: View) => void;onOpenCustomer:(customer:(typeof initialPeople)[number])=>void }) {
+const operationsCaseKinds = [["all", "الكل"], ["overdue", "متأخرة"], ["policy", "السياسة والانسحاب"], ["data", "بيانات ناقصة"]] as const;
+type OperationsCaseKind = (typeof operationsCaseKinds)[number][0];
+type OperationsCase = OperationsCenterData["exceptions"][number];
+function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate: (view: View) => void;onOpenCustomer:(customer:(typeof initialPeople)[number])=>void;currentEmail?:string }) {
   const [data, setData] = useState<OperationsCenterData | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [acting, setActing] = useState("");
+  const [kind, setKind] = useState<OperationsCaseKind>("all"), [waiting, setWaiting] = useState<"" | "التشغيل" | "المالية">(""), [mine, setMine] = useState(false), [caseQuery, setCaseQuery] = useState(""), [agendaExpanded, setAgendaExpanded] = useState(false);
   const load = async () => { setLoading(true); setError(""); try { setData(await apiJson("/api/operations-center")); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } };
   useEffect(() => { void load(); const refresh = () => void load(); window.addEventListener("sulukera:data-changed", refresh); return () => window.removeEventListener("sulukera:data-changed", refresh); }, []);
-  if (loading || error || !data) return <LiveState loading={loading} error={error} empty={!data} />;
+  // First load shows a skeleton; refreshes and action errors keep the queue on screen.
+  if (!data) return loading ? <HomeDashboardSkeleton /> : <LiveState loading={false} error={error} empty />;
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const timeAgo = (value?: string) => { if (!value) return "غير مسجل"; const diff = Math.max(0, Date.now() - new Date(value).getTime()), hours = Math.floor(diff / 3_600_000); return hours < 1 ? "منذ أقل من ساعة" : hours < 24 ? `منذ ${hours} ساعة` : `منذ ${Math.floor(hours / 24)} يوم`; };
   const shortEmail = (value?: string) => value ? value.split("@")[0] : "غير مسند";
@@ -3889,44 +3895,97 @@ function LiveWork({ onNavigate,onOpenCustomer }: { onNavigate: (view: View) => v
       window.dispatchEvent(new CustomEvent("sulukera:data-changed", { detail: { entity: "attention", id: row.order_id } }));
     } catch (cause) { setError((cause as Error).message); } finally { setActing(""); }
   };
-  return <div className="operations-center">
-    <section className="operations-command">
-      <div><h2>{dailyOperationsMessage()}</h2></div>
-      <time>آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</time>
+  const dateLocale = "ar-SA-u-ca-gregory-nu-latn", dayKey = (value?: string) => String(value || "").slice(0, 10), now = new Date(), localToday = now.toLocaleDateString("en-CA"), localTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toLocaleDateString("en-CA");
+  const dayHeading = (day: string) => day === localToday ? "اليوم" : day === localTomorrow ? "غدًا" : new Date(`${day}T12:00:00`).toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" });
+  const caseLabel = (row: OperationsCase) => row.kind === "withdrawal" ? "إجراء انسحاب" : row.kind === "policy" ? row.attention_state === "waiting_finance" ? "بانتظار تحديث المالية" : "إجراء تشغيلي مطلوب" : row.title;
+  const kindLabel = (row: OperationsCase) => row.kind === "overdue" ? "مهمة متأخرة" : row.kind === "withdrawal" ? "انسحاب" : row.kind === "policy" ? "تطبيق السياسة" : "بيانات ناقصة";
+  const kindGroup = (row: OperationsCase): OperationsCaseKind => row.kind === "withdrawal" ? "policy" : row.kind as OperationsCaseKind;
+  const priorityTone = (row: OperationsCase) => row.priority === "عاجلة" ? "urgent" : row.priority === "عالية" || !row.priority ? "high" : "normal";
+  const dueChip = (row: OperationsCase) => {
+    if (!row.due_at) return { label: "دون موعد", tone: "" };
+    const late = Math.round((Date.parse(`${localToday}T12:00:00`) - Date.parse(`${dayKey(row.due_at)}T12:00:00`)) / 864e5);
+    if (late > 0) return { label: late === 1 ? "متأخرة يومًا" : late === 2 ? "متأخرة يومين" : `متأخرة ${late} ${late <= 10 ? "أيام" : "يومًا"}`, tone: "late" };
+    return late === 0 ? { label: "اليوم", tone: "today" } : { label: dateLabel(row.due_at), tone: "" };
+  };
+  const priorityOrder: Record<string, number> = { "عاجلة": 0, "عالية": 1 }, kindOrder: Record<string, number> = { overdue: 0, withdrawal: 1, policy: 2 };
+  const rank = (row: OperationsCase) => [priorityOrder[row.priority || "عالية"] ?? 2, kindOrder[row.kind] ?? 3];
+  const sortedCases = [...data.exceptions].sort((a, b) => { const [pa, ka] = rank(a), [pb, kb] = rank(b); return pa - pb || ka - kb || (a.due_at || "9").localeCompare(b.due_at || "9"); });
+  const needle = caseQuery.trim().toLowerCase();
+  const filteredCases = sortedCases.filter((row) => (!waiting || waitingFor(row) === waiting) && (!mine || row.responsible_email === currentEmail) && (!needle || [row.customer_name, row.order_number, row.program_name, row.phone].some((value) => String(value || "").toLowerCase().includes(needle))));
+  const kindCounts = Object.fromEntries(operationsCaseKinds.map(([key]) => [key, key === "all" ? filteredCases.length : filteredCases.filter((row) => kindGroup(row) === key).length])) as Record<OperationsCaseKind, number>;
+  const visibleCases = kind === "all" ? filteredCases : filteredCases.filter((row) => kindGroup(row) === kind);
+  const mineCount = currentEmail ? data.exceptions.filter((row) => row.responsible_email === currentEmail).length : 0;
+  const filtersActive = kind !== "all" || Boolean(waiting) || mine || Boolean(needle);
+  const clearFilters = () => { setKind("all"); setWaiting(""); setMine(false); setCaseQuery(""); };
+  const scrollToPanel = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  const focusQueue = (next: OperationsCaseKind) => { clearFilters(); setKind(next); scrollToPanel("oc-queue"); };
+  // The API caps each case query at 50 rows; say so instead of implying the list is complete.
+  const capped = [data.stats.overdue, data.stats.attention, data.stats.incomplete].some((count) => count >= 50);
+  const agenda = [
+    ...data.events.map((item) => ({ id: `event-${item.id}`, day: dayKey(item.event_date), type: "event" as const, title: item.title, detail: item.details || "موعد للفريق", extra: "", time: item.event_time || "طوال اليوم", tag: "موعد فريق" })),
+    ...data.schedule.map((item) => ({ id: `schedule-${item.id}`, day: dayKey(item.assignment_date || item.start_date), type: "schedule" as const, title: item.program_name, detail: `${item.customer_name} · ${item.reservation_kind}${item.cohort_label ? ` · ${item.cohort_label}` : ""}`, extra: item.assignment_date && item.start_date ? `بداية البرنامج ${dateLabel(item.start_date)}` : "", time: item.assignment_date ? "موعد الإسناد" : "بداية البرنامج", tag: item.status })),
+  ].filter((item) => item.day).sort((a, b) => a.day.localeCompare(b.day) || (a.type === b.type ? 0 : a.type === "event" ? -1 : 1));
+  const agendaLimit = 8, shownAgenda = agendaExpanded ? agenda : agenda.slice(0, agendaLimit);
+  return <div className="ops-home ops-work" aria-busy={loading}>
+    {error && <div className="oh-alert" role="alert">{error}</div>}
+    <header className="oh-masthead">
+      <div><span className="oh-eyebrow">نظرة اليوم</span><h2>{dailyOperationsMessage()}</h2><p><i className="oh-live" aria-hidden="true" />آخر تحديث {new Date(data.generatedAt).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}</p></div>
+      <button type="button" className="oh-btn" onClick={() => void load()} disabled={loading}><RefreshCw size={15} aria-hidden="true" className={loading ? "oc-spin" : ""} />{loading ? "جارٍ التحديث…" : "تحديث"}</button>
+    </header>
+    <section className="oh-pulse oc-pulse" aria-labelledby="oc-pulse-title">
+      <header><h3 id="oc-pulse-title">نبض التشغيل</h3><p>اضغط على أي مؤشر لعرض الحالات التي تكوّن منها الرقم.</p></header>
+      <div>
+        <HomeMetric icon={Clock3} label="مهام متأخرة" value={data.stats.overdue} note="مهام مفتوحة تجاوزت تاريخ تنفيذها" tone={data.stats.overdue ? "danger" : "neutral"} onClick={() => focusQueue("overdue")} />
+        <HomeMetric icon={ShieldCheck} label="السياسة والانسحاب" value={data.stats.attention} note="حالات تطبيق السياسة والانسحاب المفتوحة" tone={data.stats.attention ? "attention" : "neutral"} onClick={() => focusQueue("policy")} />
+        <HomeMetric icon={CircleUserRound} label="بيانات ناقصة" value={data.stats.incomplete} note="عملاء دون جوال أو بريد، تؤثر على جاهزيتهم" tone={data.stats.incomplete ? "attention" : "neutral"} onClick={() => focusQueue("data")} />
+        <HomeMetric icon={CalendarDays} label="مواعيد قادمة" value={data.stats.upcoming} note="الجدول التشغيلي لـ30 يومًا ومواعيد الفريق لـ90 يومًا" tone="brand" onClick={() => scrollToPanel("oc-agenda")} />
+      </div>
     </section>
-    <div className="operations-center-stats">
-      <article className="blue"><CalendarDays size={20}/><span>مواعيد قادمة</span><b>{data.stats.upcoming}</b><small>خلال 30 يومًا</small></article>
-      <article className="red"><Activity size={20}/><span>إجراءات متأخرة</span><b>{data.stats.overdue}</b><small>تجاوزت تاريخ التنفيذ</small></article>
-      <article className="amber"><ShieldCheck size={20}/><span>بحاجة للانتباه</span><b>{data.stats.attention}</b><small>حالات تطبيق السياسة</small></article>
-      <article className="violet"><CircleUserRound size={20}/><span>بيانات ناقصة</span><b>{data.stats.incomplete}</b><small>تؤثر على جاهزية العميل</small></article>
-    </div>
-    <section className="team-events-board">
-      <header><div><CalendarDays size={19}/><span><b>مواعيد الفريق القادمة</b><small>المواعيد المهمة التي يجب أن تبقى أمام الفريق</small></span></div></header>
-      <div className="team-event-cards">{data.events.length ? data.events.map(item => <article key={item.id}>
-        <time><CalendarDays size={18}/><span><b>{dateLabel(item.event_date)}</b><small>{item.event_time || "طوال اليوم"}</small></span></time><div><b>{item.title}</b><span>{item.details || "موعد مجدول"}</span></div>
-      </article>) : <div className="team-events-empty">لا توجد مواعيد فريق مضافة حاليًا.</div>}</div>
-    </section>
-    <div className="operations-center-grid">
-      <section className="operations-schedule">
-        <header><div><CalendarDays size={19}/><span><b>الجدول التشغيلي</b><small>الإسناد وبداية البرامج القادمة</small></span></div><em>{data.schedule.length}</em></header>
-        <div>{data.schedule.length ? data.schedule.map(item => <article key={item.id}>
-          <time><b>{dateLabel(item.assignment_date || item.start_date)}</b><span>{item.assignment_date ? "موعد الإسناد" : "بداية البرنامج"}</span></time><i/><div><b>{item.program_name}</b><span>{item.customer_name} · {item.reservation_kind}</span><small>{item.cohort_label || "دون اسم دفعة"} · البداية {dateLabel(item.start_date)}</small></div><em>{item.status}</em>
-        </article>) : <div className="guided-empty"><CalendarDays size={26}/><b>لا توجد مواعيد تشغيلية قادمة</b><span>ستظهر هنا مواعيد الإسناد وبداية البرامج عند جدولتها.</span></div>}</div>
-      </section>
-      <section className="operations-exceptions">
-        <header><div><Activity size={19}/><span><b>عملاء بحاجة للانتباه</b><small>متابعة مشتركة بين التشغيل والمالية حتى إغلاق الحالة</small></span></div><em>{data.exceptions.length}</em></header>
-        <div>{data.exceptions.length ? data.exceptions.map(item => { const whatsapp = whatsappHref(item); return <article className={`${item.severity} ${item.customer_id?"customer-actionable":""}`} key={item.id} onClick={()=>item.customer_id&&openCustomer(item)}>
-          <div className="exception-title"><i>{item.kind === "policy" || item.kind === "withdrawal" ? <Activity size={17}/> : item.kind === "overdue" ? <Clock3 size={17}/> : <CircleUserRound size={17}/>}</i><span><b>{item.kind === "withdrawal" ? "إجراء انسحاب" : item.kind === "policy" ? item.attention_state === "waiting_finance" ? "بانتظار تحديث المالية" : "إجراء تشغيلي مطلوب" : item.title}</b><button className="exception-customer" onClick={event=>{event.stopPropagation();openCustomer(item)}}>{item.customer_name || "إجراء داخلي"}</button><small>{item.program_name || item.order_number || "ملف العميل"}</small></span><em className={`priority ${item.priority === "عاجلة" ? "urgent" : ""}`}>{item.priority || "عالية"}</em></div>
-          <div className="exception-meta">
-            <span><small>بانتظار</small><b>{waitingFor(item)}</b></span>
-            <span><small>المسؤول</small><b>{shortEmail(item.responsible_email)}</b></span>
-            <span><small>عمر الحالة</small><b>{timeAgo(item.last_action_at)}</b></span>
-            <span><small>آخر إجراء</small><b>{item.last_action_by_email ? shortEmail(item.last_action_by_email) : "لم يسجل"}</b></span>
-          </div>
-          <div className="exception-next"><span><small>الإجراء التالي</small><b>{nextAction(item)}</b></span><time>{item.due_at ? `مستحق ${dateLabel(item.due_at)}` : "دون موعد محدد"}</time></div>
-          <div className="exception-actions">{whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" aria-label={`فتح واتساب مع ${item.customer_name || "العميل"}`} onClick={event=>event.stopPropagation()}><FaWhatsapp size={15}/> واتساب</a>}<button onClick={event => {event.stopPropagation();item.customer_id?openCustomer(item):onNavigate(routeFor(item))}}><Eye size={15}/> فتح ملف العميل</button>{["policy","withdrawal"].includes(item.kind) && data.canTakeAttentionAction && item.attention_state !== "waiting_finance" && <button className="primary" disabled={acting === item.id} onClick={event => {event.stopPropagation();void takeAttentionAction(item)}}>{acting === item.id ? "جارٍ الحفظ…" : <><Check size={15}/> تم اتخاذ الإجراء</>}</button>}</div>
-        </article>}) : <div className="guided-empty"><ShieldCheck size={27}/><b>الوضع التشغيلي مستقر</b><span>لا توجد استثناءات أو حالات متأخرة حاليًا.</span></div>}</div>
-      </section>
+    <div className="oh-body">
+      <div className="oh-main">
+        <section id="oc-queue" className="oh-panel operations-exceptions oc-queue" aria-labelledby="oc-queue-title">
+          <header className="oh-panel-head"><span className="oh-icon warm"><ListChecks size={18} /></span><div><h3 id="oc-queue-title">حالات بحاجة لتدخل</h3><p>مرتبة حسب الأولوية ثم الموعد · متابعة مشتركة بين التشغيل والمالية حتى إغلاق الحالة</p></div><span className="oh-count">{data.exceptions.length}</span></header>
+          {data.exceptions.length > 0 && <div className="oc-filters">
+            <div className="oh-segment" role="tablist" aria-label="نوع الحالة">{operationsCaseKinds.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={kind === key} onClick={() => setKind(key)}>{label}<span className="oc-seg-count">{kindCounts[key]}</span></button>)}</div>
+            <div className="oc-chips" role="group" aria-label="تصفية إضافية">
+              {currentEmail && <button type="button" className="oc-chip" aria-pressed={mine} onClick={() => setMine((value) => !value)}>حالاتي<b>{mineCount}</b></button>}
+              {(["التشغيل", "المالية"] as const).map((team) => <button key={team} type="button" className="oc-chip" aria-pressed={waiting === team} onClick={() => setWaiting(waiting === team ? "" : team)}>بانتظار {team}</button>)}
+              <label className="oc-search"><Search size={15} aria-hidden="true" /><span className="sr-only">ابحث في الحالات</span><input type="search" value={caseQuery} onChange={(event) => setCaseQuery(event.target.value)} placeholder="اسم العميل أو رقم الطلب" /></label>
+            </div>
+          </div>}
+          {visibleCases.length ? <ul className="oc-cases">{visibleCases.map((item) => {
+            const whatsapp = whatsappHref(item), due = dueChip(item), canAct = ["policy", "withdrawal"].includes(item.kind) && data.canTakeAttentionAction && item.attention_state !== "waiting_finance";
+            return <li key={item.id} className={`oc-case ${priorityTone(item)}`}><article className={`${item.severity} ${item.customer_id?"customer-actionable":""}`} onClick={() => item.customer_id && openCustomer(item)}>
+              <i className="oc-mark" aria-hidden="true" />
+              <div className="oc-case-main">
+                <p className="oc-case-head"><span className="oc-kind">{kindLabel(item)}</span><b>{caseLabel(item)}</b></p>
+                <p className="oc-case-who">{item.customer_id ? <button type="button" className="exception-customer" onClick={(event) => { event.stopPropagation(); openCustomer(item); }}>{item.customer_name || "عميل"}</button> : <span>{item.customer_name || "إجراء داخلي"}</span>}<span>{[item.program_name, item.order_number].filter(Boolean).join(" · ") || "ملف العميل"}</span></p>
+                {nextAction(item) !== caseLabel(item) && <p className="oc-next"><small>الإجراء التالي</small>{nextAction(item)}</p>}
+                <dl className="oc-meta"><div><dt>بانتظار</dt><dd>{waitingFor(item)}</dd></div><div><dt>المسؤول</dt><dd>{shortEmail(item.responsible_email)}</dd></div><div><dt>عمر الحالة</dt><dd>{timeAgo(item.last_action_at)}</dd></div><div><dt>آخر إجراء</dt><dd>{item.last_action_by_email ? shortEmail(item.last_action_by_email) : "لم يسجل"}</dd></div></dl>
+              </div>
+              <div className="oc-case-side"><em className={`oc-due ${due.tone}`}>{due.label}</em><span className="oc-priority">أولوية {item.priority || "عالية"}</span></div>
+              <div className="oc-actions">
+                {whatsapp && <a className="oh-btn" href={whatsapp} target="_blank" rel="noreferrer" aria-label={`فتح واتساب مع ${item.customer_name || "العميل"}`} onClick={(event) => event.stopPropagation()}><FaWhatsapp size={15} aria-hidden="true" />واتساب</a>}
+                <button type="button" className="oh-btn" onClick={(event) => { event.stopPropagation(); if (item.customer_id) openCustomer(item); else onNavigate(routeFor(item)); }}><Eye size={15} aria-hidden="true" />فتح ملف العميل</button>
+                {canAct && <button type="button" className="oh-btn primary" disabled={acting === item.id} onClick={(event) => { event.stopPropagation(); void takeAttentionAction(item); }}>{acting === item.id ? "جارٍ الحفظ…" : <><Check size={15} aria-hidden="true" />تم اتخاذ الإجراء</>}</button>}
+              </div>
+            </article></li>;
+          })}</ul> : data.exceptions.length ? <div className="oh-empty oc-filter-empty"><span>لا توجد حالات تطابق التصفية الحالية.</span><button type="button" className="oh-btn" onClick={clearFilters}>مسح التصفية</button></div>
+            : <div className="oc-calm"><ShieldCheck size={26} aria-hidden="true" /><b>الوضع التشغيلي مستقر</b><span>لا توجد استثناءات أو مهام متأخرة حاليًا.</span></div>}
+          {filtersActive && visibleCases.length > 0 && <p className="oc-result-line">{visibleCases.length} من {data.exceptions.length} حالة<button type="button" onClick={clearFilters}>مسح التصفية</button></p>}
+          {capped && <p className="oh-footnote"><Info size={14} aria-hidden="true" />تعرض القائمة أول 50 حالة من كل نوع، لذلك قد توجد حالات أخرى غير ظاهرة.</p>}
+        </section>
+      </div>
+      <div className="oh-aside">
+        <section id="oc-agenda" className="oh-panel oc-agenda" aria-labelledby="oc-agenda-title">
+          <header className="oh-panel-head"><span className="oh-icon"><CalendarDays size={18} /></span><div><h3 id="oc-agenda-title">الأيام القادمة</h3><p>مواعيد الفريق ومواعيد الإسناد وبداية البرامج في مكان واحد</p></div><span className="oh-count">{agenda.length}</span></header>
+          {agenda.length ? <ol className="oh-timeline oc-timeline">{shownAgenda.map((item, index) => <li key={item.id}>
+            {(index === 0 || shownAgenda[index - 1].day !== item.day) && <div className="oh-timeline-day">{dayHeading(item.day)}</div>}
+            <article className={item.type}><span className="oc-agenda-icon" aria-hidden="true">{item.type === "event" ? <CalendarDays size={15} /> : <BookOpenCheck size={15} />}</span><div><b>{item.title}</b><span>{item.detail}</span>{item.extra && <span>{item.extra}</span>}</div><div className="oc-agenda-side"><time>{item.time}</time><em>{item.tag}</em></div></article>
+          </li>)}</ol> : <div className="oh-empty">لا توجد مواعيد قادمة. ستظهر هنا مواعيد الفريق ومواعيد الإسناد وبداية البرامج عند جدولتها.</div>}
+          {agenda.length > agendaLimit && <button type="button" className="oh-link" aria-expanded={agendaExpanded} onClick={() => setAgendaExpanded((value) => !value)}>{agendaExpanded ? "عرض أقل" : `عرض كل المواعيد (${agenda.length})`}<ChevronDown size={15} aria-hidden="true" className={agendaExpanded ? "oc-flip" : ""} /></button>}
+        </section>
+      </div>
     </div>
   </div>;
 }

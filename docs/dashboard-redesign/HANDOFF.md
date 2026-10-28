@@ -9,7 +9,9 @@
   done and committed. The user reviewed it and approved committing it.
 - **Update (2026-10-28, second machine):** the user approved extending the design. Phase 0 (Shell) is done
   and committed on `design/phase-0-shell` (cut from this branch at `ac9335a`). See
-  [PHASE-0-SHELL.md](PHASE-0-SHELL.md). It waits for the user's review; do not start Phase 1 until they say so.
+  [PHASE-0-SHELL.md](PHASE-0-SHELL.md). The user then approved Phase 1 (Operations Center), committed on the
+  same branch at the user's request. See [PHASE-1-OPERATIONS-CENTER.md](PHASE-1-OPERATIONS-CENTER.md), including
+  the suggestions waiting for the user's decision. Do not start Phase 2 until they say so.
 - `main` locally had 28 commits not on `origin/main` at handoff time. They reach GitHub only as history of
   this branch. `origin/main` was not touched.
 
@@ -30,7 +32,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (81 / 81 on `design/phase-0-shell`) |
+| `npm test` | 80 / 80 (82 / 82 on `design/phase-0-shell` after Phase 1) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 

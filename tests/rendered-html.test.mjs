@@ -610,6 +610,22 @@ test("opens actionable operations customers and removes resolved green cases", a
   assert.match(css, /\.operations-exceptions article\.customer-actionable/);
 });
 
+test("renders the operations center as a filterable priority queue with one agenda", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<div className="ops-home ops-work" aria-busy=\{loading\}>/);
+  assert.match(page, /const operationsCaseKinds = \[\["all", "الكل"\], \["overdue", "متأخرة"\], \["policy", "السياسة والانسحاب"\], \["data", "بيانات ناقصة"\]\]/);
+  assert.match(page, /onClick=\{\(\) => focusQueue\("overdue"\)\}/);
+  assert.match(page, /\.\.\.data\.events\.map\(\(item\) => \(\{ id: `event-\$\{item\.id\}`/);
+  assert.match(page, /\.\.\.data\.schedule\.map\(\(item\) => \(\{ id: `schedule-\$\{item\.id\}`/);
+  assert.match(page, /if \(!data\) return loading \? <HomeDashboardSkeleton \/> : <LiveState/);
+  assert.match(page, /تعرض القائمة أول 50 حالة من كل نوع/);
+  assert.match(page, /<LiveWork onNavigate=\{go\} onOpenCustomer=\{open\} currentEmail=\{currentUser\.email\} \/>/);
+  assert.doesNotMatch(page, /className="operations-command"|className="team-events-board"|className="exception-meta"/);
+  assert.doesNotMatch(css, /\.operations-command\{|\.exception-meta\{|\.team-events-board\{/);
+  assert.match(css, /\.oh-metric\.danger \.oh-metric-icon/);
+});
+
 test("organizes onboarding by certificate and distinguishes employee work from customer waiting", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
