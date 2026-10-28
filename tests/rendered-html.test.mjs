@@ -740,6 +740,19 @@ test("aligns the contact page with the trials API and surfaces stuck new enrollm
   assert.match(page, /\.sort\(\(a, b\) => daysLeft\(a\) - daysLeft\(b\)\);/);
 });
 
+test("registers customers with a live summary, a real start-over and no future purchase dates", async () => {
+  const page = await read("../app/page.tsx");
+  assert.match(page, /<div className="ops-home rg-shell">/);
+  assert.match(page, /<aside className="rg-summary" aria-label="ملخص التسجيل">/);
+  assert.match(page, /const blankForm = useRef\(form\);/);
+  assert.match(page, /onClick=\{startOver\}/);
+  assert.match(page, /if \(form\.purchaseDate > todayISO\) \{/);
+  assert.match(page, /max=\{todayISO\}/);
+  assert.match(page, /aria-pressed=\{form\.source === x\}/);
+  assert.doesNotMatch(page, /label="إجمالي البرنامج"/);
+  assert.match(page, /mode: !isStandaloneService && form\.journey === "تجربة" \? "trial" : "payment",/);
+});
+
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");

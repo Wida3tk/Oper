@@ -1772,6 +1772,8 @@ function Registration({ done }: { done: () => void }) {
     competencyAssessment: "لا",
   });
   const [proof, setProof] = useState({ name: "", data: "" });
+  const blankForm = useRef(form);
+  const todayISO = new Date().toLocaleDateString("en-CA");
   useEffect(() => {
     apiJson("/api/programs")
       .then((data) => {
@@ -1917,6 +1919,10 @@ function Registration({ done }: { done: () => void }) {
         setSaveError("يلزم تحديد تاريخ شراء العميل");
         return;
       }
+      if (form.purchaseDate > todayISO) {
+        setSaveError("تاريخ الشراء هو تاريخ دفع العميل الفعلي، ولا يمكن أن يكون في المستقبل");
+        return;
+      }
       if (!seatOnly && (!(baseTotal > 0) || !(discountedTotal > 0))) {
         setSaveError("يلزم إدخال المبلغ الأساسي قبل المتابعة");
         return;
@@ -1987,8 +1993,8 @@ function Registration({ done }: { done: () => void }) {
       setStep(3);
       return;
     }
-    if (form.journey !== "تجربة" && !/^\d{4}-\d{2}-\d{2}$/.test(form.purchaseDate)) {
-      setSaveError("يلزم تحديد تاريخ شراء العميل");
+    if (form.journey !== "تجربة" && (!/^\d{4}-\d{2}-\d{2}$/.test(form.purchaseDate) || form.purchaseDate > todayISO)) {
+      setSaveError(form.purchaseDate > todayISO ? "تاريخ الشراء لا يمكن أن يكون في المستقبل" : "يلزم تحديد تاريخ شراء العميل");
       setStep(3);
       return;
     }
@@ -2028,6 +2034,18 @@ function Registration({ done }: { done: () => void }) {
       setSaving(false);
     }
   };
+  const startOver = () => {
+    const first = programs.find((p) => p.id === blankForm.current.programId) || programs[0];
+    setForm({ ...blankForm.current, purchaseDate: new Date().toLocaleDateString("en-CA"), ...(first ? { programId: first.id, program: first.name, track: first.tracks?.[0]?.name || "" } : {}) });
+    setProof({ name: "", data: "" });
+    setSaveError("");
+    setStep(1);
+    setSaved(false);
+    setSubmissionKey(crypto.randomUUID());
+  };
+  const money = (value: number) => `${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ر.س`;
+  const deliveryLabel = isSupervision ? "إشراف" : isCompetencyService ? "خدمة تقييم" : isAbat ? "ABAT" : form.delivery || "—";
+  const routeComplete = form.journey === "تجربة" || (!isSupervision && form.payment !== "أقساط" && (!directPayment || form.method === "تمارا"));
   const steps = [
     "بيانات العميل",
     "تفاصيل البرنامج",
@@ -2036,8 +2054,9 @@ function Registration({ done }: { done: () => void }) {
   ];
   if (saved)
     return (
-      <div className="register-success">
-        <i>✓</i>
+      <div className="ops-home rg-done">
+        <div className="rg-done-card">
+        <span className="rg-done-mark" aria-hidden="true"><Check size={30} /></span>
         <h2>تم تسجيل العميل</h2>
         <p>
           {form.journey === "تجربة"
@@ -2046,45 +2065,39 @@ function Registration({ done }: { done: () => void }) {
                 ? "تم تسجيل عميل الإشراف وجدولة انتقاله إلى التهيئة."
               : "تم تسجيل العميل بنجاح وإضافته إلى النظام."}
         </p>
-        <div>
-          <button className="secondary" onClick={() => { setSaved(false); setSubmissionKey(crypto.randomUUID()); }}>
+        <dl className="cp-ledger">
+          <div><dt>العميل</dt><dd>{form.name}</dd></div>
+          <div><dt>البرنامج</dt><dd>{form.track ? `${form.program} · ${form.track}` : form.program}</dd></div>
+          {form.journey !== "تجربة" && <div><dt>المسجَّل الآن</dt><dd>{money(payableAmount)}{seatFee > 0 ? ` + رسوم مقعد ${money(seatFee)}` : ""}</dd></div>}
+        </dl>
+        <div className="rg-done-actions">
+          <button type="button" className="oh-btn" onClick={startOver}>
             تسجيل عميل آخر
           </button>
-          <button className="primary" onClick={done}>
+          <button type="button" className="oh-btn primary" onClick={done}>
             فتح قائمة العملاء
           </button>
+        </div>
         </div>
       </div>
     );
   return (
-    <div className="register-layout">
-      <aside className="stepper">
-        {steps.map((s, i) => (
-          <button
-            key={s}
-            className={
-              step === i + 1 ? "current" : step > i + 1 ? "complete" : ""
-            }
-            onClick={() => setStep(i + 1)}
-          >
-            <i>{step > i + 1 ? "✓" : i + 1}</i>
-            <span>
-              <b>{s}</b>
-              <small>
-                {
-                  [
-                    "بيانات العميل",
-                    "البرنامج والمسار",
-                    "وسيلة الدفع وخطة السداد",
-                    "تدقيق البيانات والإجراءات",
-                  ][i]
-                }
-              </small>
-            </span>
-          </button>
-        ))}
-      </aside>
-      <section className="form-card">
+    <div className="ops-home rg-shell">
+      <nav className="rg-progress" aria-label="خطوات التسجيل">
+        <ol>
+          {steps.map((s, i) => (
+            <li key={s} className={step === i + 1 ? "current" : step > i + 1 ? "complete" : ""}>
+              <button type="button" aria-current={step === i + 1 ? "step" : undefined} onClick={() => setStep(i + 1)}>
+                <i aria-hidden="true">{step > i + 1 ? <Check size={14} /> : i + 1}</i>
+                <span>{s}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="rg-progress-bar" aria-hidden="true"><i style={{ width: `${((step - 1) / (steps.length - 1)) * 100}%` }} /></div>
+      </nav>
+      <div className="rg-body">
+      <section className="form-card rg-card">
         {step === 1 && (
           <>
             <FormHead
@@ -2327,6 +2340,8 @@ function Registration({ done }: { done: () => void }) {
               {["عصارة", "سلة", "دفع مباشر"].map((x) => (
                 <button
                   key={x}
+                  type="button"
+                  aria-pressed={form.source === x}
                   className={form.source === x ? "selected" : ""}
                   onClick={() =>
                     setForm((current) => ({
@@ -2356,6 +2371,7 @@ function Registration({ done }: { done: () => void }) {
                   <input
                     required
                     type="date"
+                    max={todayISO}
                     value={form.purchaseDate}
                     onChange={(e) => set("purchaseDate", e.target.value)}
                   />
@@ -2456,8 +2472,8 @@ function Registration({ done }: { done: () => void }) {
                     </p>
                   )}
                   <p className="net">
-                    <span>إجمالي البرنامج</span>
-                    <b>{finalTotal.toLocaleString("en-US")} ر.س</b>
+                    <span>{form.payment === "أقساط" ? "الدفعة الأولى المسجَّلة الآن" : "المبلغ المسجَّل الآن"}</span>
+                    <b>{payableAmount.toLocaleString("en-US")} ر.س</b>
                   </p>
                   {form.payment === "دفع كامل" && (
                     <small>سيُسجل هذا المبلغ كاملاً كدفعة المبيعات.</small>
@@ -2582,10 +2598,6 @@ function Registration({ done }: { done: () => void }) {
                         value={`${seatFee.toLocaleString("en-US")} ر.س`}
                       />
                     )}
-                    <Review
-                      label="إجمالي البرنامج"
-                      value={`${finalTotal.toLocaleString("en-US")} ر.س`}
-                    />
                   </>
                 )}
               </section>
@@ -2659,26 +2671,52 @@ function Registration({ done }: { done: () => void }) {
             </div>
           </>
         )}
-        {saveError && <div className="save-error">{saveError}</div>}
+        {saveError && <div className="oh-alert rg-error" role="alert">{saveError}</div>}
         <footer className="wizard-actions">
           <button
-            className="secondary"
+            type="button"
+            className="oh-btn"
             onClick={() => (step > 1 ? setStep(step - 1) : done())}
           >
             {step > 1 ? "السابق" : "إلغاء"}
           </button>
           <span>الخطوة {step} من 4</span>
           {step < 4 ? (
-            <button className="primary" onClick={next}>
+            <button type="button" className="oh-btn primary" onClick={next}>
               التالي
             </button>
           ) : (
-            <button className="primary" disabled={saving} onClick={submit}>
+            <button type="button" className="oh-btn primary" disabled={saving} onClick={submit}>
               {saving ? "جارٍ الحفظ..." : "تسجيل العميل"}
             </button>
           )}
         </footer>
       </section>
+      <aside className="rg-summary" aria-label="ملخص التسجيل">
+        <header>
+          <span className="cp-avatar" aria-hidden="true">{form.name.trim() ? form.name.trim().slice(0, 2) : "؟"}</span>
+          <div><b>{form.name.trim() || "عميل جديد"}</b><small dir="ltr">{form.phone.length > 4 ? form.phone : "—"}</small></div>
+        </header>
+        <dl className="cp-ledger">
+          <div><dt>البرنامج</dt><dd>{form.track ? `${form.program} · ${form.track}` : form.program || "—"}</dd></div>
+          {!isStandaloneService && <div><dt>الاشتراك</dt><dd>{form.journey}</dd></div>}
+          <div><dt>النمط</dt><dd>{deliveryLabel}{isObm && !isSupervision && form.language ? ` · ${form.language}` : ""}</dd></div>
+          {scheduledJourney && <div><dt>الدفعة</dt><dd>{form.cohort || "—"}</dd></div>}
+          <div><dt>مصدر الشراء</dt><dd>{form.source}{directPayment ? ` · ${form.method}` : ""}</dd></div>
+        </dl>
+        {form.journey !== "تجربة" && (
+          <div className="rg-receipt" aria-label="الملخص المالي">
+            {!seatOnly && <p><span>المبلغ الأساسي</span><b>{money(baseTotal)}</b></p>}
+            {!seatOnly && discountPercent > 0 && <p><span>الخصم {discountPercent}%</span><b>− {money(baseTotal - discountedTotal)}</b></p>}
+            {!seatOnly && <p><span>سعر البرنامج</span><b>{money(discountedTotal)}</b></p>}
+            {seatFee > 0 && <p><span>رسوم المقعد</span><b>{money(seatFee)}</b></p>}
+            <p className="total"><span>{seatOnly ? "رسوم المقعد المسجَّلة" : form.payment === "أقساط" ? "الدفعة الأولى" : "يُسجَّل الآن"}</span><b>{money(payableAmount)}</b></p>
+            {!seatOnly && form.payment === "أقساط" && finalTotal > payableAmount && <small>المتبقي على الأقساط: {money(finalTotal - payableAmount)}</small>}
+          </div>
+        )}
+        <p className={`rg-route ${routeComplete ? "complete" : "review"}`}>{routeComplete ? <Check size={15} aria-hidden="true" /> : <Info size={15} aria-hidden="true" />}{form.journey === "تجربة" ? "تبدأ التجربة دون إجراء مالي" : routeComplete ? `مكتمل مالياً عبر ${form.source}` : "تنتقل للمالية للمراجعة"}</p>
+      </aside>
+      </div>
     </div>
   );
 }
