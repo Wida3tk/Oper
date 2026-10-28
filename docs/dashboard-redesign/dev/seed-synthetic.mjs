@@ -36,7 +36,7 @@ for (let i = 1; i <= 46; i++) {
   const createdDay = i > 43 ? 28 : Math.max(1, Math.min(27, Math.round(rnd() * 27)));
   const createdAt = i <= 18 ? `2026-09-${String(1 + (i % 28)).padStart(2, "0")}T09:00:00.000Z` : ts(createdDay, 9 + (i % 8), (i * 13) % 60);
   customers.push({ id, name });
-  sql.push(ins("customers", { id, name, phone: `05500${String(10000 + i).slice(-5)}`, email: `customer${i}@example.test`, customer_type: "مسجل", created_at: createdAt, updated_at: createdAt, deleted_at: null }));
+  sql.push(ins("customers", { id, name, phone: `009665500${String(10000 + i).slice(-5)}`, email: `customer${i}@example.test`, customer_type: "مسجل", created_at: createdAt, updated_at: createdAt, deleted_at: null }));
   const [pid, pname, tracks] = pick(programs), track = pick(tracks), total = pid === "PRG-ABA" ? 14500 : pid === "PRG-OBM" ? 9800 : pid === "PRG-COMP" ? 2400 : 1500;
   const pendingReview = i >= 38 && i <= 43 ? reviewKinds[i - 38] : null, plan = pendingReview ? pendingReview[0] : total > 5000 && i % 3 ? "أقساط" : "دفعة كاملة";
   const oid = `ORD-T${String(i).padStart(3, "0")}`;

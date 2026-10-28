@@ -1077,6 +1077,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
                   <div><dt>البرنامج</dt><dd>{selected.program}</dd></div>
                   <div><dt>المسار</dt><dd>{selected.track}</dd></div>
                   <div><dt>قناة الشراء</dt><dd>{selected.source}</dd></div>
+                  <div><dt>سجّل الطلب</dt><dd>{!selected.owner || selected.owner === "غير مسند" ? "غير مسجَّل" : selected.owner}</dd></div>
                   <div><dt>رقم الطلب</dt><dd>{selectedDetails.orderId || "—"}</dd></div>
                   {selectedDetails.delivery !== "مسجل" && <div className="customer-cohort-field"><dt>رقم الدفعة</dt><dd>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}{has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}</dd></div>}
                 </dl>
@@ -1832,6 +1833,7 @@ function Registration({ done }: { done: () => void }) {
   const hasSeatReservation =
     seatReservationEligible && form.seatReserved === "نعم";
   const seatOnly = hasSeatReservation && form.seatBookingType === "حجز مقعد فقط";
+  const programSeatFee = Number(selectedProgram?.seatFee || 0);
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
   const scheduledJourney = isSupervision || hasSeatReservation || (!asara && directProgram);
@@ -1851,6 +1853,20 @@ function Registration({ done }: { done: () => void }) {
   const payableAmount = seatOnly ? seatFee : form.payment === "أقساط" ? Number(form.amount || 0) : finalTotal;
   const phoneInvalid = !internationalPhonePattern.test(form.phone);
   const emailInvalid = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const lookupKey = phoneInvalid && emailInvalid ? "" : `${phoneInvalid ? "" : form.phone}|${emailInvalid ? "" : form.email.trim().toLowerCase()}`;
+  const [lookup, setLookup] = useState<{ key: string; matches: ExistingCustomer[] }>({ key: "", matches: [] });
+  useEffect(() => {
+    if (!lookupKey) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetch("/api/intake/lookup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phone: form.phone, email: form.email }) })
+        .then((r) => (r.ok ? r.json() : { matches: [] }))
+        .then((data) => { if (!cancelled) setLookup({ key: lookupKey, matches: data.matches || [] }); })
+        .catch(() => {});
+    }, 400);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [lookupKey, form.phone, form.email]);
+  const existingMatches = lookupKey && lookup.key === lookupKey ? lookup.matches : [];
   const readProof = (file?: File) => {
     setSaveError("");
     if (!file) return;
@@ -2135,6 +2151,7 @@ function Registration({ done }: { done: () => void }) {
                 />
               </Field>
             </div>
+            <ExistingCustomerAlert matches={existingMatches} name={form.name} phone={form.phone} email={form.email} />
           </>
         )}
         {step === 2 && (
@@ -2240,6 +2257,7 @@ function Registration({ done }: { done: () => void }) {
                     onChange={(e) => {
                       set("seatReserved", e.target.value);
                       if (e.target.value === "لا") set("seatFee", "");
+                      else if (!isSupervision && !form.seatFee && programSeatFee > 0) set("seatFee", String(programSeatFee));
                     }}
                   >
                     <option>لا</option>
@@ -2270,7 +2288,7 @@ function Registration({ done }: { done: () => void }) {
                   <small className="field-help">
                     {isSupervision
                       ? "رسوم مقعد الإشراف ثابتة: 50 ر.س، ولا تدخل ضمن قيمة العقد أو الخصم."
-                      : "مبلغ ثابت يُضاف بعد الخصم ولا تُطبق عليه نسبة الخصم."}
+                      : `مبلغ ثابت يُضاف بعد الخصم ولا تُطبق عليه نسبة الخصم.${programSeatFee > 0 ? ` المقترح من إعدادات البرنامج: ${programSeatFee.toLocaleString("en-US")} ر.س، ويمكن تعديله.` : ""}`}
                   </small>
                 </Field>
               )}
@@ -2451,6 +2469,20 @@ function Registration({ done }: { done: () => void }) {
                     </small>
                   </Field>
                 )}
+                {!directPayment && (
+                  <Field label="رقم الطلب في المتجر">
+                    <input
+                      dir="ltr"
+                      maxLength={100}
+                      value={form.reference}
+                      onChange={(e) => set("reference", e.target.value)}
+                      placeholder={`رقم الطلب في ${form.source}`}
+                    />
+                    <small className="field-help">
+                      اختياري. يُحفظ مرجعاً للدفعة لتسهيل مطابقتها مع كشف المتجر.
+                    </small>
+                  </Field>
+                )}
                 <div className="discount-summary">
                   {seatOnly ? <p className="net"><span>المبلغ المدفوع</span><b>{seatFee.toLocaleString("en-US")} ر.س رسوم مقعد فقط</b></p> : <>
                   <p>
@@ -2554,6 +2586,7 @@ function Registration({ done }: { done: () => void }) {
               title="مراجعة البيانات"
               text="مراجعة نوع الاشتراك والإجراءات التي سيُنشئها النظام قبل الحفظ."
             />
+            <ExistingCustomerAlert matches={existingMatches} name={form.name} phone={form.phone} email={form.email} />
             <div className="review-grid">
               <section>
                 <h3>ملخص الطلب</h3>
@@ -2578,6 +2611,7 @@ function Registration({ done }: { done: () => void }) {
                 {form.journey !== "تجربة" && (
                   <>
                     <Review label="وسيلة الدفع" value={form.method} />
+                    {!directPayment && form.reference.trim() && <Review label="رقم الطلب في المتجر" value={form.reference.trim()} />}
                     <Review label="تاريخ الشراء" value={form.purchaseDate} />
                     <Review
                       label="السداد"
@@ -6669,6 +6703,29 @@ function FormHead({
         <p>{text}</p>
       </div>
     </header>
+  );
+}
+type ExistingCustomer = { id: string; name: string; phone: string; email: string; deleted: boolean };
+// Intake attaches the order to the first match and keeps that file's name, phone and email; this says so before saving.
+function ExistingCustomerAlert({ matches, name, phone, email }: { matches: ExistingCustomer[]; name: string; phone: string; email: string }) {
+  const [file, other] = matches;
+  if (!file) return null;
+  const typedPhone = phone.replace(/[^\d+]/g, "").replace(/^\+/, "00"), typedEmail = email.trim().toLowerCase();
+  const notes = [
+    file.deleted && "هذا الملف محذوف، والطلب الجديد لن يظهر في قائمة العملاء. راجع الإدارة قبل التسجيل.",
+    name.trim() && name.trim() !== file.name && `الاسم المكتوب لن يُحفظ، ويبقى اسم الملف «${file.name}».`,
+    internationalPhonePattern.test(phone) && typedPhone !== file.phone && `الجوال في الملف ${file.phone}، والرقم المكتوب لن يُحفظ. عدّله من ملف العميل إن لزم.`,
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail) && typedEmail !== file.email && `البريد في الملف ${file.email}، والبريد المكتوب لن يُحفظ. عدّله من ملف العميل إن لزم.`,
+    other && `يوجد ملف آخر يطابق الجوال أو البريد: «${other.name}». سيُضاف الطلب إلى «${file.name}» فقط.`,
+  ].filter((note): note is string => Boolean(note));
+  return (
+    <div className={`rg-existing ${file.deleted || other ? "danger" : ""}`} role="status">
+      <Info size={17} aria-hidden="true" />
+      <div>
+        <b>عميل موجود: سيُضاف هذا الطلب إلى ملف «{file.name}»</b>
+        {notes.length > 0 && <ul>{notes.map((note) => <li key={note}>{note}</li>)}</ul>}
+      </div>
+    </div>
   );
 }
 function Field({

@@ -134,6 +134,12 @@ export function cleanContact(body: Record<string, unknown>) {
   };
 }
 
+// The match intake uses to attach a new order to an existing file (first row wins). The lookup route shares it so its alert names the same file.
+export async function findExistingCustomers(db:ReturnType<typeof operationalDb>,phone:string,email:string){
+  const {results}=await db.prepare("SELECT id,name,phone,email,deleted_at FROM customers WHERE phone=? OR email=? LIMIT 2").bind(phone,email).all();
+  return results as {id:string;name:string;phone:string;email:string;deleted_at:string|null}[];
+}
+
 export function id(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 10)}`;
 }

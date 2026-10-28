@@ -1,4 +1,4 @@
-import { authorize, cleanContact, ensureDirectProgramSchema, ensureFinanceClassificationSchema, id, nextOrderNumber, operationalDb } from "../_lib/operations";
+import { authorize, cleanContact, ensureDirectProgramSchema, ensureFinanceClassificationSchema, findExistingCustomers, id, nextOrderNumber, operationalDb } from "../_lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
   if (mode === "trial") {
     if (program.trial_days < 1) return Response.json({ error: "يجب تحديد مدة تجربة لهذا البرنامج أولاً" }, { status: 409 });
-    const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone, email).first<{ id: string }>();
+    const existing = (await findExistingCustomers(db, phone, email))[0];
     const customerId = existing?.id || id("CUS");
     if(existing){const recentTrial=await db.prepare("SELECT id FROM program_trials WHERE customer_id=? AND program_id=? AND created_at>=datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(customerId,programId).first<{id:string}>();if(recentTrial)return Response.json({error:"تم تسجيل تجربة لهذا العميل في البرنامج قبل قليل"},{status:409})}
     const trialId = id("TRY");
@@ -101,6 +101,7 @@ export async function POST(req: Request) {
     : source;
   if(source==="دفع مباشر"&&!["تحويل بنكي","تمارا","Paytabs"].includes(method))return Response.json({error:"وسيلة الدفع المباشر غير صالحة"},{status:400});
   const reference=String(body.reference||"").trim();
+  if(reference.length>300)return Response.json({error:"مرجع السداد أطول من المسموح"},{status:400});
   if(source==="دفع مباشر"&&method==="Paytabs"&&!/^https?:\/\/\S+$/i.test(reference))return Response.json({error:"رابط مرجع السداد من Paytabs مطلوب"},{status:400});
   const proofAssetKey = String(body.proofAssetKey || "");
   if (source==="دفع مباشر"&&method === "تحويل بنكي") {
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
   const classificationStatus = needsFinanceReview ? "pending" : "confirmed";
   const paymentIntentStatus = needsFinanceReview ? "بانتظار مراجعة المالية" : "مكتملة";
   const intentId = id("PAYI");
-  const existing = await db.prepare("SELECT id FROM customers WHERE phone=? OR email=? LIMIT 1").bind(phone,email).first<{id:string}>();
+  const existing = (await findExistingCustomers(db,phone,email))[0];
   const customerId=existing?.id||id("CUS"),orderId=id("ORD"),orderNumber=await nextOrderNumber(db,program.name),paymentId=id("PAY"),reservationId=hasSeatReservation?id("RSV"):null,enrollmentId=seatOnly?null:id("ENR");
   if(existing){const recent=await db.prepare("SELECT id,order_number FROM orders WHERE customer_id=? AND program_id=? AND created_at>=datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(customerId,programId).first<{id:string;order_number:string}>();if(recent)return Response.json({error:`تم تسجيل هذا العميل في البرنامج قبل قليل (${recent.order_number||recent.id})`},{status:409})}
   const statements=[];
@@ -131,7 +132,7 @@ export async function POST(req: Request) {
   statements.push(db.prepare("INSERT INTO prospects(id,name,phone,email,intended_program_id,status,created_by_email,converted_customer_id,created_at,updated_at) VALUES(?,?,?,?,?,'تحول إلى عميل',?,?,?,?)").bind(prospectId,name,phone,email,programId,auth.email,customerId,now,now));
   if(!existing)statements.push(db.prepare("INSERT INTO customers(id,name,phone,email,customer_type,admitted_via,admission_source_id,created_at,updated_at) VALUES(?,?,?,?,?,'دفعة مسجلة',?,?,?)").bind(customerId,name,phone,email,seatOnly?"حجز مقعد فقط":isSupervision?"إشراف":autoAsara&&!isCompetencyService?"مكتمل":isDirectProgram?"برنامج مباشر":"مسجل",intentId,now,now));
   statements.push(
-    db.prepare("INSERT INTO orders(id,order_number,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,seat_reservation,competency_assessment,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'غير مسند',?,?,?,?)").bind(orderId,orderNumber,customerId,purchaseType,programId,program.name,track||"غير محدد",isAbat?"مسجل":delivery,orderLanguage,source,seatOnly?"رسوم مقعد":paymentPlan,baseTotal,seatOnly?0:discountPercent,contractTotal,seatOnly?0:amount,seatOnly?"حجز فقط":paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",autoAsara&&!isCompetencyService?"مكتمل":seatOnly?"غير مطبق":"تم التواصل",financeReviewStatus,hasSeatReservation?1:0,competencyAssessment?1:0,cohort||null,startDate||null,now,now),
+    db.prepare("INSERT INTO orders(id,order_number,customer_id,order_type,program_id,program,track,delivery,language,purchase_source,payment_plan,base_total,discount_percent,total,paid,status,academy_status,finance_review_status,seat_reservation,competency_assessment,owner,cohort_label,scheduled_start_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(orderId,orderNumber,customerId,purchaseType,programId,program.name,track||"غير محدد",isAbat?"مسجل":delivery,orderLanguage,source,seatOnly?"رسوم مقعد":paymentPlan,baseTotal,seatOnly?0:discountPercent,contractTotal,seatOnly?0:amount,seatOnly?"حجز فقط":paymentPlan==="أقساط"?"مدفوع جزئياً":"مدفوع",autoAsara&&!isCompetencyService?"مكتمل":seatOnly?"غير مطبق":"تم التواصل",financeReviewStatus,hasSeatReservation?1:0,competencyAssessment?1:0,auth.email,cohort||null,startDate||null,now,now),
     db.prepare("INSERT INTO payments(id,order_id,amount,paid_at,status,method,reference,proof_asset_key,flow_type,classification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,paidAt,"مسجلة",method,reference,proofAssetKey,seatOnly?"seat_fee":isSupervision?"collection":"sale",classificationStatus,now),
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );

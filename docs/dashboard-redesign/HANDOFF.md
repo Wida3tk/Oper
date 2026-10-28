@@ -33,11 +33,15 @@
 - Latest work: the registration form review, fixes and redesign ([REGISTRATION.md](REGISTRATION.md)), plus a **data map**
   of the registration flow: [registration-map.html](registration-map.html) (also published privately for the user at
   https://claude.ai/artifact/33mcKRBWyQhzYXUsmkFSaL).
-- **Waiting for the user's choice:** which data-entry suggestions from the map to apply. The two options offered:
-  - Priority 1–2: existing-customer alert while typing (needs a lookup API), the assignment-date fix (**needs a
-    decision**: store it and move the customer on that date, or drop the field), record the seller in `orders.owner`,
-    a store order number for سلة/عصارة, and suggesting the seat fee from `programs.seat_reservation_fee`.
-  - UI-only first: seat-fee suggestion, errors under each field, phone formatting, remember last source/method.
+- **Update (2026-10-28 evening, home machine):** the user chose Priority 1–2. Done on the branch (not merged or
+  deployed): existing-customer alert, seller in `orders.owner`, store order number for سلة/عصارة, seat-fee suggestion.
+  See "Data-entry improvements" in [REGISTRATION.md](REGISTRATION.md). These change the intake API (new
+  `POST /api/intake/lookup`, `orders.owner` value), which the user approved by choosing this option.
+- **Still waiting on the user:**
+  - The assignment date (**decision needed**): store it and move the customer into onboarding on that date, or
+    drop the field and its sentence for live programmes without a seat reservation.
+  - The remaining map suggestions: errors under each field, phone formatting, remember last source/method, a
+    programme price list.
 
 ## To continue at home
 
@@ -78,7 +82,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (91 / 91 on `design/phase-0-shell`) |
+| `npm test` | 80 / 80 (92 / 92 on `design/phase-0-shell`) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 

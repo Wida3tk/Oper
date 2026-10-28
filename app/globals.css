@@ -1203,6 +1203,12 @@ html,body{max-width:100%;overflow-x:hidden}
 .rg-shell .field input::placeholder{color:var(--sk-subtle)}
 .rg-shell .field-help{color:var(--sk-muted);font-size:var(--sk-fs-xs);font-weight:500;line-height:1.6}
 .rg-shell .hint{margin:16px 0 0;padding:12px 14px;border:1px solid var(--sk-line);border-inline-start:3px solid var(--sk-brand);border-radius:var(--sk-radius);background:var(--sk-brand-soft);color:var(--sk-ink-2);font-size:var(--sk-fs-sm);line-height:1.7}
+.rg-existing{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;padding:12px 14px;border:1px solid var(--sk-line);border-inline-start:3px solid var(--sk-warning-mark);border-radius:var(--sk-radius);background:var(--sk-warning-soft);color:var(--sk-ink-2);font-size:var(--sk-fs-sm);line-height:1.7}
+.rg-existing>svg{flex:none;margin-top:3px;color:var(--sk-warning)}
+.rg-existing b{color:var(--sk-ink)}
+.rg-existing ul{margin:4px 0 0;padding-inline-start:18px}
+.rg-existing.danger{border-inline-start-color:var(--sk-danger-mark);background:var(--sk-danger-soft)}
+.rg-existing.danger>svg{color:var(--sk-danger)}
 
 .rg-shell .source-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}
 .rg-shell .source-grid button{position:relative;display:grid;justify-items:start;gap:4px;min-height:0;padding:16px;border:1px solid var(--sk-line-strong);border-radius:var(--sk-radius);background:var(--sk-surface);color:var(--sk-ink);text-align:start;box-shadow:none;transition:border-color var(--sk-dur-fast) ease,background-color var(--sk-dur-fast) ease,box-shadow var(--sk-dur-fast) ease}

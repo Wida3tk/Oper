@@ -55,3 +55,37 @@ worse: lint is one error lower than before Phase 3.
   the API, but errors only show on "التالي" or on save.
 - The discount options (0–50% in steps of 5) and the "تمارا" option, which appears both as a payment plan and as
   a direct payment method, are product decisions.
+
+## Data-entry improvements (Priority 1–2 from the registration map)
+
+Chosen by the user on 2026-10-28. Unlike the redesign above, these change the intake API on purpose.
+
+| # | Problem (from the map) | Change |
+|---|---|---|
+| 1 | An existing customer was matched silently by phone or email. The typed name, phone and email were dropped without a word | **Existing-customer alert** in step 1 and on the review step, 400 ms after a valid phone or email. It names the file the order will join and lists what won't be saved (name, phone, email differences). It turns red when the file is **deleted** or when phone and email match **two different files**, and says which one gets the order. New `POST /api/intake/lookup` (sales only, phone and email in the body, not the URL). Intake and the lookup share `findExistingCustomers()`, so the alert always names the same file the save uses. |
+| 2 | Every order saved the owner as «غير مسند» | `orders.owner` = the signed-in staff email. `GET /api/customers` returns the staff display name when there is one. The customer file shows **«سجّل الطلب»**, and older orders read «غير مسجَّل». |
+| 3 | No reference for سلة / عصارة orders | Optional **«رقم الطلب في المتجر»** for those two sources, saved in `payments.reference` (the API already stored the reference for every source). Cleared when the source changes, shown in the review. The API now refuses references over 300 characters. |
+| 4 | `programs.seat_reservation_fee` was never used | Choosing «تم حجز المقعد: نعم» fills the fee from the programme when it is set and the field is empty. It stays editable, and the help text says where the number came from. Supervision stays fixed at 50. |
+
+Not done here: updating the existing file's phone or email from the alert. It points to the customer file, where
+`customers.manage` users can already edit them. The trial-conversion route (`/api/trials`) still writes «غير مسند».
+
+### Checks (local copy, synthetic data)
+
+| Check | Result |
+|---|---|
+| Lookup without a session | 401 ✅ |
+| Lookup by email, any case or spaces | Finds the file ✅ |
+| Phone of one file + email of another | Both returned. The save then joins the one the alert names first ✅ |
+| New customer via سلة with store number | `orders.owner` = staff email, `payments.reference` saved ✅ |
+| Existing customer, different name and phone | Order joins the file. The file's name and phone are unchanged, as the alert says ✅ |
+| Reference of 301 characters | 400 ✅ |
+| Customers list | Seller's display name for the new order, «غير مسند» for old ones ✅ |
+| Form: alert, seat fee 300 pre-filled, store field per source, review rows, full save, «سجّل الطلب» in the customer file | ✅ |
+| 375px | Alert wraps, no horizontal scroll, text ≥ 13px ✅ |
+
+Tests: 92 / 92 (one new). Lint on the touched files is unchanged (60 problems, all pre-existing). Type errors are
+unchanged (101 project-wide, all from the missing Cloudflare types).
+
+The synthetic seed now stores phones as `00966…`, as real records are. Before, seeded phones couldn't be found by
+phone lookup.

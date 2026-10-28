@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const { results } = await operationalDb().prepare(`
     SELECT c.id,c.name,c.phone,c.email,c.customer_type,c.admitted_via,
            COALESCE(o.created_at,c.created_at) created_at,
-           o.id order_id,o.order_number,o.program,o.track,o.delivery,o.purchase_source source,o.owner,
+           o.id order_id,o.order_number,o.program,o.track,o.delivery,o.purchase_source source,COALESCE(NULLIF(sa.display_name,''),o.owner) owner,
            o.academy_status state,o.status order_status,o.paid,o.total,o.cohort_label,o.scheduled_start_date,
            CASE WHEN o.seat_reservation=1 THEN COALESCE((SELECT MAX(r.fee_amount) FROM seat_reservations r WHERE r.order_id=o.id AND r.reservation_kind IN ('حجز مقعد','إشراف')),0) ELSE 0 END seat_fee,
            p.name program_name
@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       LIMIT 1
     )
     LEFT JOIN programs p ON p.id=o.program_id
+    LEFT JOIN staff_accounts sa ON sa.email=o.owner
     WHERE c.deleted_at IS NULL
     ORDER BY COALESCE(o.created_at,c.created_at) DESC
     LIMIT 500

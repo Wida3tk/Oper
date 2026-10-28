@@ -1074,3 +1074,32 @@ test("audits data quality without automatically mutating customer records",async
   assert.doesNotMatch(quality,/export async function (POST|PATCH|DELETE)/);
   assert.match(intake,/صيغة البريد الإلكتروني غير صحيحة/);
 });
+
+test("warns about existing customers and records seller, store order number and seat fee", async () => {
+  const page = await read("../app/page.tsx");
+  const intake = await read("../app/api/intake/route.ts");
+  const lookup = await read("../app/api/intake/lookup/route.ts");
+  const ops = await read("../app/api/_lib/operations.ts");
+  const customers = await read("../app/api/customers/route.ts");
+  // Intake and the lookup share one match so the alert names the file the order will join.
+  assert.match(ops, /export async function findExistingCustomers/);
+  assert.equal((intake.match(/findExistingCustomers\(db, ?phone, ?email\)\)\[0\]/g) || []).length, 2);
+  assert.doesNotMatch(intake, /SELECT id FROM customers WHERE phone=\? OR email=\?/);
+  assert.match(lookup, /authorize\(req, \["sales"\]\)/);
+  assert.match(lookup, /export async function POST/);
+  assert.doesNotMatch(lookup, /export async function GET/);
+  assert.match(page, /fetch\("\/api\/intake\/lookup", \{ method: "POST"/);
+  assert.match(page, /<ExistingCustomerAlert matches=\{existingMatches\}/);
+  assert.match(page, /هذا الملف محذوف/);
+  // Seller is the signed-in staff member, shown by display name in the customer file.
+  assert.doesNotMatch(intake, /'غير مسند'/);
+  assert.match(intake, /competencyAssessment\?1:0,auth\.email,cohort/);
+  assert.match(customers, /COALESCE\(NULLIF\(sa\.display_name,''\),o\.owner\) owner/);
+  assert.match(page, /<dt>سجّل الطلب<\/dt>/);
+  // Store order number for سلة/عصارة goes to the payment reference, which the API caps.
+  assert.match(page, /\{!directPayment && \(\s*<Field label="رقم الطلب في المتجر">/);
+  assert.match(intake, /reference\.length>300/);
+  // Seat fee is suggested from the programme setting and stays editable.
+  assert.match(page, /const programSeatFee = Number\(selectedProgram\?\.seatFee \|\| 0\)/);
+  assert.match(page, /set\("seatFee", String\(programSeatFee\)\)/);
+});
