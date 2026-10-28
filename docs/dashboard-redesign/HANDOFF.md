@@ -25,16 +25,40 @@
   `npx wrangler rollback bb58c5db-8d9c-411e-9cce-186111b241a7 --config wrangler.deploy.jsonc`
 - From now on, merge and deploy only when the user asks, as they did here.
 
+## Released again (2026-10-28 evening, home machine, at the user's request)
+
+- **Every push to GitHub deploys to production automatically, on any branch.** This was found while
+  preparing this release. Each push to `design/phase-0-shell` today was live one to two minutes later
+  (pushes at 16:39, 17:07, 17:18, 23:00 and 23:04 UTC+5 → deployments at 16:42, 17:08, 17:20, 23:02 and 23:06). The
+  office pushes match the 09:20–09:42 UTC deployments too. Nobody ran `wrangler deploy` by hand. The likely cause is
+  Cloudflare's Git integration (Workers Builds) deploying non-production branches. This is not confirmed: the
+  dashboard was not checked. Earlier notes saying the registration work was "branch only, not deployed" were wrong.
+  **Until the user changes this in Cloudflare (Workers & Pages → sulukera-operations → Settings → Builds), treat any
+  push, to any branch, as a production release.**
+- `design/phase-0-shell` was fast-forwarded into `main` (`d9d1602` → this commit) and pushed, so GitHub `main`
+  matches what is live. Before the merge, live was version `0f568512-f4de-47b5-9fa5-837d798f5798` (same code,
+  deployed from the branch). The push of `main` deploys the same code again. `npx wrangler deployments list
+  --config wrangler.deploy.jsonc` shows its version ID.
+- What this release carries over the morning one: the registration redesign and data map, the existing-customer
+  alert, the seller in `orders.owner`, store order numbers, the seat-fee and list-price suggestions, assignment-date
+  holding, supervision without a cohort, and the before/after-VAT amounts (see [REGISTRATION.md](REGISTRATION.md)).
+  New tables (`program_prices`) are created by the app on first use. No `drizzle/` migrations.
+- **Rollback** to the last version built from the morning's `main` (`d9d1602`, deployed 07:19:59 UTC):
+  `npx wrangler rollback c7e49602-4eed-404e-ae00-fd66a85675b7 --config wrangler.deploy.jsonc`.
+  A rollback restores the code only. Data written since then stays: new orders' `owner`, `program_prices`, and
+  reservations waiting for their assignment date. The old code moves those waiting reservations into onboarding
+  at once (its old behaviour) and ignores the rest.
+
 ## Where we stopped (end of day 2026-10-28, office machine)
 
-- Branch `design/phase-0-shell` is pushed and **2+ commits ahead of `main`**: the registration redesign is on the
-  branch only. It is **not merged and not deployed**. Ask before merging or deploying.
-- The live site runs `main` at `ad619fa` (Cloudflare version `3b8dcd9e…`), verified by the user.
+- Branch `design/phase-0-shell` is pushed and **2+ commits ahead of `main`**. *(Corrected in the evening: it was
+  already live through the automatic branch deploys. See "Released again" above.)*
+- The live site runs `main` at `ad619fa` (Cloudflare version `3b8dcd9e…`), verified by the user. *(Outdated, see
+  above.)*
 - Latest work: the registration form review, fixes and redesign ([REGISTRATION.md](REGISTRATION.md)), plus a **data map**
   of the registration flow: [registration-map.html](registration-map.html) (also published privately for the user at
   https://claude.ai/artifact/33mcKRBWyQhzYXUsmkFSaL).
-- **Update (2026-10-28 evening, home machine):** the user chose Priority 1–2. Done on the branch (not merged or
-  deployed): existing-customer alert, seller in `orders.owner`, store order number for سلة/عصارة, seat-fee suggestion.
+- **Update (2026-10-28 evening, home machine):** the user chose Priority 1–2. Done and now released: existing-customer alert, seller in `orders.owner`, store order number for سلة/عصارة, seat-fee suggestion.
   See "Data-entry improvements" in [REGISTRATION.md](REGISTRATION.md). These change the intake API (new
   `POST /api/intake/lookup`, `orders.owner` value), which the user approved by choosing this option.
 - **Price list and VAT (decided 2026-10-28):** list prices per programme/track/delivery (VAT included) fill the
@@ -60,9 +84,10 @@
 ## Next steps (agreed with the user, 2026-10-28)
 
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
-Merge to `main`, deploy or open a PR only when the user asks.
+Merge to `main`, deploy or open a PR only when the user asks. **While branch pushes auto-deploy (see "Released
+again"), a push is a release: ask before pushing.**
 1. ~~Finance UTC dates~~ **Done:** every "today" default in `app/page.tsx` (11 spots: the intake purchase date, finance today/month/forms, B2B activity date and follow-ups, the export filename) now uses the local date. A test guards it.
-2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). **Done** (trial box and stuck "جديد" column): see [REVIEW-CONTACT.md](REVIEW-CONTACT.md). The `Registration` intake form was then reviewed, fixed and redesigned, with an end-to-end save checked: see [REGISTRATION.md](REGISTRATION.md). It is on the branch only (not merged or deployed yet).
+2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). **Done** (trial box and stuck "جديد" column): see [REVIEW-CONTACT.md](REVIEW-CONTACT.md). The `Registration` intake form was then reviewed, fixed and redesigned, with an end-to-end save checked: see [REGISTRATION.md](REGISTRATION.md). Released on 2026-10-28 (see "Released again").
 3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
 4. Open user decision: Phase 1 suggestion #8, one window for upcoming items (schedule 30 days vs. team events 90).
 
