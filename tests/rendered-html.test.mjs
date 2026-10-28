@@ -723,7 +723,9 @@ test("uses the local date for every 'today' default in the app", async () => {
   const page = await read("../app/page.tsx");
   assert.doesNotMatch(page, /new Date\(\)\.toISOString\(\)\.slice\(0, ?(7|10)\)/);
   assert.match(page, /purchaseDate: new Date\(\)\.toLocaleDateString\("en-CA"\),/);
-  assert.match(page, /const todayKey = new Date\(\)\.toLocaleDateString\("en-CA"\);/);
+  // Finance compares payment days with "today", so it uses the Riyadh day, not the device's time zone.
+  assert.match(page, /const todayKey = riyadhToday\(\);/);
+  assert.match(page, /const riyadhToday = \(\) => new Date\(\)\.toLocaleDateString\("en-CA", \{ timeZone: "Asia\/Riyadh" \}\);/);
 });
 
 test("aligns the contact page with the trials API and surfaces stuck new enrollments", async () => {
@@ -1187,4 +1189,32 @@ test("renders finance as a filterable ledger with amounts before and after VAT",
   assert.match(page, /aria-label="إغلاق الملف المالي"/);
   assert.match(css, /\.finance-center-drawer \.primary\{width:auto;padding:0 14px;font-size:var\(--sk-fs-sm\)\}/);
   assert.match(css, /:is\(\.ops-customers,\.ops-finance\) \.cu-table th\{position:sticky/);
+});
+
+test("computes finance totals like the home dashboard and fixes the audited calculation errors", async () => {
+  const page = await read("../app/page.tsx");
+  const finance = await read("../app/api/finance/route.ts");
+  const customers = await read("../app/api/customers/route.ts");
+  // #1 Sales and collections: confirmed payments of the flow minus completed refunds charged to it.
+  assert.match(page, /payment\.flow_type === flow && payment\.classification_status === "confirmed" && inPeriod\(saleDate\(payment\)\)/);
+  assert.match(page, /row\.withdrawal\?\.status === "مكتمل" && row\.withdrawal\.refund_source === flow/);
+  assert.match(page, /const salesMonth = confirmedNet\("sale", \(day\) => day\.startsWith\(monthKey\)\);/);
+  assert.match(page, /const collectionsMonth = confirmedNet\("collection", \(day\) => day\.startsWith\(collectionMonth\)\);/);
+  assert.match(page, /payment\.classification_status === "pending"\)\.reduce/);
+  // #2 Metrics no longer sum the sales list, which also holds supervision collections and seat-only fees.
+  assert.doesNotMatch(page, /const salesTotal = salesEntries\.reduce/);
+  assert.match(page, /payment\.flow_type === "seat_fee" \? "رسوم مقعد" : payment\.flow_type === "collection"/);
+  // #3a Seat fees from the registration form show, stay out of the programme's paid amount, and can't go through the legacy tool.
+  assert.match(finance, /reservation_kind IN \('حجز مقعد','إشراف','حجز مع تسجيل','حجز مقعد فقط'\)\),0\) ELSE 0 END seat_fee/);
+  assert.match(customers, /reservation_kind IN \('حجز مقعد','إشراف','حجز مع تسجيل','حجز مقعد فقط'\)/);
+  assert.match(finance, /programPaidCents=orderPayments\.filter\(\(x:Record<string,unknown>\)=>x\.flow_type!=="seat_fee"\)/);
+  assert.match(finance, /رسوم المقعد مسجلة من نموذج التسجيل ومنفصلة عن قيمة البرنامج، فلا تُعدّل من هنا/);
+  assert.match(page, /disabled=\{Boolean\(selected\.registration_seat_fee\)\}/);
+  // #4 Cancelled installments are never late and don't shape payment behaviour.
+  assert.match(finance, /display_status:x\.status!=="مدفوع"&&x\.status!=="ملغي"&&String\(x\.due_date\)<today/);
+  assert.match(finance, /paymentBehavior\(orderInstallments\.filter\(\(x:Record<string,unknown>\)=>x\.status!=="ملغي"\),today\)/);
+  // #6 Riyadh days for "today" and for recorded payment dates.
+  assert.match(finance, /const today=riyadhDate\(\);/);
+  assert.match(finance, /money\(installment\.amount_cents\),riyadhPaidAt\(\),/);
+  assert.doesNotMatch(finance, /const today=new Date\(\)\.toISOString\(\)\.slice\(0,10\);/);
 });

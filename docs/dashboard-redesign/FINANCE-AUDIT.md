@@ -40,7 +40,30 @@ Phase 4. **Nothing in the money logic has been changed yet**; the fixes wait for
 | 5 | Risk | **The finance API loads only the latest 200 orders.** Every total on the page covers only those | Not visible on synthetic data (50 orders) | `LIMIT 200` in the orders query |
 | 6 | Low | **Dates near midnight.** Instalment payments are stored as a UTC timestamp, so a payment recorded 00:00–03:00 Riyadh lands on the previous day (or month). The API's "late" uses the UTC date. The page's "today" uses the device's time zone: this machine is UTC+5, so for 2 hours each evening its "today" is already tomorrow | A payment recorded at 22:23 Riyadh is stored as 19:23Z; the device here showed today = 29 Oct while Riyadh was 28 Oct | `new Date().toISOString()` for `paid_at`; device-local dates on the page |
 
-## Proposed fixes (waiting for the user)
+## Fixed (same day, approved by the user)
+
+The user approved fixing #2, #3a, #4 and #6. For #1, finance uses confirmed sales net of refunds, like the home
+dashboard, with the amount under review shown on its own.
+
+| # | Fix |
+|---|---|
+| 1 | Sales and collections on the finance page are **confirmed payments of that flow, by payment day, minus completed refunds charged to it, by withdrawal day**. This is the home dashboard's rule, summed in halalas. Applied to collections too, since the same gap existed there. The «بانتظار المراجعة» metric shows the count **and the amount under review**, which stays out of every total until approved |
+| 2 | Metrics no longer add up the sales list. The list still shows every operation that needs review, so supervision reviews opened from the home page keep working. Its "operation" column now says what each payment is: «تحصيل إشراف», «رسوم مقعد», «دفعة أولى» or «دفع كامل». A seat-only row no longer shows its fee twice |
+| 3a | Finance and customer APIs read seat fees from all reservation kinds. Seat-fee payments no longer count towards the programme's paid amount, so «إجمالي المدفوع فعلياً» doesn't double them. The legacy seat-fee tool (built to move a fee out of an old contract total) is disabled in the file for registration fees and refused on the server (409), because it would have subtracted a fee that was never in the total |
+| 4 | Cancelled installments are never late, and they're left out of payment behaviour |
+| 6 | The API's "today" is the Riyadh day. Instalment payments and an added first payment store the date as `YYYY-MM-DDT12:00:00.000Z` (the form the date-edit actions already use). The finance page's "today" and default month use `Asia/Riyadh`, whatever the device's time zone |
+
+**Re-audit** on fresh synthetic data with the same scenarios: 17 / 17 checks match the independent recalculation.
+- API: per-order paid and remaining, total remaining, seat fees 2 of 2, late installments 2 (was 3), no cancelled
+  installment shown as late, payment date stored as the Riyadh day, legacy tool refused (409).
+- Home dashboard: October sales 72,815 and collections 1,955, both equal to the finance page.
+- Screen: sales today 25,275, month 72,815, total 81,635; under review 40,950 shown apart; collections 1,955;
+  remaining 125,390.
+
+Still open: #3b (record a seat fee paid with registration as its own payment), #5 (the 200-order cap; needs the
+production order count). Not changed: the registration form's default purchase date still uses the device's date.
+
+## Proposed fixes (original list)
 
 - **Clear bugs, read-side only:** #2 (sales = `flow_type = 'sale'` only; keep the fallback only for old payments
   with no type), #3a (read all seat-reservation kinds), #4 (cancelled instalments are never late), #6 (Riyadh dates).

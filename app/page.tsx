@@ -2904,6 +2904,8 @@ type FinanceOrder = {
   finance_note: string;
   payment_behavior: PaymentBehavior;
   seat_fee: number;
+  // True when the seat fee came from the registration form (kept apart from the contract), so the legacy seat-fee tool doesn't apply.
+  registration_seat_fee?: boolean;
   discount_percent: number;
   payments: FinancePayment[];
   order_payment_reference?: string;
@@ -2930,6 +2932,8 @@ type Program = {
 type ProgramPrice = { track: string; delivery: string; price: number };
 // Every amount in the system includes 15% VAT; this gives the amount before VAT for display.
 const withoutVat = (amount: number) => Math.round((Number(amount || 0) / 1.15) * 100) / 100;
+// Business days are Riyadh days, whatever time zone the device is in.
+const riyadhToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
 
 async function apiJson(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -6010,7 +6014,7 @@ function TransferReviews() {
 function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { initialReviewFilter?: string; searchQuery?: string }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
-    [collectionMonth,setCollectionMonth]=useState(new Date().toLocaleDateString("en-CA").slice(0,7)),
+    [collectionMonth,setCollectionMonth]=useState(riyadhToday().slice(0,7)),
     [summary, setSummary] = useState<FinanceSummary>({
       total: 0,
       paid: 0,
@@ -6136,7 +6140,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   const sar = (n: number) =>
     `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
   const financeStatus = (row: FinanceOrder) => {
-    const today = new Date().toLocaleDateString("en-CA");
+    const today = riyadhToday();
     if (row.order_status === "منسحب" || row.withdrawal) return "منسحب";
     if (row.finance_review_status === "pending") return "بانتظار المراجعة";
     if (row.remaining === 0) return "مدفوع";
@@ -6234,36 +6238,28 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   };
   const reviewTypeCount = (type: string) =>
     salesEntries.filter((entry) => matchesReviewType(entry, type)).length;
-  const todayKey = new Date().toLocaleDateString("en-CA");
+  const todayKey = riyadhToday();
   const monthKey = todayKey.slice(0, 7);
   const saleDate = (payment: FinancePayment) =>
     String(payment.paid_at || payment.created_at || "").slice(0, 10);
-  const salesTotal = salesEntries.reduce(
-    (sum, entry) => sum + Number(entry.payment.amount || 0),
-    0,
-  );
-  const salesToday = salesEntries
-    .filter((entry) => saleDate(entry.payment) === todayKey)
-    .reduce((sum, entry) => sum + Number(entry.payment.amount || 0), 0);
-  const salesMonth = salesEntries
-    .filter((entry) => saleDate(entry.payment).startsWith(monthKey))
-    .reduce((sum, entry) => sum + Number(entry.payment.amount || 0), 0);
+  // Same rule as the home dashboard: confirmed payments of the flow, by payment day, minus completed refunds
+  // charged to that flow, by withdrawal day. Summed in halalas to avoid floating-point drift.
+  const confirmedNet = (flow: "sale" | "collection", inPeriod: (day: string) => boolean) => {
+    const gross = rows.flatMap((row) => row.payments).filter((payment) => payment.flow_type === flow && payment.classification_status === "confirmed" && inPeriod(saleDate(payment))).reduce((sum, payment) => sum + Math.round(Number(payment.amount || 0) * 100), 0);
+    const refunds = rows.filter((row) => row.withdrawal?.status === "مكتمل" && row.withdrawal.refund_source === flow && inPeriod(String(row.withdrawal.withdrawn_at || "").slice(0, 10))).reduce((sum, row) => sum + Math.round(Number(row.withdrawal?.refund_amount || 0) * 100), 0);
+    return (gross - refunds) / 100;
+  };
+  const salesTotal = confirmedNet("sale", () => true);
+  const salesToday = confirmedNet("sale", (day) => day === todayKey);
+  const salesMonth = confirmedNet("sale", (day) => day.startsWith(monthKey));
   const salesPending = salesEntries.filter(
     (entry) => saleStatus(entry) === "بانتظار المراجعة",
   ).length;
-  const collectionPayments = rows.flatMap((row) =>
-    row.payments.filter((payment) => payment.flow_type === "collection"),
-  );
-  const collectionsToday = collectionPayments
-    .filter((payment) => saleDate(payment) === todayKey)
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const collectionsMonth = collectionPayments
-    .filter((payment) => saleDate(payment).startsWith(collectionMonth))
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const collectionsTotal = collectionPayments.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
-    0,
-  );
+  // Money still waiting for finance review is shown on its own, never inside sales or collections.
+  const pendingReviewAmount = rows.flatMap((row) => row.payments).filter((payment) => payment.classification_status === "pending").reduce((sum, payment) => sum + Math.round(Number(payment.amount || 0) * 100), 0) / 100;
+  const collectionsToday = confirmedNet("collection", (day) => day === todayKey);
+  const collectionsMonth = confirmedNet("collection", (day) => day.startsWith(collectionMonth));
+  const collectionsTotal = confirmedNet("collection", () => true);
   const forecast=summary.forecast;
   const forecastMonthLabel=forecast.month?new Date(`${forecast.month}-01T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn",{month:"long",year:"numeric"}):"الشهر القادم";
   const collectionMonthLabel=new Date(`${collectionMonth}-01T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn",{month:"long",year:"numeric"});
@@ -6414,18 +6410,18 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
         <button type="button" role="tab" aria-selected={financeTab === "collections"} onClick={() => selectTab("collections")}><HandCoins size={16} aria-hidden="true" />التحصيل<span className="oc-seg-count">{collectionRows.length}</span></button>
       </div>
       <section className="oh-pulse oc-pulse fin-pulse" aria-labelledby="fin-pulse-title">
-        <header><h3 id="fin-pulse-title">{financeTab === "sales" ? "المبيعات" : "التحصيل"}</h3><p>{financeTab === "sales" ? "الدفعة الأولى والدفع الكامل." : "الأقساط والدفعات اللاحقة."} المبالغ شاملة ضريبة القيمة المضافة 15%، والمبلغ بدون ضريبة تحت كل رقم.</p></header>
+        <header><h3 id="fin-pulse-title">{financeTab === "sales" ? "المبيعات" : "التحصيل"}</h3><p>{financeTab === "sales" ? "الدفعة الأولى والدفع الكامل." : "الأقساط والدفعات اللاحقة."} المؤكد فقط بعد خصم المسترد، كما في الرئيسية. المبالغ شاملة ضريبة القيمة المضافة 15%، والمبلغ بدون ضريبة تحت كل رقم.</p></header>
         <div>
           {financeTab === "sales" ? (
             <>
-              <HomeMetric icon={BadgeDollarSign} label="مبيعات اليوم" value={money0(salesToday)} suffix="ر.س" note={`دفعات أولى ودفع كامل · ${beforeVat(salesToday)}`} tone="brand" />
+              <HomeMetric icon={BadgeDollarSign} label="مبيعات اليوم" value={money0(salesToday)} suffix="ر.س" note={`مؤكدة بعد خصم المسترد · ${beforeVat(salesToday)}`} tone="brand" />
               <HomeMetric icon={CalendarDays} label="مبيعات الشهر" value={money0(salesMonth)} suffix="ر.س" note={`من بداية الشهر الحالي · ${beforeVat(salesMonth)}`} tone="success" />
-              <HomeMetric icon={ReceiptText} label="إجمالي المبيعات" value={money0(salesTotal)} suffix="ر.س" note={`الحركات المسجلة · ${beforeVat(salesTotal)}`} tone="neutral" />
-              <HomeMetric icon={ShieldCheck} label="بانتظار المراجعة" value={salesPending} suffix="عملية" note="تحتاج إجراء مالي. اضغط لعرضها" tone={salesPending ? "attention" : "neutral"} onClick={() => { setReviewTypeFilter("الكل"); setStatusFilter("بانتظار المراجعة"); }} />
+              <HomeMetric icon={ReceiptText} label="إجمالي المبيعات" value={money0(salesTotal)} suffix="ر.س" note={`كل المبيعات المؤكدة · ${beforeVat(salesTotal)}`} tone="neutral" />
+              <HomeMetric icon={ShieldCheck} label="بانتظار المراجعة" value={salesPending} suffix="عملية" note={`بقيمة ${sar(pendingReviewAmount)} خارج المجاميع حتى اعتمادها · ${beforeVat(pendingReviewAmount)}`} tone={salesPending ? "attention" : "neutral"} onClick={() => { setReviewTypeFilter("الكل"); setStatusFilter("بانتظار المراجعة"); }} />
             </>
           ) : (
             <>
-              <HomeMetric icon={HandCoins} label="تحصيل اليوم" value={money0(collectionsToday)} suffix="ر.س" note={`أقساط مسجلة اليوم · ${beforeVat(collectionsToday)}`} tone="success" />
+              <HomeMetric icon={HandCoins} label="تحصيل اليوم" value={money0(collectionsToday)} suffix="ر.س" note={`مؤكد بعد خصم المسترد · ${beforeVat(collectionsToday)}`} tone="success" />
               <HomeMetric icon={CalendarDays} label="تحصيل الشهر المحدد" value={money0(collectionsMonth)} suffix="ر.س" note={`${collectionMonthLabel} · ${beforeVat(collectionsMonth)}`} tone="brand" />
               <HomeMetric icon={WalletCards} label="المتبقي" value={money0(Number(summary.remaining))} suffix="ر.س" note={`بعد خصم جميع الدفعات · ${beforeVat(Number(summary.remaining))}`} tone="attention" />
               <HomeMetric icon={Clock3} label="إجمالي التحصيل" value={money0(collectionsTotal)} suffix="ر.س" note={`${summary.overdue} قسط متأخر · ${beforeVat(collectionsTotal)}`} tone={summary.overdue ? "danger" : "neutral"} />
@@ -6441,7 +6437,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
             <label className="cu-select"><span>الشهر</span><input type="month" value={collectionMonth} onChange={(event) => setCollectionMonth(event.target.value)} /></label>
           </header>
           <dl className="fin-month">
-            <div><dt>التحصيل الفعلي</dt><dd>{sar(collectionsMonth)}<small>{beforeVat(collectionsMonth)}</small></dd><p>دفعات التحصيل المسجلة خلال الشهر</p></div>
+            <div><dt>التحصيل الفعلي</dt><dd>{sar(collectionsMonth)}<small>{beforeVat(collectionsMonth)}</small></dd><p>دفعات التحصيل المؤكدة خلال الشهر بعد خصم المسترد</p></div>
             <div><dt>الأقساط المجدولة</dt><dd>{sar(scheduledMonth)}<small>{beforeVat(scheduledMonth)}</small></dd><p>{monthInstallments.length} قسط بتاريخ استحقاق في الشهر</p></div>
             <div className={remainingScheduledMonth > 0 ? "outstanding" : "settled"}><dt>المتبقي من أقساط الشهر</dt><dd>{sar(remainingScheduledMonth)}<small>{beforeVat(remainingScheduledMonth)}</small></dd><p>{remainingScheduledMonth > 0 ? "يحتاج متابعة أو سداد" : "تم سداد أقساط الشهر"}</p></div>
             <div><dt>المتبقي الكلي</dt><dd>{sar(Number(summary.remaining))}<small>{beforeVat(Number(summary.remaining))}</small></dd><p>جميع الأشهر والملفات النشطة</p></div>
@@ -6495,8 +6491,8 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                       <tr key={payment.id} onClick={() => open(row)}>
                         <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button><small dir="ltr">{row.order_id}</small></span></td>
                         <td data-label="البرنامج"><b>{row.program_name}</b>{subscriptionMeta(row).length > 0 && <small>{subscriptionMeta(row).join(" · ")}</small>}</td>
-                        <td data-label="العملية"><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b><small>{payment.method || row.purchase_source}</small></td>
-                        <td data-label="المبلغ" className="fin-amount"><b>{sar(payment.amount)}</b><small>{beforeVat(payment.amount)}</small>{row.seat_fee > 0 && <small>+ رسوم المقعد {sar(row.seat_fee)}</small>}</td>
+                        <td data-label="العملية"><b>{payment.flow_type === "seat_fee" ? "رسوم مقعد" : payment.flow_type === "collection" ? (row.order_type === "إشراف" ? "تحصيل إشراف" : "تحصيل") : row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b><small>{payment.method || row.purchase_source}</small></td>
+                        <td data-label="المبلغ" className="fin-amount"><b>{sar(payment.amount)}</b><small>{beforeVat(payment.amount)}</small>{row.seat_fee > 0 && payment.flow_type !== "seat_fee" && <small>+ رسوم المقعد {sar(row.seat_fee)}</small>}</td>
                         <td data-label="التاريخ"><b dir="ltr">{saleDate(payment) || "—"}</b></td>
                         <td data-label="المرجع" className="finance-card-reference" onClick={(event) => event.stopPropagation()}><PaymentReferenceControl paymentId={payment.id.startsWith("pending-") ? undefined : payment.id} initialReference={row.order_payment_reference || payment.reference} canEdit onSaved={(reference) => updatePaymentReference(payment.id, reference)} />{!payment.reference && !row.order_payment_reference && payment.id.startsWith("pending-") && <small>لا توجد دفعة مرتبطة لإضافة المرجع</small>}</td>
                         <td data-label="الحالة"><em className={`cu-status ${saleTone(status)}`}>{status}</em></td>
@@ -6600,7 +6596,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
             </div>
             <div className="finance-action-center">
               <div className="finance-action-toolbar" role="toolbar" aria-label="الإجراءات المالية السريعة">
-                <button type="button" className={activeFinanceTool==="seat"?"active":""} aria-pressed={activeFinanceTool==="seat"} onClick={()=>setActiveFinanceTool(current=>current==="seat"?null:"seat")}><Armchair size={17}/><span>رسوم المقعد</span><small>{Number(selected.seat_fee||0)>0?sar(selected.seat_fee):"إضافة أو تعديل"}</small></button>
+                <button type="button" className={activeFinanceTool==="seat"?"active":""} aria-pressed={activeFinanceTool==="seat"} disabled={Boolean(selected.registration_seat_fee)} title={selected.registration_seat_fee?"رسوم مسجلة من نموذج التسجيل ومنفصلة عن قيمة البرنامج":undefined} onClick={()=>setActiveFinanceTool(current=>current==="seat"?null:"seat")}><Armchair size={17}/><span>رسوم المقعد</span><small>{selected.registration_seat_fee?`${sar(selected.seat_fee)} · من التسجيل`:Number(selected.seat_fee||0)>0?sar(selected.seat_fee):"إضافة أو تعديل"}</small></button>
                 <button type="button" className={activeFinanceTool==="discount"?"active":""} aria-pressed={activeFinanceTool==="discount"} onClick={()=>setActiveFinanceTool(current=>current==="discount"?null:"discount")}><BadgeDollarSign size={17}/><span>الخصم</span><small>{Number(selected.discount_percent||0).toLocaleString("en-US")}% حاليًا</small></button>
                 <button type="button" className={`withdrawal-action ${activeFinanceTool==="withdrawal"?"active":""}`} aria-pressed={activeFinanceTool==="withdrawal"} onClick={()=>setActiveFinanceTool(current=>current==="withdrawal"?null:"withdrawal")}><CircleUserRound size={17}/><span>{selected.withdrawal?"بيانات الانسحاب":"الانسحاب"}</span><small>{selected.withdrawal?"عرض التفاصيل":"تسجيل واسترداد"}</small></button>
                 <button type="button" className={activeFinanceTool==="undo"?"active":""} aria-pressed={activeFinanceTool==="undo"} disabled={!selected.undo_available} onClick={()=>setActiveFinanceTool(current=>current==="undo"?null:"undo")}><Clock3 size={17}/><span>التراجع</span><small>{selected.undo_available?selected.undo_available.label:"لا يوجد إجراء"}</small></button>
