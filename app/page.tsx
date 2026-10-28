@@ -695,6 +695,10 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
     month: "long",
     year: "numeric",
   }).format(new Date());
+  const todayISO = new Date().toLocaleDateString("en-CA");
+  const currentNavGroup = navGroups.find((group) =>
+    group.items.some(([id]) => id === view),
+  );
   const headerNotifications = [
     { view: "work" as View, label: "عملاء بحاجة إلى متابعة اليوم", count: taskCount },
     { view: "contact" as View, label: "بانتظار تسليم العميل", count: navCounts.contact || 0 },
@@ -746,15 +750,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
             )}
           </button>
         </div>
-        <div className="workspace">
-          <i />
-          <div>
-            <b>بيئة العمل</b>
-            <span>متصل وآمن</span>
-          </div>
-          <em>⌄</em>
-        </div>
-        <nav>
+        <nav aria-label="القائمة الرئيسية">
           {visibleNavGroups.map((group) => {
             const expanded =
               !group.collapsible || openGroups.includes(group.id);
@@ -772,6 +768,8 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
                   <button
                     className={`nav-group-trigger ${group.items.some(([id]) => id === view) ? "current" : ""}`}
                     aria-expanded={expanded}
+                    aria-label={sidebarCollapsed ? group.label : undefined}
+                    title={sidebarCollapsed ? group.label : undefined}
                     onClick={() => {
                       if (sidebarCollapsed) {
                         setSidebarCollapsed(false);
@@ -810,6 +808,9 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
                       <button
                         key={id}
                         className={view === id ? "active" : ""}
+                        aria-current={view === id ? "page" : undefined}
+                        aria-label={sidebarCollapsed ? label : undefined}
+                        title={sidebarCollapsed ? label : undefined}
                         onClick={() => go(id)}
                       >
                         <i>
@@ -825,14 +826,6 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
             );
           })}
         </nav>
-        <div className="health">
-          <span>سلامة النظام</span>
-          <b>كل الأنظمة تعمل</b>
-          <strong>99.9%</strong>
-          <i>
-            <u />
-          </i>
-        </div>
         <div className="profile">
           <i>{currentUser.name.slice(0, 2)}</i>
           <div>
@@ -865,8 +858,19 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
             <Menu size={20} />
           </button>
           <div className="topbar-page">
-            <b>{titles[view][0]}</b>
-            <span>{titles[view][1]}</span>
+            <nav className="sk-crumbs" aria-label="مسار الصفحة">
+              <ol>
+                <li>
+                  {view === "dashboard" ? (
+                    <span>سلوكيرا</span>
+                  ) : (
+                    <button type="button" onClick={() => go("dashboard")}>سلوكيرا</button>
+                  )}
+                </li>
+                {currentNavGroup && currentNavGroup.id !== "start" && <li><span>{currentNavGroup.label}</span></li>}
+              </ol>
+            </nav>
+            <h1>{titles[view][0]}</h1>
           </div>
           <label className="global-search">
             <Search size={18} />
@@ -931,6 +935,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
               className="top-account-trigger"
               onClick={() => { setAccountOpen((value) => !value); setNotificationsOpen(false); }}
               aria-expanded={accountOpen}
+              aria-label={`حساب ${currentUser.name}`}
             >
               <i>{currentUser.name.slice(0, 2)}</i>
               <span>
@@ -948,7 +953,10 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           </div>
         </header>
         <div className="content">
-          <div className="page-date">اليوم · {todayLabel}</div>
+          <header className="sk-page-head">
+            <p>{titles[view][1]}</p>
+            <time dateTime={todayISO}>اليوم · {todayLabel}</time>
+          </header>
           {view === "dashboard" && (
             <>
               <HomeDashboard onOpenTasks={() => setView("work")} onOpenCustomers={()=>setView("customers")} onOpenFinance={()=>{setFinanceReviewFilter("الكل");setView("finance")}} onOpenFinanceReview={(kind) => { setFinanceReviewFilter(kind); setView("finance"); }} />

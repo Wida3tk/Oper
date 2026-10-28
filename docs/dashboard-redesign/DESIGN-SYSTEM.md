@@ -36,7 +36,10 @@ override (per the MASTER file's own rule), and update MASTER once you've approve
 | Shape | `--sk-radius-sm` / `--sk-radius` / `--sk-radius-lg` | 8 / 12 / 16px | Controls / insets / panels |
 | Depth | `--sk-shadow-1` | 1px hairline shadow | Panels at rest — no lift on hover |
 | | `--sk-shadow-2` | soft drop | Popovers, drawers (future) |
+| On navy | `--sk-on-navy` / `--sk-on-navy-2` / `--sk-on-navy-muted` | `#fff` / `#c9d2e3` / `#93a0b8` | Sidebar text: active and headings / items / labels and icons (muted is 6.4:1 on navy) |
+| | `--sk-navy-line` / `--sk-navy-hover` | white at 8% / 6% | Sidebar hairlines / hover and current-group fill |
 | Focus | `--sk-ring` | 3px brand at 30% | Every interactive element, via `:focus-visible` |
+| | `--sk-ring-inverse` | 2px navy gap + 2px white at 75% | Focus on navy surfaces (sidebar) |
 | Motion | `--sk-ease-out` | `cubic-bezier(.23,1,.32,1)` | All UI transitions |
 | | `--sk-dur-fast` / `--sk-dur` | 150 / 220ms | Colour changes / movement |
 | Type | `--sk-fs-2xs … --sk-fs-display` | 11, 12, 13, 14, 16, 20, 26, 36px | 11px is the floor (chart ticks only); 12px for meta, 13px body |
@@ -48,6 +51,7 @@ state never relies on colour alone. A label is always present ("اليوم", "م
 
 | Pattern | Class | When to use |
 |---|---|---|
+| **Page title** | `.topbar-page` (`.sk-crumbs` + `h1`) + `.sk-page-head` | Shell-level: breadcrumb and the page's one `h1` in the top bar, then the page description and today's date above the content. Comes from `titles[view]`. |
 | **Masthead** | `.oh-masthead` | Page greeting / title + one page-level control (e.g. month). No card around it. |
 | **Pulse ribbon** | `.oh-pulse` | 2–4 headline counts that navigate somewhere. One surface split by hairlines, not separate cards. |
 | **Panel** | `.oh-panel` + `.oh-panel-head` | Every content block: icon well, title, one-line purpose, optional count/pager at the end. |
@@ -83,5 +87,5 @@ state never relies on colour alone. A label is always present ("اليوم", "م
   finance hero. ≤1024px: one column re-ordered by urgency (priorities → finance → reviews →
   performance → activity → trainees). ≤720px: compact pulse, notes hidden, compressed chart. No page-level horizontal scroll at any
   width.
-- **Scoping.** New CSS is scoped under `.ops-home` or prefixed `oh-` so it can't leak into other
+- **Scoping.** Shell CSS is prefixed `.shell` (Phase 0) so it beats the legacy layers without editing them. New CSS is scoped under `.ops-home` or prefixed `oh-` so it can't leak into other
   modules. Watch for legacy global selectors (e.g. `nav button{width:100%}`) and neutralise them locally.

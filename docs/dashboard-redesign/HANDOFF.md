@@ -7,9 +7,9 @@
 
 - Branch `design/premium-operations-dashboard`, cut from `main` at `e00b1ea`. The dashboard redesign is
   done and committed. The user reviewed it and approved committing it.
-- **Next step is not started:** the user has not yet approved expanding the visual language to other
-  modules. Start with Phase 0 (Shell) in [README.md](README.md#extension-plan-after-you-approve-the-direction)
-  only after they say so.
+- **Update (2026-10-28, second machine):** the user approved extending the design. Phase 0 (Shell) is done
+  and committed on `design/phase-0-shell` (cut from this branch at `ac9335a`). See
+  [PHASE-0-SHELL.md](PHASE-0-SHELL.md). It waits for the user's review; do not start Phase 1 until they say so.
 - `main` locally had 28 commits not on `origin/main` at handoff time. They reach GitHub only as history of
   this branch. `origin/main` was not touched.
 
@@ -30,7 +30,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 |
+| `npm test` | 80 / 80 (81 / 81 on `design/phase-0-shell`) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 
@@ -53,6 +53,9 @@ repo changes. In the copy only:
 - delete `.wrangler/` (both deploy and state);
 - `npx pnpm@10 install --frozen-lockfile`;
 - `npx vinext dev --port 3011`, then open the page once so the app creates its tables;
+  (on the second machine this created only an empty D1 file. Hit `/api/auth` once, stop the server, then
+  run every `drizzle/*.sql` file in order against that `.sqlite` with `node:sqlite`, splitting on
+  `--> statement-breakpoint`. With pnpm in a non-TTY shell, set `CI=true` for the install.)
 - stop the server and seed:
   `node docs/dashboard-redesign/dev/seed-synthetic.mjs <copy>/.wrangler/state/v3/d1/miniflare-D1DatabaseObject/<file>.sqlite`;
 - start it again and set the cookie `sulukera_session=<token printed by the seed>` on `localhost:3011`.

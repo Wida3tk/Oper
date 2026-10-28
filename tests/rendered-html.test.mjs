@@ -317,6 +317,19 @@ test("renders the redesigned operations dashboard from live data only", async ()
   assert.doesNotMatch(css, /\.home-metric\{/);
 });
 
+test("renders the application shell on design tokens without invented status", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<nav className="sk-crumbs" aria-label="مسار الصفحة">/);
+  assert.match(page, /<h1>\{titles\[view\]\[0\]\}<\/h1>/);
+  assert.match(page, /<header className="sk-page-head">/);
+  assert.match(page, /aria-current=\{view === id \? "page" : undefined\}/);
+  assert.doesNotMatch(page, /سلامة النظام|99\.9%|متصل وآمن/);
+  assert.doesNotMatch(css, /\.health\{|\.workspace\{|\.page-date\{/);
+  assert.match(css, /--sk-ring-inverse:/);
+  assert.match(css, /\.shell :is\(\.sidebar,\.topbar,\.sk-page-head\) :is\(button,input,a\):focus-visible\{outline:none;box-shadow:var\(--sk-ring\)\}/);
+});
+
 test("tracks motivational weekly targets from Saturday through Thursday", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
