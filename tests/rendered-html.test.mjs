@@ -610,6 +610,16 @@ test("opens actionable operations customers and removes resolved green cases", a
   assert.match(css, /\.operations-exceptions article\.customer-actionable/);
 });
 
+test("lets academy record attention actions while team events stay admin-only", async () => {
+  const api = await read("../app/api/operations-center/route.ts");
+  const post = api.slice(api.indexOf("export async function POST"), api.indexOf("export async function DELETE"));
+  assert.match(post, /const auth = await authorize\(req, \["academy"\]\);/);
+  assert.match(post, /if \(!auth\.roles\.includes\("academy"\)\) return Response\.json\(\{ error: "تسجيل الإجراء متاح لفريق التشغيل فقط" \}, \{ status: 403 \}\);/);
+  assert.match(post, /if \(!auth\.roles\.includes\("admin"\)\) return Response\.json\(\{ error: "هذه الخاصية متاحة للإدارة فقط" \}, \{ status: 403 \}\);/);
+  assert.match(api, /export async function DELETE\(req: Request\) \{\r?\n  const auth = await authorize\(req, \[\]\);/);
+  assert.match(api, /const canTakeAttentionAction = auth\.roles\.includes\("academy"\);/);
+});
+
 test("renders the operations center as a filterable priority queue with one agenda", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");

@@ -80,7 +80,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await authorize(req, []);
+  // Academy records attention actions; every other POST action below stays admin-only.
+  const auth = await authorize(req, ["academy"]);
   if (!auth.ok) return auth.response;
   const body = await req.json() as Record<string, unknown>;
   if (String(body.action || "") === "take_attention_action") {
