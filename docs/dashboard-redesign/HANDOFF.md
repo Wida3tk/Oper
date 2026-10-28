@@ -18,7 +18,7 @@
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
 Never merge, never push to `main`, never open a PR unless asked.
 1. ~~Finance UTC dates~~ **Done:** every "today" default in `app/page.tsx` (11 spots: the intake purchase date, finance today/month/forms, B2B activity date and follow-ups, the export filename) now uses the local date. A test guards it.
-2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). Review first, then fix/redesign.
+2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). **Reviewed, not changed:** see [REVIEW-CONTACT.md](REVIEW-CONTACT.md) (3 bugs, 4 other issues). Ask the user which fixes to apply.
 3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
 4. Open user decision: Phase 1 suggestion #8, one window for upcoming items (schedule 30 days vs. team events 90).
 
