@@ -1,0 +1,254 @@
+<title>خريطة تسجيل العميل</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Readex+Pro:wght@500;600;700&display=swap">
+<style>
+/* Layout: a single reading column; the flow diagram and wide tables scroll inside their own frames. */
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --sunken:#eef1f7; --line:#dfe4ee; --line-strong:#c9d1df;
+  --ink:#141d33; --ink-2:#3b4660; --muted:#5f6b82;
+  --brand:#315efb; --brand-soft:#e8eeff; --navy:#111d36;
+  --ok:#13804f; --ok-soft:#e5f5ec; --warn:#955800; --warn-soft:#fff2db; --bad:#bf3341; --bad-soft:#fdeaec;
+  --display:"Readex Pro","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1424; --surface:#141d31; --sunken:#1a2540; --line:#26324d; --line-strong:#34426a;
+  --ink:#eef2fb; --ink-2:#c3cbdd; --muted:#9aa5bd;
+  --brand:#7d9bff; --brand-soft:#1c2a55; --navy:#0a1020;
+  --ok:#53c98e; --ok-soft:#14321f; --warn:#f0b45a; --warn-soft:#3a2a10; --bad:#ff8a95; --bad-soft:#3d1a20;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1424; --surface:#141d31; --sunken:#1a2540; --line:#26324d; --line-strong:#34426a;
+  --ink:#eef2fb; --ink-2:#c3cbdd; --muted:#9aa5bd;
+  --brand:#7d9bff; --brand-soft:#1c2a55; --navy:#0a1020;
+  --ok:#53c98e; --ok-soft:#14321f; --warn:#f0b45a; --warn-soft:#3a2a10; --bad:#ff8a95; --bad-soft:#3d1a20;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:1080px;margin:0 auto;padding-block:40px 64px;display:grid;gap:44px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,4.4vw,40px);font-weight:700}
+h2{font-size:22px;font-weight:600}
+h3{font-size:16px;font-weight:600}
+p{margin:0;max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.86em;direction:ltr;unicode-bidi:isolate}
+.eyebrow{font-size:12px;letter-spacing:.04em;color:var(--brand);font-weight:600}
+.lead{color:var(--ink-2);font-size:16px}
+section{display:grid;gap:16px;min-width:0}
+.section-head{display:grid;gap:6px}
+.section-head p{color:var(--muted)}
+
+/* Hero: the request in one line + three facts from the code */
+.hero{display:grid;gap:14px}
+.facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.fact{display:flex;align-items:baseline;gap:8px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.fact b{font-family:var(--display);font-size:18px;color:var(--brand);font-variant-numeric:tabular-nums}
+.fact span{color:var(--ink-2);font-size:13px}
+
+/* Flow diagram: form → API → records */
+.flow-frame{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.flow{display:grid;grid-template-columns:minmax(220px,1fr) 56px minmax(230px,1.05fr) 56px minmax(250px,1.15fr);align-items:stretch;min-width:880px;padding:22px}
+.col{display:grid;gap:10px;align-content:start}
+.col-title{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.03em}
+.node{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);display:grid;gap:2px}
+.node b{font-size:14px;font-weight:600}
+.node small{color:var(--muted);font-size:12.5px}
+.node.step{border-inline-start:4px solid var(--brand)}
+.node.step b::before{content:attr(data-n);display:inline-grid;place-items:center;width:20px;height:20px;margin-inline-end:8px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;font-family:var(--mono)}
+.node.api{background:var(--navy);border-color:var(--navy);color:#fff}
+.node.api small{color:#b9c4dc}
+.node.gate{background:var(--sunken)}
+.node.rec{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.node.rec code{color:var(--brand)}
+.tag{flex:none;font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--sunken);color:var(--ink-2);white-space:nowrap}
+.tag.always{background:var(--ok-soft);color:var(--ok)}
+.tag.cond{background:var(--warn-soft);color:var(--warn)}
+.arrow{display:grid;place-items:center;color:var(--line-strong)}
+.arrow svg{width:40px;height:24px}
+.arrow path{stroke:var(--line-strong);fill:none;stroke-width:2}
+.arrow polygon{fill:var(--line-strong)}
+
+/* Field table */
+.table-frame{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+table{width:100%;border-collapse:collapse;min-width:820px;font-size:13.5px}
+th{position:sticky;top:0;background:var(--sunken);color:var(--muted);font-weight:600;font-size:12px;text-align:start;padding:10px 14px;border-bottom:1px solid var(--line)}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tr.group td{background:var(--sunken);font-family:var(--display);font-weight:600;color:var(--ink-2);font-size:13px;padding-block:8px}
+td .col-name{display:inline-block;margin:1px 0;padding:0 6px;border-radius:6px;background:var(--brand-soft);color:var(--brand)}
+td.when{color:var(--ink-2)}
+td.note{color:var(--muted)}
+.flag{display:inline-block;margin-inline-start:6px;padding:0 7px;border-radius:999px;font-size:11.5px;font-weight:600;vertical-align:1px}
+.flag.bad{background:var(--bad-soft);color:var(--bad)}
+.flag.warn{background:var(--warn-soft);color:var(--warn)}
+
+/* Scenario matrix */
+.scenarios{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.scenario{display:grid;gap:8px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);align-content:start}
+.scenario h3{display:flex;align-items:center;gap:8px}
+.scenario dl{margin:0;display:grid;gap:4px;font-size:13px}
+.scenario dl div{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:4px}
+.scenario dl div:first-child{border-top:0;padding-top:0}
+.scenario dt{color:var(--muted)}
+.scenario dd{margin:0;text-align:left;font-weight:500}
+.pill{font-size:11.5px;padding:1px 8px;border-radius:999px;font-weight:600}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+
+/* Findings + proposals */
+.findings{display:grid;gap:12px}
+.finding{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.finding .sev{grid-row:span 3;align-self:start;font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;white-space:nowrap}
+.sev.high{background:var(--bad-soft);color:var(--bad)}
+.sev.mid{background:var(--warn-soft);color:var(--warn)}
+.sev.low{background:var(--sunken);color:var(--ink-2)}
+.finding p{color:var(--ink-2)}
+.finding .where{color:var(--muted);font-size:12.5px}
+.plan{counter-reset:p;display:grid;gap:12px}
+.idea{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;padding:16px 18px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.idea::before{counter-increment:p;content:counter(p);grid-row:span 3;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--brand);color:#fff;font-family:var(--mono);font-size:13px}
+.idea p{color:var(--ink-2)}
+.meta{display:flex;flex-wrap:wrap;gap:6px}
+.meta span{font-size:12px;padding:1px 9px;border-radius:999px;background:var(--sunken);color:var(--ink-2)}
+.meta span.api{background:var(--warn-soft);color:var(--warn)}
+.meta span.ui{background:var(--ok-soft);color:var(--ok)}
+.source{color:var(--muted);font-size:13px}
+@media (max-width:640px){main{padding-block:28px 48px;gap:36px}.finding,.idea{grid-template-columns:minmax(0,1fr)}.finding .sev,.idea::before{grid-row:auto;justify-self:start}}
+</style>
+
+<main dir="rtl" lang="ar">
+  <header class="hero">
+    <span class="eyebrow">سلوكيرا · مركز العمليات</span>
+    <h1>خريطة تسجيل العميل</h1>
+    <p class="lead">من نموذج «تسجيل عميل جديد» حتى السجلات في قاعدة البيانات: كل حقل إلى أين يذهب، ومتى يظهر، وما الذي يُنشئه النظام لكل نوع تسجيل، وأين يمكن أن تُفقد البيانات أو تُدخل بشكل خاطئ.</p>
+    <div class="facts" aria-label="أرقام من الكود">
+      <div class="fact"><b>23</b><span>حقلًا يمكن أن تظهر في النموذج</span></div>
+      <div class="fact"><b>4</b><span>خطوات ثم طلب واحد إلى <code>/api/intake</code></span></div>
+      <div class="fact"><b>9</b><span>جداول قد تُكتب في دفعة واحدة</span></div>
+    </div>
+  </header>
+
+  <section aria-labelledby="flow-title">
+    <div class="section-head"><h2 id="flow-title">المسار من النموذج إلى قاعدة البيانات</h2><p>كل التسجيل يُرسل مرة واحدة عند «تسجيل العميل»، ويُكتب في دفعة واحدة؛ إمّا أن تُحفظ كل السجلات أو لا شيء.</p></div>
+    <div class="flow-frame">
+      <div class="flow">
+        <div class="col">
+          <span class="col-title">النموذج</span>
+          <div class="node step"><b data-n="1">بيانات العميل</b><small>الاسم · الجوال بمفتاح الدولة · البريد</small></div>
+          <div class="node step"><b data-n="2">تفاصيل البرنامج</b><small>البرنامج · المسار · النمط · اللغة · الدفعة والتواريخ · حجز المقعد</small></div>
+          <div class="node step"><b data-n="3">الدفع وطريقة السداد</b><small>المصدر · الوسيلة · تاريخ الشراء · المبلغ · الخصم · الخطة · الإثبات</small></div>
+          <div class="node step"><b data-n="4">مراجعة البيانات</b><small>إعادة التحقق من كل الشروط ثم الحفظ</small></div>
+        </div>
+        <div class="arrow" aria-hidden="true"><svg viewBox="0 0 40 24"><path d="M38 12H6"/><polygon points="2,12 10,7 10,17"/></svg></div>
+        <div class="col">
+          <span class="col-title">الواجهة البرمجية <code>POST /api/intake</code></span>
+          <div class="node api"><b>تحقق ومنع تكرار</b><small>مفتاح الإرسال · نفس العميل والبرنامج خلال 10 دقائق</small></div>
+          <div class="node gate"><b>هل العميل موجود؟</b><small>بحث بالجوال <em>أو</em> البريد؛ إن وُجد يُضاف الطلب لملفه</small></div>
+          <div class="node gate"><b>تجربة أم اشتراك؟</b><small>التجربة لا تُنشئ طلبًا ولا دفعة</small></div>
+          <div class="node gate"><b>هل تحتاج مراجعة مالية؟</b><small>أقساط · إشراف · تحويل بنكي · تمارا · Paytabs</small></div>
+          <div class="node gate"><b>ما مسار التشغيل؟</b><small>عصارة تُكمل تلقائيًا · حجز مقعد فقط بلا تسجيل · غير ذلك إلى التهيئة</small></div>
+        </div>
+        <div class="arrow" aria-hidden="true"><svg viewBox="0 0 40 24"><path d="M38 12H6"/><polygon points="2,12 10,7 10,17"/></svg></div>
+        <div class="col">
+          <span class="col-title">السجلات المُنشأة</span>
+          <div class="node rec"><code>intake_submissions</code><span class="tag always">دائمًا</span></div>
+          <div class="node rec"><code>prospects</code><span class="tag always">دائمًا</span></div>
+          <div class="node rec"><code>customers</code><span class="tag cond">إن كان جديدًا</span></div>
+          <div class="node rec"><code>orders</code> · <code>payments</code> · <code>payment_intents</code><span class="tag cond">اشتراك</span></div>
+          <div class="node rec"><code>enrollments</code><span class="tag cond">غير «حجز فقط»</span></div>
+          <div class="node rec"><code>seat_reservations</code><span class="tag cond">حجز مقعد</span></div>
+          <div class="node rec"><code>program_trials</code><span class="tag cond">تجربة</span></div>
+          <div class="node rec"><code>workflow_tasks</code><span class="tag cond">حسب المسار</span></div>
+          <div class="node rec"><code>audit_log</code><span class="tag always">دائمًا</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="fields-title">
+    <div class="section-head"><h2 id="fields-title">خريطة الحقول</h2><p>متى يظهر كل حقل، وأين يُحفظ، وأي تحويل يحدث عليه قبل الحفظ. الأعمدة باللون الأزرق هي أسماء الأعمدة في قاعدة البيانات.</p></div>
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>الحقل</th><th>يظهر عندما</th><th>يُحفظ في</th><th>ملاحظات</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="4">1 · بيانات العميل</td></tr>
+          <tr><td>اسم العميل الكامل</td><td class="when">دائمًا</td><td><span class="col-name mono">customers.name</span></td><td class="note">يُحفظ فقط إن كان العميل جديدًا <span class="flag bad">يُتجاهل للعميل الموجود</span></td></tr>
+          <tr><td>رقم الجوال</td><td class="when">دائمًا، يبدأ بمفتاح الدولة</td><td><span class="col-name mono">customers.phone</span></td><td class="note">يُحوَّل <code>+966…</code> إلى <code>00966…</code>. مفتاح بحث عن العميل الموجود</td></tr>
+          <tr><td>البريد الإلكتروني</td><td class="when">دائمًا</td><td><span class="col-name mono">customers.email</span></td><td class="note">يُحفظ بأحرف صغيرة، وهو فريد. مفتاح بحث عن العميل الموجود</td></tr>
+          <tr class="group"><td colspan="4">2 · تفاصيل البرنامج</td></tr>
+          <tr><td>البرنامج</td><td class="when">دائمًا</td><td><span class="col-name mono">orders.program_id</span> <span class="col-name mono">orders.program</span></td><td class="note">يحدد الإشراف وتقييم الكفاءة كخدمات مستقلة</td></tr>
+          <tr><td>المسار</td><td class="when">للبرامج ذات المسارات عدا التعليم المستمر والخدمات</td><td><span class="col-name mono">orders.track</span></td><td class="note">يُحفظ «غير محدد» إن كان فارغًا</td></tr>
+          <tr><td>مع تقييم كفاءة؟</td><td class="when">تحليل السلوك التطبيقي بمسار ABAT</td><td><span class="col-name mono">orders.competency_assessment</span></td><td class="note">1 أو 0</td></tr>
+          <tr><td>نوع الاشتراك</td><td class="when">عدا الخدمات المستقلة</td><td>يحدد المسار كله</td><td class="note">«تجربة» تذهب إلى <code>program_trials</code> بلا طلب ولا دفعة</td></tr>
+          <tr><td>نمط البرنامج</td><td class="when">عدا ABAT والخدمات</td><td><span class="col-name mono">orders.delivery</span></td><td class="note">ABAT يُفرض «مسجل»، الإشراف «مباشر»، تقييم الكفاءة «خدمة»</td></tr>
+          <tr><td>اسم الدورة / اسم البرنامج المباشر</td><td class="when">التعليم المستمر</td><td><span class="col-name mono">orders.track</span></td><td class="note">نص حر للمسجل، قائمة للمباشر</td></tr>
+          <tr><td>اللغة</td><td class="when">إدارة السلوك التنظيمي</td><td><span class="col-name mono">orders.language</span></td><td class="note"></td></tr>
+          <tr><td>هل تم حجز المقعد؟ · نوع الحجز · مبلغ الحجز</td><td class="when">مباشر لـABA أو OBM، أو الإشراف</td><td><span class="col-name mono">seat_reservations</span> <span class="col-name mono">orders.seat_reservation</span></td><td class="note">رسوم الإشراف ثابتة 50. رسوم المقعد لا تدخل قيمة العقد ولا الخصم <span class="flag warn">لا تُقترح من البرنامج</span></td></tr>
+          <tr><td>اسم الدفعة</td><td class="when">مسار مجدول</td><td><span class="col-name mono">orders.cohort_label</span></td><td class="note">ونسخة في الحجز إن وُجد</td></tr>
+          <tr><td>تاريخ بدء البرنامج</td><td class="when">مسار مجدول</td><td><span class="col-name mono">orders.scheduled_start_date</span></td><td class="note"></td></tr>
+          <tr><td>تاريخ الإسناد</td><td class="when">مسار مجدول</td><td><span class="col-name mono">seat_reservations.assignment_date</span></td><td class="note">يُحفظ فقط مع حجز مقعد <span class="flag bad">يُفقد بدون حجز</span></td></tr>
+          <tr class="group"><td colspan="4">3 · الدفع وطريقة السداد</td></tr>
+          <tr><td>مصدر الشراء</td><td class="when">دائمًا</td><td><span class="col-name mono">orders.purchase_source</span></td><td class="note">عصارة دون حجز = اكتمال تلقائي للتسجيل</td></tr>
+          <tr><td>وسيلة الدفع المباشر</td><td class="when">دفع مباشر</td><td><span class="col-name mono">payments.method</span></td><td class="note">لغير الدفع المباشر تُحفظ الوسيلة = المصدر</td></tr>
+          <tr><td>تاريخ الشراء</td><td class="when">عدا التجربة</td><td><span class="col-name mono">payments.paid_at</span></td><td class="note">يُحفظ بالتاريخ + 12:00 UTC. ولا يقبل المستقبل الآن</td></tr>
+          <tr><td>المبلغ الأساسي</td><td class="when">عدا «حجز مقعد فقط»</td><td><span class="col-name mono">orders.base_total</span></td><td class="note">يُكتب يدويًا كل مرة <span class="flag warn">لا يوجد سعر مرجعي</span></td></tr>
+          <tr><td>قيمة الخصم</td><td class="when">عدا «حجز مقعد فقط»</td><td><span class="col-name mono">orders.discount_percent</span> ← <span class="col-name mono">orders.total</span></td><td class="note">قائمة ثابتة 0–50% بخطوة 5</td></tr>
+          <tr><td>خطة السداد</td><td class="when">عدا «حجز مقعد فقط»</td><td><span class="col-name mono">orders.payment_plan</span></td><td class="note">أقساط ← مراجعة مالية و«مدفوع جزئياً»</td></tr>
+          <tr><td>الدفعة الأولى</td><td class="when">أقساط</td><td><span class="col-name mono">payments.amount</span> <span class="col-name mono">orders.paid</span></td><td class="note">يجب أن تكون أقل من الإجمالي</td></tr>
+          <tr><td>رابط مرجع Paytabs</td><td class="when">دفع مباشر · Paytabs</td><td><span class="col-name mono">payments.reference</span></td><td class="note">لسلة وعصارة لا يُحفظ أي مرجع <span class="flag warn">صعوبة المطابقة</span></td></tr>
+          <tr><td>صورة التحويل البنكي</td><td class="when">دفع مباشر · تحويل بنكي</td><td><span class="col-name mono">payments.proof_asset_key</span></td><td class="note">صورة حتى 1 MB تُحفظ داخل السجل نفسه</td></tr>
+          <tr class="group"><td colspan="4">يملؤها النظام دون إدخال</td></tr>
+          <tr><td>المسؤول عن الطلب</td><td class="when">دائمًا</td><td><span class="col-name mono">orders.owner</span></td><td class="note">يُحفظ «غير مسند» دائمًا رغم أن البائع معروف <span class="flag warn">قيمة ضائعة</span></td></tr>
+          <tr><td>رقم الطلب</td><td class="when">دائمًا</td><td><span class="col-name mono">orders.order_number</span></td><td class="note">تسلسل حسب البرنامج، مثل <code>ABA-000009</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="scen-title">
+    <div class="section-head"><h2 id="scen-title">ماذا يُنشئ النظام لكل نوع تسجيل</h2><p>الحالات كما تخرج من <code>/api/intake</code> مباشرة بعد الحفظ.</p></div>
+    <div class="scenarios">
+      <article class="scenario"><h3>عصارة · بلا حجز <span class="pill ok">مكتمل</span></h3><dl><div><dt>الطلب</dt><dd>مدفوع</dd></div><div><dt>الدفعة</dt><dd>مبيعات · مؤكدة</dd></div><div><dt>التسجيل</dt><dd>مكتمل تلقائيًا</dd></div><div><dt>المهام</dt><dd>لا شيء</dd></div></dl></article>
+      <article class="scenario"><h3>سلة <span class="pill ok">مؤكد ماليًا</span></h3><dl><div><dt>الطلب</dt><dd>مدفوع</dd></div><div><dt>الدفعة</dt><dd>مبيعات · مؤكدة</dd></div><div><dt>التسجيل</dt><dd>تم التواصل ← التهيئة</dd></div><div><dt>المهام</dt><dd>تهيئة العميل (التشغيلية)</dd></div></dl></article>
+      <article class="scenario"><h3>دفع مباشر <span class="pill warn">مراجعة مالية</span></h3><dl><div><dt>الطلب</dt><dd>مدفوع · بانتظار المراجعة</dd></div><div><dt>الدفعة</dt><dd>مبيعات · معلّقة</dd></div><div><dt>التسجيل</dt><dd>تم التواصل ← التهيئة</dd></div><div><dt>المهام</dt><dd>مراجعة التحويل/تمارا/Paytabs + التهيئة</dd></div></dl></article>
+      <article class="scenario"><h3>أقساط <span class="pill warn">مراجعة مالية</span></h3><dl><div><dt>الطلب</dt><dd>مدفوع جزئياً</dd></div><div><dt>الدفعة</dt><dd>الدفعة الأولى · معلّقة</dd></div><div><dt>التسجيل</dt><dd>تم التواصل ← التهيئة</dd></div><div><dt>المهام</dt><dd>اعتماد وتنظيم الأقساط + التهيئة</dd></div></dl></article>
+      <article class="scenario"><h3>حجز مقعد فقط <span class="pill warn">بلا تسجيل</span></h3><dl><div><dt>الطلب</dt><dd>حجز فقط · مدفوع 0</dd></div><div><dt>الدفعة</dt><dd>رسوم مقعد</dd></div><div><dt>الحجز</dt><dd>حجز فقط</dd></div><div><dt>المهام</dt><dd>متابعة الحجز (المبيعات) بتاريخ الإسناد</dd></div></dl></article>
+      <article class="scenario"><h3>إشراف <span class="pill warn">مراجعة مالية</span></h3><dl><div><dt>الطلب</dt><dd>نوع «إشراف» · مباشر</dd></div><div><dt>الدفعة</dt><dd>تحصيل · معلّقة</dd></div><div><dt>التسجيل</dt><dd>تم التواصل</dd></div><div><dt>المهام</dt><dd>اعتماد الإشراف للتحصيل + التهيئة</dd></div></dl></article>
+      <article class="scenario"><h3>تجربة <span class="pill ok">بلا مال</span></h3><dl><div><dt>الطلب</dt><dd>لا يوجد</dd></div><div><dt>التجربة</dt><dd>فعّالة حتى نهاية المدة</dd></div><div><dt>العميل</dt><dd>نوع «تجربة»</dd></div><div><dt>المهام</dt><dd>متابعة التجربة قبل انتهائها</dd></div></dl></article>
+      <article class="scenario"><h3>تقييم كفاءة <span class="pill warn">خدمة</span></h3><dl><div><dt>الطلب</dt><dd>نوع «تقييم كفاءة» · خدمة</dd></div><div><dt>عصارة</dt><dd>لا يكتمل تلقائيًا</dd></div><div><dt>التسجيل</dt><dd>تم التواصل ← ربط المقيم</dd></div><div><dt>المهام</dt><dd>التهيئة</dd></div></dl></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="find-title">
+    <div class="section-head"><h2 id="find-title">أين تضيع البيانات أو تُدخل بشكل خاطئ</h2><p>من قراءة الكود؛ لم يُغيَّر أيٌّ منها بعد.</p></div>
+    <div class="findings">
+      <article class="finding"><span class="sev high">مرتفع</span><h3>العميل الموجود يُطابَق بصمت</h3><p>إذا طابق الجوال <em>أو</em> البريد عميلًا موجودًا، يُضاف الطلب لملفه ويُتجاهل الاسم والجوال والبريد المكتوبة. لو اختلف الجوال الجديد عن القديم، يضيع دون أي تنبيه للموظف.</p><span class="where"><code>api/intake</code> · <code>SELECT id FROM customers WHERE phone=? OR email=?</code></span></article>
+      <article class="finding"><span class="sev high">مرتفع</span><h3>تاريخ الإسناد يُطلب ثم يُفقد</h3><p>للبرنامج المباشر دون حجز مقعد، النموذج يُلزم بتاريخ الإسناد ويقول إن العميل «سينتقل تلقائيًا في تاريخ الإسناد»، لكن التاريخ لا يُحفظ في أي جدول والعميل يدخل التهيئة فورًا.</p><span class="where">يُحفظ فقط في <code>seat_reservations</code></span></article>
+      <article class="finding"><span class="sev mid">متوسط</span><h3>البائع غير مسجّل على الطلب</h3><p>كل طلب يُحفظ بمسؤول «غير مسند» مع أن الموظف الذي سجّله معروف للنظام. هذا يُضعف تقارير المبيعات حسب الموظف.</p><span class="where"><code>orders.owner = 'غير مسند'</code></span></article>
+      <article class="finding"><span class="sev mid">متوسط</span><h3>لا مرجع لطلبات سلة وعصارة</h3><p>رقم طلب المتجر لا يُطلب ولا يُحفظ، فمطابقة الدفعات مع كشف المتجر تتم يدويًا بالاسم.</p><span class="where"><code>payments.reference</code> يُستخدم لـPaytabs فقط</span></article>
+      <article class="finding"><span class="sev mid">متوسط</span><h3>المبالغ تُكتب يدويًا في كل مرة</h3><p>لا يوجد سعر مرجعي للبرنامج أو المسار، ورسوم حجز المقعد المحفوظة في البرنامج لا تُقترح في النموذج. كل مبلغ معرض لخطأ الإدخال.</p><span class="where"><code>programs.seat_reservation_fee</code> موجود وغير مستخدم</span></article>
+      <article class="finding"><span class="sev low">منخفض</span><h3>سجلات مكررة لكل تسجيل</h3><p>كل تسجيل يُنشئ أيضًا <code>prospects</code> و<code>payment_intents</code> بنفس البيانات. لا ضرر حاليًا، لكنها بيانات تتضخم دون استخدام واضح.</p><span class="where"><code>api/intake</code></span></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="plan-title">
+    <div class="section-head"><h2 id="plan-title">مقترحات لتحسين الإدخال</h2><p>مرتبة حسب الأثر. كل مقترح يوضح هل يحتاج تعديلًا في الواجهة البرمجية أم الواجهة فقط.</p></div>
+    <div class="plan">
+      <article class="idea"><h3>تنبيه «عميل موجود» أثناء الكتابة</h3><p>عند إدخال الجوال أو البريد، يبحث النموذج فورًا ويعرض بطاقة العميل الموجود: «سيُضاف الطلب لملف ريم العتيبي». ويُنبّه إن اختلف الجوال أو البريد عن المسجّل، مع خيار تحديثه. يحل المشكلة الأولى ويقلل الملفات المكررة.</p><div class="meta"><span class="api">واجهة برمجية: بحث جديد</span><span>أولوية 1</span></div></article>
+      <article class="idea"><h3>حفظ تاريخ الإسناد فعليًا</h3><p>إما حفظ التاريخ على الطلب ونقل العميل للتهيئة في ذلك اليوم كما يعد النموذج، أو إزالة الحقل والجملة إن لم يكن مطلوبًا لهذا المسار. يحتاج قرارًا تشغيليًا أولًا.</p><div class="meta"><span class="api">واجهة برمجية</span><span>أولوية 1</span><span>قرار منك</span></div></article>
+      <article class="idea"><h3>تسجيل البائع تلقائيًا</h3><p>حفظ بريد أو اسم الموظف الذي سجّل الطلب في <code>orders.owner</code>، ليظهر في ملف العميل وفي تقارير المبيعات.</p><div class="meta"><span class="api">واجهة برمجية: سطر واحد</span><span>أولوية 2</span></div></article>
+      <article class="idea"><h3>رقم طلب المتجر لسلة وعصارة</h3><p>حقل اختياري «رقم الطلب في المتجر» يُحفظ في مرجع الدفعة، فتصبح المطابقة مع كشف المتجر ببحث واحد.</p><div class="meta"><span class="api">واجهة برمجية: يقبل المرجع لكل المصادر</span><span>أولوية 2</span></div></article>
+      <article class="idea"><h3>اقتراح رسوم المقعد من البرنامج</h3><p>عند اختيار «تم حجز المقعد» يُملأ المبلغ من <code>programs.seat_reservation_fee</code> إن وُجد، ويبقى قابلًا للتعديل.</p><div class="meta"><span class="ui">واجهة فقط</span><span>أولوية 2</span></div></article>
+      <article class="idea"><h3>أخطاء تحت الحقل نفسه</h3><p>بدل رسالة واحدة أسفل النموذج، يُعلَّم الحقل الناقص بإطار أحمر ورسالة تحته، وينتقل المؤشر إليه تلقائيًا.</p><div class="meta"><span class="ui">واجهة فقط</span><span>أولوية 3</span></div></article>
+      <article class="idea"><h3>تنسيق الجوال أثناء الكتابة</h3><p>عرض الرقم كـ <code>+966 55 001 0001</code> مع شارة الدولة، وقبول لصق الرقم بأي صيغة (05… أو 9665… أو مع مسافات) وتحويله تلقائيًا.</p><div class="meta"><span class="ui">واجهة فقط</span><span>أولوية 3</span></div></article>
+      <article class="idea"><h3>تذكّر آخر مصدر ووسيلة دفع</h3><p>يبدأ النموذج بآخر مصدر ووسيلة استخدمها الموظف على نفس الجهاز، لأن معظم موظفي المبيعات يعملون على قناة واحدة غالبًا.</p><div class="meta"><span class="ui">واجهة فقط</span><span>أولوية 3</span></div></article>
+      <article class="idea"><h3>قائمة أسعار للبرامج</h3><p>سعر مرجعي لكل برنامج ومسار يُدار من «إدارة البرامج»، ويُقترح تلقائيًا كمبلغ أساسي. أكبر توفير في الوقت والأخطاء، لكنه يحتاج عمودًا جديدًا وشاشة إدارة.</p><div class="meta"><span class="api">قاعدة بيانات + واجهة برمجية</span><span>أولوية 3</span><span>قرار منك</span></div></article>
+    </div>
+  </section>
+
+  <p class="source">المصدر: <code>app/page.tsx</code> (مكوّن <code>Registration</code>) و<code>app/api/intake/route.ts</code> على الفرع <code>design/phase-0-shell</code>، 28 أكتوبر 2026.</p>
+</main>

@@ -25,6 +25,27 @@
   `npx wrangler rollback bb58c5db-8d9c-411e-9cce-186111b241a7 --config wrangler.deploy.jsonc`
 - From now on, merge and deploy only when the user asks, as they did here.
 
+## Where we stopped (end of day 2026-10-28, office machine)
+
+- Branch `design/phase-0-shell` is pushed and **2+ commits ahead of `main`**: the registration redesign is on the
+  branch only. It is **not merged and not deployed**. Ask before merging or deploying.
+- The live site runs `main` at `ad619fa` (Cloudflare version `3b8dcd9e…`), verified by the user.
+- Latest work: the registration form review, fixes and redesign ([REGISTRATION.md](REGISTRATION.md)), plus a **data map**
+  of the registration flow: [registration-map.html](registration-map.html) (also published privately for the user at
+  https://claude.ai/artifact/33mcKRBWyQhzYXUsmkFSaL).
+- **Waiting for the user's choice:** which data-entry suggestions from the map to apply. The two options offered:
+  - Priority 1–2: existing-customer alert while typing (needs a lookup API), the assignment-date fix (**needs a
+    decision**: store it and move the customer on that date, or drop the field), record the seller in `orders.owner`,
+    a store order number for سلة/عصارة, and suggesting the seat fee from `programs.seat_reservation_fee`.
+  - UI-only first: seat-fee suggestion, errors under each field, phone formatting, remember last source/method.
+
+## To continue at home
+
+1. If the repo isn't on that machine yet: `git clone https://github.com/Wida3tk/Oper.git` then
+   `git switch design/phase-0-shell`. If it is: `git fetch` then `git switch design/phase-0-shell` and `git pull`.
+2. Open the project in Claude and say: «اقرأ docs/dashboard-redesign/HANDOFF.md وكمّل».
+3. For tests and local checks you need Node.js ≥ 22.13 and Git (this office machine got both through winget).
+
 ## Next steps (agreed with the user, 2026-10-28)
 
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
