@@ -2,7 +2,7 @@
 
 > **Status: fixed** (user approved "Fix all of it"). See "Resolution" at the end. `Registration` (the intake form) is still unreviewed.
 
-Read-only review done on 2026-10-28, from the code. Nothing here is fixed yet. Next step: confirm with the
+Read-only review done on 2026-10-28, from the code. The findings below were then fixed (see Resolution). Original plan: confirm with the
 user, then fix and redesign in the same way as the onboarding page ([PHASE-3-ACADEMY.md](PHASE-3-ACADEMY.md)).
 
 The view renders two components: `TrialHandoff` (trial customers awaiting a decision) and `Registration`
