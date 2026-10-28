@@ -1758,7 +1758,7 @@ function Registration({ done }: { done: () => void }) {
     payment: "دفع كامل",
     method: "عصارة",
     reference: "",
-    purchaseDate: new Date().toISOString().slice(0, 10),
+    purchaseDate: new Date().toLocaleDateString("en-CA"),
     amount: "",
     contractTotal: "",
     discount: "0",
@@ -3517,7 +3517,7 @@ function BackupCenter() {
         url = URL.createObjectURL(blob),
         link = document.createElement("a");
       link.href = url;
-      link.download = `sulukera-${category}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.download = `sulukera-${category}-${new Date().toLocaleDateString("en-CA")}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -5847,7 +5847,7 @@ function TransferReviews() {
 function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { initialReviewFilter?: string; searchQuery?: string }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
-    [collectionMonth,setCollectionMonth]=useState(new Date().toISOString().slice(0,7)),
+    [collectionMonth,setCollectionMonth]=useState(new Date().toLocaleDateString("en-CA").slice(0,7)),
     [summary, setSummary] = useState<FinanceSummary>({
       total: 0,
       paid: 0,
@@ -5866,7 +5866,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     [customDiscount, setCustomDiscount] = useState("0"),
     [finalAmount, setFinalAmount] = useState(""),
     [scheduleEdit, setScheduleEdit] = useState<"auto"|"regular"|"final"|"existing">("auto"),
-    [start, setStart] = useState(new Date().toISOString().slice(0, 10)),
+    [start, setStart] = useState(new Date().toLocaleDateString("en-CA")),
     [installmentRefs,setInstallmentRefs]=useState<Record<string,string>>({}),
     [installmentMethods,setInstallmentMethods]=useState<Record<string,string>>({}),
     [installmentDueDates,setInstallmentDueDates]=useState<Record<string,string>>({}),
@@ -5874,7 +5874,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     [paymentRecordDate,setPaymentRecordDate]=useState(""),
     [selectedPaymentRecordId,setSelectedPaymentRecordId]=useState(""),
     [withdrawalReason,setWithdrawalReason]=useState(""),
-    [withdrawalDate,setWithdrawalDate]=useState(new Date().toISOString().slice(0,10)),
+    [withdrawalDate,setWithdrawalDate]=useState(new Date().toLocaleDateString("en-CA")),
     [withdrawalRefund,setWithdrawalRefund]=useState(""),
     [withdrawalNonRefundable,setWithdrawalNonRefundable]=useState("0"),
     [withdrawalSource,setWithdrawalSource]=useState("sale"),
@@ -5894,7 +5894,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
       .sort((a, b) => Number(a.sequence) - Number(b.sequence));
     if (!openInstallments.length) {
       setCount("4");
-      setStart(new Date().toISOString().slice(0, 10));
+      setStart(new Date().toLocaleDateString("en-CA"));
       setRegularAmountInput("");
       setFinalAmount("");
       setScheduleEdit("auto");
@@ -5950,7 +5950,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     syncScheduleFromSavedTable(row);
     setInstallmentDueDates(Object.fromEntries(row.installments.map((item) => [item.id, String(item.due_date).slice(0,10)])));
     setInstallmentPaymentDates(Object.fromEntries(row.installments.filter((item) => item.paid_at).map((item) => [item.id, String(item.paid_at).slice(0,10)])));
-    setWithdrawalReason("");setWithdrawalDate(new Date().toISOString().slice(0,10));setWithdrawalRefund("");setWithdrawalNonRefundable("0");setWithdrawalSource("sale");setWithdrawalMethod("تحويل بنكي");setWithdrawalReference("");
+    setWithdrawalReason("");setWithdrawalDate(new Date().toLocaleDateString("en-CA"));setWithdrawalRefund("");setWithdrawalNonRefundable("0");setWithdrawalSource("sale");setWithdrawalMethod("تحويل بنكي");setWithdrawalReference("");
     setActiveFinanceTool(null);
   };
   const post = async (body: Record<string, unknown>) => {
@@ -5973,7 +5973,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   const sar = (n: number) =>
     `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
   const financeStatus = (row: FinanceOrder) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString("en-CA");
     if (row.order_status === "منسحب" || row.withdrawal) return "منسحب";
     if (row.finance_review_status === "pending") return "بانتظار المراجعة";
     if (row.remaining === 0) return "مدفوع";
@@ -6071,7 +6071,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   };
   const reviewTypeCount = (type: string) =>
     salesEntries.filter((entry) => matchesReviewType(entry, type)).length;
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = new Date().toLocaleDateString("en-CA");
   const monthKey = todayKey.slice(0, 7);
   const saleDate = (payment: FinancePayment) =>
     String(payment.paid_at || payment.created_at || "").slice(0, 10);
@@ -6700,7 +6700,7 @@ const B2B_LOCATIONS: Record<string,string[]> = {
   "تبوك":["تبوك","ضباء","الوجه"],"حائل":["حائل"],"الحدود الشمالية":["عرعر","رفحاء"],"جازان":["جازان","صبيا"],"نجران":["نجران"],"الباحة":["الباحة","بلجرشي"],"الجوف":["سكاكا","القريات"]
 };
 function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partnerships";canManage:boolean;canConvert:boolean}) {
-  const [rows,setRows]=useState<B2BRow[]>([]),[recentActivities,setRecentActivities]=useState<B2BRow[]>([]),[options,setOptions]=useState<string[]>([]),[partnershipStages,setPartnershipStages]=useState<string[]>([]),[trainingStages,setTrainingStages]=useState<string[]>([]),[lifecycleStages,setLifecycleStages]=useState<string[]>(B2B_LIFECYCLE),[staff,setStaff]=useState<B2BRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[showForm,setShowForm]=useState(false),[formStep,setFormStep]=useState(1),[selected,setSelected]=useState<B2BRow|null>(null),[saving,setSaving]=useState(false),[activities,setActivities]=useState<B2BRow[]>([]),[documents,setDocuments]=useState<B2BRow[]>([]),[approvals,setApprovals]=useState<B2BRow[]>([]),[activityType,setActivityType]=useState("dataFormSentAt"),[activityDate,setActivityDate]=useState(new Date().toISOString().slice(0,10)),[activityDetails,setActivityDetails]=useState(""),[scope,setScope]=useState("assigned"),[canReview,setCanReview]=useState(false),[canFitDecision,setCanFitDecision]=useState(false),[canCreatePartnership,setCanCreatePartnership]=useState(false),[canDelete,setCanDelete]=useState(false),[search,setSearch]=useState(""),[stageFilter,setStageFilter]=useState("الكل"),[pathFilter,setPathFilter]=useState("الكل"),[kindFilter,setKindFilter]=useState("الكل"),[dragging,setDragging]=useState<string>("");
+  const [rows,setRows]=useState<B2BRow[]>([]),[recentActivities,setRecentActivities]=useState<B2BRow[]>([]),[options,setOptions]=useState<string[]>([]),[partnershipStages,setPartnershipStages]=useState<string[]>([]),[trainingStages,setTrainingStages]=useState<string[]>([]),[lifecycleStages,setLifecycleStages]=useState<string[]>(B2B_LIFECYCLE),[staff,setStaff]=useState<B2BRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[showForm,setShowForm]=useState(false),[formStep,setFormStep]=useState(1),[selected,setSelected]=useState<B2BRow|null>(null),[saving,setSaving]=useState(false),[activities,setActivities]=useState<B2BRow[]>([]),[documents,setDocuments]=useState<B2BRow[]>([]),[approvals,setApprovals]=useState<B2BRow[]>([]),[activityType,setActivityType]=useState("dataFormSentAt"),[activityDate,setActivityDate]=useState(new Date().toLocaleDateString("en-CA")),[activityDetails,setActivityDetails]=useState(""),[scope,setScope]=useState("assigned"),[canReview,setCanReview]=useState(false),[canFitDecision,setCanFitDecision]=useState(false),[canCreatePartnership,setCanCreatePartnership]=useState(false),[canDelete,setCanDelete]=useState(false),[search,setSearch]=useState(""),[stageFilter,setStageFilter]=useState("الكل"),[pathFilter,setPathFilter]=useState("الكل"),[kindFilter,setKindFilter]=useState("الكل"),[dragging,setDragging]=useState<string>("");
   const [form,setForm]=useState<Record<string,string>>({name:"",type:"مركز",contactName:"",jobTitle:"",phone:"",email:"",region:"",regionOther:"",city:"",activity:"",source:"",sourceOther:"",priority:"متوسطة",path:"ABA",ownerEmail:"",partnershipType:"",contactStatus:"لم يتم التواصل",meetingScheduledAt:"",opportunityKind:"partnership",registrationStatus:"فرصة جديدة",traineeCount:"",requestedProgram:"",deliveryDate:"",expectedValue:"",expectedCloseDate:"",nextFollowUp:"",recommendedServices:""});
   const [agreement,setAgreement]=useState<Record<string,string>>({agreementNumber:"",signedAt:"",startDate:"",endDate:"",value:"",paymentTerms:"",scope:"",services:"",renewalTerms:"",documentUrl:""});
   const [pipelineDraft,setPipelineDraft]=useState<Record<string,string>>({});
@@ -6736,7 +6736,7 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const saveAccount=async()=>{if(!selected)return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update_account",accountId:selected.account_id,...accountDraft})});setSelected({...selected,account_name:accountDraft.name,account_type:accountDraft.type,region:accountDraft.region,city:accountDraft.city,source:accountDraft.source,priority:accountDraft.priority,path:accountDraft.path,partnership_type:accountDraft.partnershipType,owner_email:accountDraft.ownerEmail,contact_name:accountDraft.contactName,contact_title:accountDraft.jobTitle,contact_phone:accountDraft.phone,contact_email:accountDraft.email,logo_data:accountDraft.logoData});setEditingAccount(false);await load();await loadActivities(selected.account_id)}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const addActivity=async()=>{if(!selected)return;if(section==="partnerships"&&String(selected.lifecycle_stage)==="التفاوض والاتفاقية"){await execute({action:"update_agreement_step",opportunityId:selected.opportunity_id,step:activityType,completedAt:activityDate,details:activityDetails});setPipelineDraft(previous=>({...previous,[activityType]:activityDate}));setActivityDetails("");return}setSaving(true);try{await apiJson("/api/b2b",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"log_activity",accountId:selected.account_id,opportunityId:selected.opportunity_id||selected.id,partnershipId:section==="partnerships"?(selected.partnership_id||""):"",activityType,details:activityDetails})});setActivityDetails("");await loadActivities(selected.account_id);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
   const removeEntity=async()=>{if(!selected||!canDelete)return;const name=String(selected.account_name||"هذه الجهة");if(!window.confirm(`سيتم حذف ${name} وجميع سجلاتها في B2B نهائيًا. هل تريد المتابعة؟`))return;setSaving(true);setError("");try{await apiJson("/api/b2b",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({accountId:selected.account_id})});setSelected(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}};
-  const today=new Date().toISOString().slice(0,10),totalValue=rows.reduce((sum,row)=>sum+Number(row.expected_value||row.value||0),0),followUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<=today).length;
+  const today=new Date().toLocaleDateString("en-CA"),totalValue=rows.reduce((sum,row)=>sum+Number(row.expected_value||row.value||0),0),followUps=rows.filter(row=>String(row.next_follow_up||"")&&String(row.next_follow_up)<=today).length;
   const contacted=rows.filter(row=>!["جهة مسندة",""].includes(String(row.stage||""))).length,contactedToday=rows.filter(row=>String(row.last_contact_at||"").slice(0,10)===today).length,awaitingSignature=rows.filter(row=>row.stage==="بانتظار التوقيع").length,trainingRequests=rows.filter(row=>row.opportunity_kind==="corporate_training").length;
   const visibleRows=rows.filter(row=>{const q=search.trim().toLowerCase();return(!q||[row.account_name,row.contact_name,row.contact_phone,row.city,row.requested_program].some(value=>String(value||"").toLowerCase().includes(q)))&&(stageFilter==="الكل"||String(row.stage||row.status)===stageFilter)&&(pathFilter==="الكل"||String(row.path)===pathFilter)&&(kindFilter==="الكل"||String(row.opportunity_kind||"partnership")===kindFilter)});
   const funnelStages=["جهة مسندة","تم التواصل","تم الاجتماع","أُرسل العرض","بانتظار التوقيع","تم التوقيع"];

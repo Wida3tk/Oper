@@ -17,7 +17,7 @@
 
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
 Never merge, never push to `main`, never open a PR unless asked.
-1. Finance: `LiveFinance` still uses UTC for "today" and its default collection month (`toISOString()`). Switch it to local dates, as the dashboard now does.
+1. ~~Finance UTC dates~~ **Done:** every "today" default in `app/page.tsx` (11 spots: the intake purchase date, finance today/month/forms, B2B activity date and follow-ups, the export filename) now uses the local date. A test guards it.
 2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). Review first, then fix/redesign.
 3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
 4. Open user decision: Phase 1 suggestion #8, one window for upcoming items (schedule 30 days vs. team events 90).
@@ -45,7 +45,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (88 / 88 on `design/phase-0-shell` after the Phase 3 academy pages) |
+| `npm test` | 80 / 80 (89 / 89 on `design/phase-0-shell`) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 

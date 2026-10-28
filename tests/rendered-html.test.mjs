@@ -719,6 +719,13 @@ test("keeps academy queues usable: read-only roles, correct journey, undo, scope
   assert.doesNotMatch(page, /const stageIndex = \(status: string\) =>/);
 });
 
+test("uses the local date for every 'today' default in the app", async () => {
+  const page = await read("../app/page.tsx");
+  assert.doesNotMatch(page, /new Date\(\)\.toISOString\(\)\.slice\(0, ?(7|10)\)/);
+  assert.match(page, /purchaseDate: new Date\(\)\.toLocaleDateString\("en-CA"\),/);
+  assert.match(page, /const todayKey = new Date\(\)\.toLocaleDateString\("en-CA"\);/);
+});
+
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
