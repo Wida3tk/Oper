@@ -6343,6 +6343,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     : undefined;
   const selectedReferencePayment = selected?.payments.find((payment) => payment.id === selectedPaymentRecordId) || defaultReferencePayment;
   const selectedFirstProgramPayment=selected?firstPayment(selected):undefined;
+  const selectedPaidPct = selected && selected.total > 0 ? Math.min(100, Math.round((selected.paid / selected.total) * 100)) : 0;
   useEffect(() => {
     setPaymentRecordDate(String(selectedReferencePayment?.paid_at || selectedReferencePayment?.created_at || "").slice(0,10));
   }, [selectedReferencePayment?.id, selectedReferencePayment?.paid_at, selectedReferencePayment?.created_at]);
@@ -6532,86 +6533,22 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
         <>
           <div className="overlay" onClick={() => setSelected(null)} />
           <aside className="drawer finance-center-drawer" role="dialog" aria-modal="true" aria-label={`الملف المالي: ${selected.customer_name}`}>
-            <button type="button" className="close" aria-label="إغلاق الملف المالي" onClick={() => setSelected(null)}>
-              ×
-            </button>
-            <div className="person">
-              <i>﷼</i>
-              <div>
-                <h2>{selected.customer_name}</h2>
-                <p>
-                  {selected.customer_id} · {selected.program_name}
-                </p>
-                {subscriptionMeta(selected).length>0&&<div className="drawer-subscription-meta">{subscriptionMeta(selected).map(item=><span key={item}>{item}</span>)}</div>}
-                <div className="finance-person-details">
-                  <span><small>الجوال</small><b dir="ltr">{selected.phone}</b></span>
-                  <span><small>البريد</small><b dir="ltr">{selected.email}</b></span>
-                  <span><small>رقم الطلب</small><b dir="ltr">{selected.order_id}</b></span>
-                  <span><small>مصدر الشراء</small><b>{selected.purchase_source}</b></span>
-                  <span><small>المسار</small><b>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</b></span>
-                  <span><small>نمط البرنامج</small><b>{selected.program_delivery || "غير محدد"}</b></span>
+            <header className="cp-head fin-head">
+              <button type="button" className="cp-close" aria-label="إغلاق الملف المالي" onClick={() => setSelected(null)}><X size={18} /></button>
+              <div className="cp-identity">
+                <span className="cp-avatar" aria-hidden="true">{selected.customer_name.trim().slice(0, 2)}</span>
+                <div>
+                  <h2>{selected.customer_name}</h2>
+                  <p className="cp-meta"><span dir="ltr">{selected.phone}</span><span>{selected.customer_id}</span><span>{selected.program_name}</span></p>
                 </div>
               </div>
-            </div>
-            <div className="finance-reference-strip">
-              <PaymentReferenceControl
-                paymentId={selectedReferencePayment?.id}
-                orderId={selected.order_id}
-                initialReference={selected.order_payment_reference || selectedReferencePayment?.reference}
-                canEdit
-                onSaved={(paymentReference) => {
-                  if(selectedReferencePayment) updatePaymentReference(selectedReferencePayment.id,paymentReference);
-                  else setSelected(current=>current?{...current,order_payment_reference:paymentReference}:current);
-                }}
-              />
-              {selectedReferencePayment && <label className="finance-payment-date"><span>تاريخ السداد</span><span><input type="date" value={paymentRecordDate} onChange={(e)=>setPaymentRecordDate(e.target.value)}/><button type="button" disabled={saving || !paymentRecordDate || paymentRecordDate === String(selectedReferencePayment.paid_at || selectedReferencePayment.created_at || "").slice(0,10)} onClick={()=>post({action:"update_payment_record_date",paymentId:selectedReferencePayment.id,paymentDate:paymentRecordDate})}>حفظ</button></span></label>}
-            </div>
-            {error && <div className="ops-error compact">{error}</div>}
-            <Section title="ملاحظات العميل">
-              <CustomerNotes customerId={selected.customer_id} />
-            </Section>
-            <div className="finance-hero">
-              <p>
-                <span>إجمالي البرنامج بعد الخصم</span>
-                <b>{sar(selected.total)}</b>
-                <small>{beforeVat(selected.total)}</small>
-              </p>
-              <p>
-                <span>المدفوع من قيمة البرنامج</span>
-                <b>{sar(selected.paid)}</b>
-                <small>{beforeVat(selected.paid)}</small>
-              </p>
-              <p>
-                <span>المتبقي</span>
-                <b>{sar(selected.remaining)}</b>
-                <small>{beforeVat(selected.remaining)}</small>
-              </p>
-              <p className="discount-rate">
-                <span>نسبة الخصم</span>
-                <b>{Number(selected.discount_percent || 0).toLocaleString("en-US")}%</b>
-              </p>
-              {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b><small>{beforeVat(selected.seat_fee)}</small></p>}
-              {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b><small>{beforeVat(selected.paid+selected.seat_fee)}</small></p>}
-              {Number(selected.refunded||0)>0&&<p className="refund-total"><span>المبلغ المسترد</span><b>- {sar(Number(selected.refunded))}</b></p>}
-            </div>
-            <div className="finance-action-center">
-              <div className="finance-action-toolbar" role="toolbar" aria-label="الإجراءات المالية السريعة">
-                <button type="button" className={activeFinanceTool==="seat"?"active":""} aria-pressed={activeFinanceTool==="seat"} disabled={Boolean(selected.registration_seat_fee)} title={selected.registration_seat_fee?"رسوم مسجلة من نموذج التسجيل ومنفصلة عن قيمة البرنامج":undefined} onClick={()=>setActiveFinanceTool(current=>current==="seat"?null:"seat")}><Armchair size={17}/><span>رسوم المقعد</span><small>{selected.registration_seat_fee?`${sar(selected.seat_fee)} · من التسجيل`:Number(selected.seat_fee||0)>0?sar(selected.seat_fee):"إضافة أو تعديل"}</small></button>
-                <button type="button" className={activeFinanceTool==="discount"?"active":""} aria-pressed={activeFinanceTool==="discount"} onClick={()=>setActiveFinanceTool(current=>current==="discount"?null:"discount")}><BadgeDollarSign size={17}/><span>الخصم</span><small>{Number(selected.discount_percent||0).toLocaleString("en-US")}% حاليًا</small></button>
-                <button type="button" className={`withdrawal-action ${activeFinanceTool==="withdrawal"?"active":""}`} aria-pressed={activeFinanceTool==="withdrawal"} onClick={()=>setActiveFinanceTool(current=>current==="withdrawal"?null:"withdrawal")}><CircleUserRound size={17}/><span>{selected.withdrawal?"بيانات الانسحاب":"الانسحاب"}</span><small>{selected.withdrawal?"عرض التفاصيل":"تسجيل واسترداد"}</small></button>
-                <button type="button" className={activeFinanceTool==="undo"?"active":""} aria-pressed={activeFinanceTool==="undo"} disabled={!selected.undo_available} onClick={()=>setActiveFinanceTool(current=>current==="undo"?null:"undo")}><Clock3 size={17}/><span>التراجع</span><small>{selected.undo_available?selected.undo_available.label:"لا يوجد إجراء"}</small></button>
+              <div className="cp-tags">
+                <em className={`cu-status ${collectionTone(financeStatus(selected))}`}>{financeStatus(selected)}</em>
+                {subscriptionMeta(selected).map((item) => <em className="cp-tag" key={item}>{item}</em>)}
               </div>
-              {activeFinanceTool && <div className={`finance-action-panel ${activeFinanceTool}`} role="region" aria-live="polite">
-                {activeFinanceTool==="seat"&&<div className="legacy-seat-fee-tool"><div><b>رسوم حجز المقعد</b><span>يُطبّق الفرق على إجمالي البرنامج وأول دفعة، ويبقى المتبقي وجدول الأقساط ثابتين.</span></div><label>قيمة حجز المقعد<input type="number" min="0.01" step="0.01" value={legacySeatFee} onChange={(e)=>setLegacySeatFee(e.target.value)} placeholder="مثال: 200" /></label><button type="button" className="secondary" disabled={saving || !(Number(legacySeatFee) > 0) || Math.abs(Number(legacySeatFee) - Number(selected.seat_fee || 0)) < 0.005} onClick={() => window.confirm(`سيتم تحديث رسوم المقعد إلى ${sar(Number(legacySeatFee))} مع بقاء المتبقي والأقساط كما هي. هل تريد المتابعة؟`) && post({action:"set_legacy_seat_fee",seatFee:Number(legacySeatFee)})}>{Number(selected.seat_fee || 0) > 0 ? "حفظ تعديل الرسوم" : "إضافة وفصل الرسوم"}</button></div>}
-                {activeFinanceTool==="discount"&&<div className="finance-discount-editor"><div><b>تعديل نسبة الخصم</b><span>يُعاد احتساب العقد والمتبقي والأقساط غير المسددة تلقائيًا.</span></div><label><input type="number" min="0" max="100" step="0.01" value={customDiscount} onChange={e=>setCustomDiscount(e.target.value)}/><span>%</span></label><button type="button" disabled={saving||!Number.isFinite(Number(customDiscount))||Number(customDiscount)<0||Number(customDiscount)>100||Math.abs(Number(customDiscount)-Number(selected.discount_percent||0))<0.0001} onClick={()=>window.confirm(`سيتم تعديل الخصم إلى ${Number(customDiscount).toLocaleString("en-US")}% وإعادة موازنة المتبقي والأقساط غير المسددة. هل تريد المتابعة؟`)&&post({action:"update_discount_percent",discountPercent:Number(customDiscount)})}>حفظ الخصم</button></div>}
-                {activeFinanceTool==="withdrawal"&&(selected.withdrawal ? <div className="withdrawal-summary"><header><div><b>العميل منسحب</b><span>{selected.withdrawal.withdrawn_at} · {selected.withdrawal.reason}</span></div><em>{selected.withdrawal.status}</em></header><div><p><span>إجمالي المدفوع قبل الاسترداد</span><b>{sar(selected.withdrawal.gross_paid)}</b></p><p><span>المبلغ المسترد</span><b>{sar(selected.withdrawal.refund_amount)}</b></p><p><span>غير قابل للاسترداد</span><b>{sar(selected.withdrawal.non_refundable_amount)}</b></p><p><span>مصدر الخصم</span><b>{selected.withdrawal.refund_source==="sale"?"المبيعات":"التحصيل"}</b></p></div><footer>{selected.withdrawal.refund_method} · المرجع: {selected.withdrawal.reference} · بواسطة {selected.withdrawal.created_by_email}</footer></div> : <div className="withdrawal-tool"><div className="withdrawal-form"><label>سبب الانسحاب<textarea value={withdrawalReason} onChange={e=>setWithdrawalReason(e.target.value)} placeholder="اكتب سبب الانسحاب"/></label><label>تاريخ الانسحاب<input type="date" value={withdrawalDate} onChange={e=>setWithdrawalDate(e.target.value)}/></label><label>المبلغ المسترد<input type="number" min="0" max={selected.gross_paid||selected.paid} step="0.01" value={withdrawalRefund} onChange={e=>setWithdrawalRefund(e.target.value)}/></label><label>المبلغ غير القابل للاسترداد<input type="number" min="0" step="0.01" value={withdrawalNonRefundable} onChange={e=>setWithdrawalNonRefundable(e.target.value)}/></label><label>يُخصم الاسترداد من<select value={withdrawalSource} onChange={e=>setWithdrawalSource(e.target.value)}><option value="sale">المبيعات</option><option value="collection">التحصيل</option></select></label><label>طريقة الاسترداد<select value={withdrawalMethod} onChange={e=>setWithdrawalMethod(e.target.value)}><option>تحويل بنكي</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option><option>أخرى</option></select></label><label>مرجع الاسترداد<input value={withdrawalReference} onChange={e=>setWithdrawalReference(e.target.value)} placeholder="رقم أو رابط المرجع"/></label><button type="button" className="danger" disabled={saving||!withdrawalReason.trim()||!withdrawalDate||!withdrawalReference.trim()||Number(withdrawalRefund)<0||Number(withdrawalRefund)+Number(withdrawalNonRefundable)>Number(selected.gross_paid||selected.paid)} onClick={()=>window.confirm(`سيتم تسجيل انسحاب العميل واسترداد ${sar(Number(withdrawalRefund||0))} وإيقاف الأقساط المستقبلية. هل تريد المتابعة؟`)&&post({action:"register_withdrawal",reason:withdrawalReason,withdrawnAt:withdrawalDate,refundAmount:Number(withdrawalRefund||0),nonRefundableAmount:Number(withdrawalNonRefundable||0),refundSource:withdrawalSource,refundMethod:withdrawalMethod,reference:withdrawalReference})}>اعتماد الانسحاب والاسترداد</button></div></div>)}
-                {activeFinanceTool==="undo"&&selected.undo_available&&<div className="finance-undo-bar"><div><b>التراجع عن آخر إجراء مالي</b><span>{selected.undo_available.label} · سيبقى التراجع محفوظًا في سجل النظام.</span></div><button type="button" disabled={saving} onClick={() => window.confirm(`سيتم عكس إجراء: ${selected.undo_available?.label}. سيُحفظ التراجع في سجل النظام. هل تريد المتابعة؟`) && post({action:"undo_last_finance_action"})}>تنفيذ التراجع</button></div>}
-              </div>}
-            </div>
-            <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
-              <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
-              <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>
-            </div>
+            </header>
+            <div className="fin-body">
+            {error && <div className="oh-alert" role="alert">{error}</div>}
             {selected.finance_review_status === "pending" && (
               <div className="legacy-finance-review">
                 <div>
@@ -6633,6 +6570,68 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                 </button>
               </div>
             )}
+            <section className="cp-section fin-money" aria-labelledby="fin-money-title">
+              <h3 id="fin-money-title">الملخص المالي</h3>
+              <div className={`fin-balance ${selected.withdrawal ? "withdrawn" : selected.remaining > 0 ? "" : "settled"}`}>
+                <span>{selected.withdrawal ? "العميل منسحب · لا متبقٍ عليه" : !(selected.total > 0) ? "لا توجد قيمة برنامج على هذا الطلب" : selected.remaining > 0 ? "المتبقي على العميل" : selected.finance_review_status === "pending" ? "مسجل بالكامل · بانتظار اعتماد المالية" : "مسدد بالكامل"}</span>
+                <b>{sar(selected.remaining)}</b>
+                <small>{beforeVat(selected.remaining)}</small>
+                {selected.total > 0 && <><span className="cu-bar" aria-hidden="true"><i style={{ width: `${selectedPaidPct}%` }} /></span>
+                <small>{selectedPaidPct}% من قيمة البرنامج مدفوع</small></>}
+              </div>
+              <dl className="cp-ledger">
+                <div><dt>إجمالي البرنامج بعد الخصم</dt><dd>{sar(selected.total)}<small className="cp-vat">{beforeVat(selected.total)}</small></dd></div>
+                <div><dt>المدفوع من قيمة البرنامج</dt><dd>{sar(selected.paid)}<small className="cp-vat">{beforeVat(selected.paid)}</small></dd></div>
+                <div><dt>نسبة الخصم</dt><dd>{Number(selected.discount_percent || 0).toLocaleString("en-US")}%</dd></div>
+                {Number(selected.seat_fee||0)>0&&<div><dt>رسوم المقعد المدفوعة{selected.registration_seat_fee ? " · من التسجيل" : ""}</dt><dd>{sar(selected.seat_fee)}<small className="cp-vat">{beforeVat(selected.seat_fee)}</small></dd></div>}
+                {Number(selected.seat_fee||0)>0&&<div><dt>إجمالي المدفوع فعلياً</dt><dd>{sar(selected.paid+selected.seat_fee)}<small className="cp-vat">{beforeVat(selected.paid+selected.seat_fee)}</small></dd></div>}
+                {Number(selected.refunded||0)>0&&<div className="fin-refund"><dt>المبلغ المسترد</dt><dd>- {sar(Number(selected.refunded))}<small className="cp-vat">{beforeVat(Number(selected.refunded))}</small></dd></div>}
+              </dl>
+            </section>
+            <section className="cp-section fin-order" aria-labelledby="fin-order-title">
+              <h3 id="fin-order-title">بيانات الطلب والسداد</h3>
+              <dl className="cp-ledger finance-person-details">
+                <div><dt>البريد</dt><dd dir="ltr">{selected.email || "—"}</dd></div>
+                <div><dt>رقم الطلب</dt><dd dir="ltr">{selected.order_id}</dd></div>
+                <div><dt>مصدر الشراء</dt><dd>{selected.purchase_source}</dd></div>
+                <div><dt>المسار</dt><dd>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</dd></div>
+                <div><dt>نمط البرنامج</dt><dd>{selected.program_delivery || "غير محدد"}</dd></div>
+              </dl>
+            <div className="finance-reference-strip">
+              <PaymentReferenceControl
+                paymentId={selectedReferencePayment?.id}
+                orderId={selected.order_id}
+                initialReference={selected.order_payment_reference || selectedReferencePayment?.reference}
+                canEdit
+                onSaved={(paymentReference) => {
+                  if(selectedReferencePayment) updatePaymentReference(selectedReferencePayment.id,paymentReference);
+                  else setSelected(current=>current?{...current,order_payment_reference:paymentReference}:current);
+                }}
+              />
+              {selectedReferencePayment && <label className="finance-payment-date"><span>تاريخ السداد</span><span><input type="date" value={paymentRecordDate} onChange={(e)=>setPaymentRecordDate(e.target.value)}/><button type="button" disabled={saving || !paymentRecordDate || paymentRecordDate === String(selectedReferencePayment.paid_at || selectedReferencePayment.created_at || "").slice(0,10)} onClick={()=>post({action:"update_payment_record_date",paymentId:selectedReferencePayment.id,paymentDate:paymentRecordDate})}>حفظ</button></span></label>}
+            </div>
+            </section>
+            <Section title="ملاحظات العميل">
+              <CustomerNotes customerId={selected.customer_id} />
+            </Section>
+            <div className="finance-action-center">
+              <div className="finance-action-toolbar" role="toolbar" aria-label="الإجراءات المالية السريعة">
+                <button type="button" className={activeFinanceTool==="seat"?"active":""} aria-pressed={activeFinanceTool==="seat"} disabled={Boolean(selected.registration_seat_fee)} title={selected.registration_seat_fee?"رسوم مسجلة من نموذج التسجيل ومنفصلة عن قيمة البرنامج":undefined} onClick={()=>setActiveFinanceTool(current=>current==="seat"?null:"seat")}><Armchair size={17}/><span>رسوم المقعد</span><small>{selected.registration_seat_fee?`${sar(selected.seat_fee)} · من التسجيل`:Number(selected.seat_fee||0)>0?sar(selected.seat_fee):"إضافة أو تعديل"}</small></button>
+                <button type="button" className={activeFinanceTool==="discount"?"active":""} aria-pressed={activeFinanceTool==="discount"} onClick={()=>setActiveFinanceTool(current=>current==="discount"?null:"discount")}><BadgeDollarSign size={17}/><span>الخصم</span><small>{Number(selected.discount_percent||0).toLocaleString("en-US")}% حاليًا</small></button>
+                <button type="button" className={`withdrawal-action ${activeFinanceTool==="withdrawal"?"active":""}`} aria-pressed={activeFinanceTool==="withdrawal"} onClick={()=>setActiveFinanceTool(current=>current==="withdrawal"?null:"withdrawal")}><CircleUserRound size={17}/><span>{selected.withdrawal?"بيانات الانسحاب":"الانسحاب"}</span><small>{selected.withdrawal?"عرض التفاصيل":"تسجيل واسترداد"}</small></button>
+                <button type="button" className={activeFinanceTool==="undo"?"active":""} aria-pressed={activeFinanceTool==="undo"} disabled={!selected.undo_available} onClick={()=>setActiveFinanceTool(current=>current==="undo"?null:"undo")}><Clock3 size={17}/><span>التراجع</span><small>{selected.undo_available?selected.undo_available.label:"لا يوجد إجراء"}</small></button>
+              </div>
+              {activeFinanceTool && <div className={`finance-action-panel ${activeFinanceTool}`} role="region" aria-live="polite">
+                {activeFinanceTool==="seat"&&<div className="legacy-seat-fee-tool"><div><b>رسوم حجز المقعد</b><span>يُطبّق الفرق على إجمالي البرنامج وأول دفعة، ويبقى المتبقي وجدول الأقساط ثابتين.</span></div><label>قيمة حجز المقعد<input type="number" min="0.01" step="0.01" value={legacySeatFee} onChange={(e)=>setLegacySeatFee(e.target.value)} placeholder="مثال: 200" /></label><button type="button" className="secondary" disabled={saving || !(Number(legacySeatFee) > 0) || Math.abs(Number(legacySeatFee) - Number(selected.seat_fee || 0)) < 0.005} onClick={() => window.confirm(`سيتم تحديث رسوم المقعد إلى ${sar(Number(legacySeatFee))} مع بقاء المتبقي والأقساط كما هي. هل تريد المتابعة؟`) && post({action:"set_legacy_seat_fee",seatFee:Number(legacySeatFee)})}>{Number(selected.seat_fee || 0) > 0 ? "حفظ تعديل الرسوم" : "إضافة وفصل الرسوم"}</button></div>}
+                {activeFinanceTool==="discount"&&<div className="finance-discount-editor"><div><b>تعديل نسبة الخصم</b><span>يُعاد احتساب العقد والمتبقي والأقساط غير المسددة تلقائيًا.</span></div><label><input type="number" min="0" max="100" step="0.01" value={customDiscount} onChange={e=>setCustomDiscount(e.target.value)}/><span>%</span></label><button type="button" disabled={saving||!Number.isFinite(Number(customDiscount))||Number(customDiscount)<0||Number(customDiscount)>100||Math.abs(Number(customDiscount)-Number(selected.discount_percent||0))<0.0001} onClick={()=>window.confirm(`سيتم تعديل الخصم إلى ${Number(customDiscount).toLocaleString("en-US")}% وإعادة موازنة المتبقي والأقساط غير المسددة. هل تريد المتابعة؟`)&&post({action:"update_discount_percent",discountPercent:Number(customDiscount)})}>حفظ الخصم</button></div>}
+                {activeFinanceTool==="withdrawal"&&(selected.withdrawal ? <div className="withdrawal-summary"><header><div><b>العميل منسحب</b><span>{selected.withdrawal.withdrawn_at} · {selected.withdrawal.reason}</span></div><em>{selected.withdrawal.status}</em></header><div><p><span>إجمالي المدفوع قبل الاسترداد</span><b>{sar(selected.withdrawal.gross_paid)}</b></p><p><span>المبلغ المسترد</span><b>{sar(selected.withdrawal.refund_amount)}</b></p><p><span>غير قابل للاسترداد</span><b>{sar(selected.withdrawal.non_refundable_amount)}</b></p><p><span>مصدر الخصم</span><b>{selected.withdrawal.refund_source==="sale"?"المبيعات":"التحصيل"}</b></p></div><footer>{selected.withdrawal.refund_method} · المرجع: {selected.withdrawal.reference} · بواسطة {selected.withdrawal.created_by_email}</footer></div> : <div className="withdrawal-tool"><div className="withdrawal-form"><label>سبب الانسحاب<textarea value={withdrawalReason} onChange={e=>setWithdrawalReason(e.target.value)} placeholder="اكتب سبب الانسحاب"/></label><label>تاريخ الانسحاب<input type="date" value={withdrawalDate} onChange={e=>setWithdrawalDate(e.target.value)}/></label><label>المبلغ المسترد<input type="number" min="0" max={selected.gross_paid||selected.paid} step="0.01" value={withdrawalRefund} onChange={e=>setWithdrawalRefund(e.target.value)}/></label><label>المبلغ غير القابل للاسترداد<input type="number" min="0" step="0.01" value={withdrawalNonRefundable} onChange={e=>setWithdrawalNonRefundable(e.target.value)}/></label><label>يُخصم الاسترداد من<select value={withdrawalSource} onChange={e=>setWithdrawalSource(e.target.value)}><option value="sale">المبيعات</option><option value="collection">التحصيل</option></select></label><label>طريقة الاسترداد<select value={withdrawalMethod} onChange={e=>setWithdrawalMethod(e.target.value)}><option>تحويل بنكي</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option><option>أخرى</option></select></label><label>مرجع الاسترداد<input value={withdrawalReference} onChange={e=>setWithdrawalReference(e.target.value)} placeholder="رقم أو رابط المرجع"/></label><button type="button" className="danger" disabled={saving||!withdrawalReason.trim()||!withdrawalDate||!withdrawalReference.trim()||Number(withdrawalRefund)<0||Number(withdrawalRefund)+Number(withdrawalNonRefundable)>Number(selected.gross_paid||selected.paid)} onClick={()=>window.confirm(`سيتم تسجيل انسحاب العميل واسترداد ${sar(Number(withdrawalRefund||0))} وإيقاف الأقساط المستقبلية. هل تريد المتابعة؟`)&&post({action:"register_withdrawal",reason:withdrawalReason,withdrawnAt:withdrawalDate,refundAmount:Number(withdrawalRefund||0),nonRefundableAmount:Number(withdrawalNonRefundable||0),refundSource:withdrawalSource,refundMethod:withdrawalMethod,reference:withdrawalReference})}>اعتماد الانسحاب والاسترداد</button></div></div>)}
+                {activeFinanceTool==="undo"&&selected.undo_available&&<div className="finance-undo-bar"><div><b>التراجع عن آخر إجراء مالي</b><span>{selected.undo_available.label} · سيبقى التراجع محفوظًا في سجل النظام.</span></div><button type="button" disabled={saving} onClick={() => window.confirm(`سيتم عكس إجراء: ${selected.undo_available?.label}. سيُحفظ التراجع في سجل النظام. هل تريد المتابعة؟`) && post({action:"undo_last_finance_action"})}>تنفيذ التراجع</button></div>}
+              </div>}
+            </div>
+            <div className={`payment-behavior-panel ${selected.payment_behavior?.tone || "neutral"}`}>
+              <div><span>سلوك السداد · محسوب تلقائياً</span><b>{selected.payment_behavior?.label || "جديد"}</b></div>
+              <p>{selected.payment_behavior?.summary || "لا يوجد سجل أقساط كافٍ للتقييم"}</p>
+            </div>
             <Section title="حالة السداد">
               <div className="schedule-form">
                 <label>
@@ -6789,6 +6788,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                 ))}
               </div>
             </Section>
+            </div>
           </aside>
         </>
       )}

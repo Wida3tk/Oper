@@ -46,8 +46,35 @@ discount, withdrawal, undo, schedule, installments, reminders and history. Chang
     fixed the same bug in the customer file.
   - The schedule form kept three 120px columns and overflowed the file by 36px.
 
-The file was restyled, not restructured. Turning it into the customer-file layout (masthead, ledger, timeline) is
-left for a later pass. The tests pin many of its class names and every control carries money logic.
+**Part 2 (2026-10-29): layout.** The file now follows the customer-file pattern. All controls and actions are
+unchanged.
+- **Header:** sticky. Avatar, name, phone (LTR), customer id and programme, a status chip and the subscription tags.
+  The close button is a labelled `<button>`.
+- **Review banner first.** «اعتماد المراجعة المالية» is the first thing in the body when an order needs approval.
+- **الملخص المالي:**
+  - one balance block: the remaining amount with its before-VAT figure, and a paid bar with its percentage;
+  - then a ledger: total after discount, paid, discount, seat fee (marked «من التسجيل» when it came from the
+    registration form), total actually paid, refunded. Each money row has its before-VAT figure.
+  - The balance label says what's true: «المتبقي على العميل», «مسدد بالكامل», «مسجل بالكامل · بانتظار اعتماد
+    المالية» (paid but not yet approved), «لا توجد قيمة برنامج على هذا الطلب» (seat only, with no misleading
+    percentage), or «العميل منسحب · لا متبقٍ عليه».
+- **بيانات الطلب والسداد:** email, order number, purchase source, track and delivery as a ledger, with the payment
+  reference and payment date beside them.
+- **Then, unchanged:** notes, the four quick actions, payment behaviour, «حالة السداد» (schedule and installments)
+  and «سجل الدفعات».
+- **Seat-transfer requests card** above the page: same markup and actions, design-system tokens, 12px minimum.
+- **Removed CSS:** 36 rules (41 selectors) for the old money cards (`.finance-hero`), the old header
+  (`.finance-center-drawer>.person`) and its pills (`.drawer-subscription-meta`), including the Phase 4 overrides
+  that targeted them.
+
+**Checks:**
+- Every case read correctly in the browser: supervision under review, seat with registration (tool disabled «300 ·
+  من التسجيل»), seat only, withdrawn (paid 2,440 = 2,940 − 500 refund).
+- Approving a review from the top banner removed it and set the status to «مدفوع».
+- Paying an installment: 3,910 → 1,955, 75%.
+- At 1440 and 375px: no text under 12px, nothing overflows, and the header stays visible while scrolling.
+- The finance audit's API checks still pass, 9 of 9.
+- Tests: 98 / 98. Lint and type errors unchanged.
 
 ## Functional preservation
 
@@ -88,8 +115,8 @@ late, due today, upcoming). Locally, `/api/finance` fails until one POST to it h
 
 ## Not done here
 
-- The finance file keeps its old layout (see above).
-- The `TransferReviews` card and the finance pages' native month input (shown in the browser's language) are
-  unchanged.
+- The finance pages' native month input still shows its label in the browser's language.
+- Open items from the audit: #3b (record a seat fee paid with registration as its own payment) and #5 (the
+  200-order cap); see [FINANCE-AUDIT.md](FINANCE-AUDIT.md).
 - `Kpi` is now used only by the unused demo components (`Dashboard`, `Finance`, `LiveDashboard`). It goes with them
   in the clean-up phase.

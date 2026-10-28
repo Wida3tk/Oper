@@ -1218,3 +1218,23 @@ test("computes finance totals like the home dashboard and fixes the audited calc
   assert.match(finance, /money\(installment\.amount_cents\),riyadhPaidAt\(\),/);
   assert.doesNotMatch(finance, /const today=new Date\(\)\.toISOString\(\)\.slice\(0,10\);/);
 });
+
+test("lays out the finance file like the customer file, with the review action and balance first", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  const file = page.slice(page.indexOf('className="drawer finance-center-drawer"'), page.indexOf("</aside>", page.indexOf('className="drawer finance-center-drawer"')));
+  assert.match(file, /<header className="cp-head fin-head">[\s\S]*className="cp-close" aria-label="إغلاق الملف المالي"/);
+  assert.match(file, /<p className="cp-meta"><span dir="ltr">\{selected\.phone\}<\/span>/);
+  // Order inside the file: review action, balance, order details, then the existing tools and schedule.
+  const at = (needle) => file.indexOf(needle);
+  assert.ok(at("approve_finance_review") > 0 && at("approve_finance_review") < at("`fin-balance"));
+  assert.ok(at("`fin-balance") < at("finance-person-details"));
+  assert.ok(at("finance-person-details") < at('className="finance-action-toolbar"'));
+  assert.ok(at('className="finance-action-toolbar"') < at('<Section title="حالة السداد">'));
+  assert.equal((file.match(/approve_finance_review/g) || []).length, 1);
+  assert.match(file, /<b>\{sar\(selected\.remaining\)\}<\/b>\s*<small>\{beforeVat\(selected\.remaining\)\}<\/small>/);
+  assert.match(file, /\{selectedPaidPct\}% من قيمة البرنامج مدفوع/);
+  assert.doesNotMatch(page, /className="finance-hero"|drawer-subscription-meta/);
+  assert.match(css, /\.fin-head\{position:sticky;top:0;z-index:2\}/);
+  assert.match(css, /section\.transfer-review-panel>details>summary span b\{color:var\(--sk-ink\);font-size:var\(--sk-fs-md\)\}/);
+});
