@@ -19,7 +19,7 @@
   commits that had been on the first machine's local `main` only.
 - Deployed to Cloudflare Workers with `npx wrangler deploy --config wrangler.deploy.jsonc` from `ad619fa`:
   version `3b8dcd9e-f537-4177-aed9-8a2498358f7c` at https://sulukera-operations.ro7e-entaa.workers.dev.
-  Checked: home 200, new CSS served, API 401 without a session. Signed-in pages weren't checked (no credentials used).
+  Checked: home 200, new CSS served, API 401 without a session. The user then signed in and confirmed the dashboard, Operations Center, customers and onboarding work on the live site.
 - Previous live version, for rollback: `bb58c5db-8d9c-411e-9cce-186111b241a7` (deployed 2026-10-28 07:02 UTC by an
   external tool, contents unknown). Roll back with:
   `npx wrangler rollback bb58c5db-8d9c-411e-9cce-186111b241a7 --config wrangler.deploy.jsonc`
