@@ -627,11 +627,34 @@ test("closes withdrawal follow-ups for good and hides them from the attention li
   assert.doesNotMatch(api, /UPDATE attention_followups SET state='closed'/);
 });
 
+test("lists tasks due today next to overdue ones and names the staff behind each case", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/operations-center/route.ts");
+  assert.match(api, /CASE WHEN date\(t\.due_at\)<date\('now','\+3 hours'\) THEN 'overdue' ELSE 'due_today' END task_state/);
+  assert.match(api, /date\(t\.due_at\)<=date\('now','\+3 hours'\)/);
+  assert.match(api, /overdue: overdue\.results\.length - dueToday,/);
+  assert.match(api, /SELECT email,display_name FROM staff_accounts/);
+  assert.match(page, /staffLabel\(item\.responsible_name, item\.responsible_email\)/);
+  assert.doesNotMatch(page, /\? "reservations" : "registration"/);
+});
+
+test("counts dashboard customers once, on Riyadh dates, without deleted or withdrawn files", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/dashboard/home/route.ts");
+  assert.match(api, /SELECT COUNT\(DISTINCT x\.customer_id\) count FROM \(SELECT CASE entity_type/);
+  assert.match(api, /JOIN customers c ON c\.id=x\.customer_id WHERE c\.deleted_at IS NULL/);
+  assert.match(api, /date\(created_at,'\+3 hours'\)=date\('now','\+3 hours'\) AND deleted_at IS NULL/);
+  assert.match(api, /WHERE c\.deleted_at IS NULL AND e\.status!='منسحب'/);
+  assert.match(api, /FROM withdrawals w JOIN orders o ON o\.id=w\.order_id JOIN customers c ON c\.id=o\.customer_id WHERE c\.deleted_at IS NULL/);
+  assert.doesNotMatch(api, /COUNT\(DISTINCT entity_id\)/);
+  assert.match(page, /const todayKey=now\.toLocaleDateString\("en-CA"\);/);
+});
+
 test("renders the operations center as a filterable priority queue with one agenda", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
   assert.match(page, /<div className="ops-home ops-work" aria-busy=\{loading\}>/);
-  assert.match(page, /const operationsCaseKinds = \[\["all", "الكل"\], \["overdue", "متأخرة"\], \["policy", "السياسة والانسحاب"\], \["data", "بيانات ناقصة"\]\]/);
+  assert.match(page, /const operationsCaseKinds = \[\["all", "الكل"\], \["overdue", "متأخرة"\], \["due_today", "مستحقة اليوم"\], \["policy", "السياسة والانسحاب"\], \["data", "بيانات ناقصة"\]\]/);
   assert.match(page, /onClick=\{\(\) => focusQueue\("overdue"\)\}/);
   assert.match(page, /\.\.\.data\.events\.map\(\(item\) => \(\{ id: `event-\$\{item\.id\}`/);
   assert.match(page, /\.\.\.data\.schedule\.map\(\(item\) => \(\{ id: `schedule-\$\{item\.id\}`/);

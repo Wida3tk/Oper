@@ -32,7 +32,7 @@ Read first: [README.md](README.md) (what changed, preservation checks, phase pla
 
 | Check | Baseline on this branch |
 |---|---|
-| `npm test` | 80 / 80 (82 / 82 on `design/phase-0-shell` after Phase 1) |
+| `npm test` | 80 / 80 (86 / 86 on `design/phase-0-shell` after Phase 1 and its fixes) |
 | `npx eslint app/page.tsx` | 30 errors, 32 warnings (all pre-existing) |
 | `npx tsc --noEmit` errors in `page.tsx` | 20 (pre-existing) |
 

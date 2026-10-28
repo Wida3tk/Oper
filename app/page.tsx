@@ -3051,7 +3051,7 @@ const activitySentence=(item:HomeData["activity"][number])=>{
  return (activityVerbs[item.action]||((name:string)=>`نفّذ ${name} تحديثًا في النظام`))(actor);
 };
 function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceReview}:{onOpenTasks:()=>void;onOpenCustomers:()=>void;onOpenFinance:()=>void;onOpenFinanceReview:(kind:string)=>void}){
- const now=new Date(),[month,setMonth]=useState(now.toISOString().slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[weeklyDrafts,setWeeklyDrafts]=useState<Record<string,string>>({}),[savingWeek,setSavingWeek]=useState<number|null>(null),[selectedWeek,setSelectedWeek]=useState(1),[editingWeeklyTarget,setEditingWeeklyTarget]=useState(false),[activityPage,setActivityPage]=useState(0),[openTraineeGroup,setOpenTraineeGroup]=useState("aba");
+ const now=new Date(),[month,setMonth]=useState(now.toLocaleDateString("en-CA").slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[weeklyDrafts,setWeeklyDrafts]=useState<Record<string,string>>({}),[savingWeek,setSavingWeek]=useState<number|null>(null),[selectedWeek,setSelectedWeek]=useState(1),[editingWeeklyTarget,setEditingWeeklyTarget]=useState(false),[activityPage,setActivityPage]=useState(0),[openTraineeGroup,setOpenTraineeGroup]=useState("aba");
  const load=async()=>{setLoading(true);setError("");try{const result=await apiJson(`/api/dashboard/home?month=${month}`);setData(result);setTarget(String(result.finance?.target||""));setWeeklyDrafts(Object.fromEntries(Object.entries(result.finance?.weeklyTargets||{}).map(([key,value])=>[key,String(value||"")])))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[month]);
  if(!data)return loading?<HomeDashboardSkeleton/>:<LiveState loading={false} error={error} empty/>;
@@ -3059,7 +3059,7 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
  let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),rawMax=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections])),magnitude=10**Math.floor(Math.log10(rawMax)),chartMax=Math.ceil(rawMax/magnitude*2)/2*magnitude,money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),compactMoney=(value:number)=>value>=1000?`${Number((value/1000).toFixed(value>=10000?0:1))}K`:money(value),targetRatio=f?.target?Math.min(100,Math.round(f.sales/f.target*100)):0,activeDays=raw.filter(row=>row.sales>0||row.collections>0).length,peak=raw.reduce((best,row)=>row.sales+row.collections>best.sales+best.collections?row:best,raw[0]),chartTicks=[chartMax,chartMax*.75,chartMax*.5,chartMax*.25,0];
  const monthStart=new Date(`${month}-01T12:00:00`),firstSaturdayDay=1+(6-monthStart.getDay()+7)%7,monthEndDay=days,weekRanges:Array<{start:number;end:number}>=[];
  for(let startDay=firstSaturdayDay;startDay<=monthEndDay;startDay+=7)weekRanges.push({start:startDay,end:Math.min(startDay+5,monthEndDay)});
- const todayKey=new Date().toISOString().slice(0,10);
+ const todayKey=now.toLocaleDateString("en-CA");
  const weeklyProgress=weekRanges.map((range,index)=>{const rows=raw.filter(row=>{const day=Number(row.day.slice(-2));return day>=range.start&&day<=range.end}),actual=rows.reduce((sum,row)=>sum+row.sales,0),weekIndex=index+1,weekTarget=Number(f?.weeklyTargets?.[String(weekIndex)]||0),ratio=weekTarget?Math.round(actual/weekTarget*100):0,startKey=`${month}-${String(range.start).padStart(2,"0")}`,endKey=`${month}-${String(range.end).padStart(2,"0")}`;return {index:weekIndex,...range,actual,target:weekTarget,ratio,isCurrent:todayKey>=startKey&&todayKey<=endKey}});
  const displayedSales=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).sales:(chart.at(-1)?.sales||0),displayedCollections=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).collections:(chart.at(-1)?.collections||0),displayedTotal=displayedSales+displayedCollections;
  const selectedWeeklyProgress=weeklyProgress.find(week=>week.index===selectedWeek)||weeklyProgress[0];
@@ -3824,10 +3824,10 @@ type OperationsCenterData = {
   generatedAt: string;
   canManageEvents: boolean;
   canTakeAttentionAction: boolean;
-  stats: { upcoming: number; overdue: number; attention: number; incomplete: number };
+  stats: { upcoming: number; overdue: number; dueToday?: number; attention: number; incomplete: number };
   events: { id: string; title: string; event_date: string; event_time?: string; details?: string; audience: string }[];
   schedule: { id: string; assignment_date?: string; start_date?: string; reservation_kind: string; cohort_label?: string; status: string; customer_name: string; program_name: string }[];
-  exceptions: { id: string; order_id?: string; order_number?: string; customer_id?: string; customer_name?: string; phone?: string; email?: string; program_name?: string; purchase_source?: string; track?: string; delivery?: string; total?: number; paid?: number; title: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string; priority?: string; responsible_email?: string; last_action_by_email?: string; last_action_at?: string; attention_state?: "needs_operations" | "waiting_finance" | "finance_resolved" }[];
+  exceptions: { id: string; order_id?: string; order_number?: string; customer_id?: string; customer_name?: string; phone?: string; email?: string; program_name?: string; purchase_source?: string; track?: string; delivery?: string; total?: number; paid?: number; title: string; department: string; due_at?: string; entity_type: string; kind: string; severity: string; priority?: string; responsible_email?: string; responsible_name?: string | null; last_action_by_email?: string; last_action_by_name?: string | null; last_action_at?: string; attention_state?: "needs_operations" | "waiting_finance" | "finance_resolved" }[];
 };
 
 const DAILY_OPERATIONS_MESSAGES = [
@@ -3868,7 +3868,7 @@ function dailyOperationsMessage(date = new Date()) {
   return DAILY_OPERATIONS_MESSAGES[dayNumber % DAILY_OPERATIONS_MESSAGES.length];
 }
 
-const operationsCaseKinds = [["all", "الكل"], ["overdue", "متأخرة"], ["policy", "السياسة والانسحاب"], ["data", "بيانات ناقصة"]] as const;
+const operationsCaseKinds = [["all", "الكل"], ["overdue", "متأخرة"], ["due_today", "مستحقة اليوم"], ["policy", "السياسة والانسحاب"], ["data", "بيانات ناقصة"]] as const;
 type OperationsCaseKind = (typeof operationsCaseKinds)[number][0];
 type OperationsCase = OperationsCenterData["exceptions"][number];
 function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate: (view: View) => void;onOpenCustomer:(customer:(typeof initialPeople)[number])=>void;currentEmail?:string }) {
@@ -3881,10 +3881,11 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
   const dateLabel = (value?: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn", { weekday: "short", day: "numeric", month: "short" }) : "غير محدد";
   const timeAgo = (value?: string) => { if (!value) return "غير مسجل"; const diff = Math.max(0, Date.now() - new Date(value).getTime()), hours = Math.floor(diff / 3_600_000); return hours < 1 ? "منذ أقل من ساعة" : hours < 24 ? `منذ ${hours} ساعة` : `منذ ${Math.floor(hours / 24)} يوم`; };
   const shortEmail = (value?: string) => value ? value.split("@")[0] : "غير مسند";
+  const staffLabel = (name?: string | null, email?: string) => name || shortEmail(email);
   const waitingFor = (row: OperationsCenterData["exceptions"][number]) => row.attention_state === "waiting_finance" || row.department === "المالية" ? "المالية" : row.kind === "data" ? "التشغيل" : "التشغيل";
   const nextAction = (row: OperationsCenterData["exceptions"][number]) => row.kind === "withdrawal" ? "إكمال إجراء الانسحاب وإغلاق المتابعة" : row.kind === "policy" ? row.attention_state === "waiting_finance" ? "تحديث الحالة من المالية" : "تنفيذ الإجراء التشغيلي وتوثيقه" : row.kind === "data" ? "استكمال وسيلة التواصل الناقصة" : row.title;
   const whatsappHref = (row: OperationsCenterData["exceptions"][number]) => { const digits = String(row.phone || "").replace(/\D/g, "").replace(/^00/, ""); if (!digits) return ""; const phone = digits.startsWith("966") ? digits : digits.startsWith("0") ? `966${digits.slice(1)}` : digits; return `https://wa.me/${phone}?text=${encodeURIComponent(`مرحبًا ${row.customer_name || ""}، نتابع معك بخصوص ${row.program_name || "طلبك"}.`)}`; };
-  const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : row.entity_type === "reservation" ? "reservations" : "registration";
+  const routeFor = (row: OperationsCenterData["exceptions"][number]): View => row.kind === "policy" || row.department === "المالية" ? "finance" : "registration";
   const openCustomer=(row:OperationsCenterData["exceptions"][number])=>{if(!row.customer_id)return;onOpenCustomer({id:row.customer_id,name:row.customer_name||"عميل",phone:row.phone||"—",program:row.program_name||"—",track:row.track||"—",cohort:"—",source:row.purchase_source||"—",owner:"غير مسند",state:row.title,tone:row.severity,due:row.due_at?`مستحق ${dateLabel(row.due_at)}`:"بحاجة إلى إجراء",paid:Number(row.paid||0),total:Number(row.total||0),email:row.email||"",orderId:row.order_number||row.order_id||"—",delivery:row.delivery||""} as (typeof initialPeople)[number])};
   const takeAttentionAction = async (row: OperationsCenterData["exceptions"][number]) => {
     if (!row.order_id) return;
@@ -3898,7 +3899,7 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
   const dateLocale = "ar-SA-u-ca-gregory-nu-latn", dayKey = (value?: string) => String(value || "").slice(0, 10), now = new Date(), localToday = now.toLocaleDateString("en-CA"), localTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toLocaleDateString("en-CA");
   const dayHeading = (day: string) => day === localToday ? "اليوم" : day === localTomorrow ? "غدًا" : new Date(`${day}T12:00:00`).toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" });
   const caseLabel = (row: OperationsCase) => row.kind === "withdrawal" ? "إجراء انسحاب" : row.kind === "policy" ? row.attention_state === "waiting_finance" ? "بانتظار تحديث المالية" : "إجراء تشغيلي مطلوب" : row.title;
-  const kindLabel = (row: OperationsCase) => row.kind === "overdue" ? "مهمة متأخرة" : row.kind === "withdrawal" ? "انسحاب" : row.kind === "policy" ? "تطبيق السياسة" : "بيانات ناقصة";
+  const kindLabel = (row: OperationsCase) => row.kind === "overdue" ? "مهمة متأخرة" : row.kind === "due_today" ? "مستحقة اليوم" : row.kind === "withdrawal" ? "انسحاب" : row.kind === "policy" ? "تطبيق السياسة" : "بيانات ناقصة";
   const kindGroup = (row: OperationsCase): OperationsCaseKind => row.kind === "withdrawal" ? "policy" : row.kind as OperationsCaseKind;
   const priorityTone = (row: OperationsCase) => row.priority === "عاجلة" ? "urgent" : row.priority === "عالية" || !row.priority ? "high" : "normal";
   const dueChip = (row: OperationsCase) => {
@@ -3907,7 +3908,7 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
     if (late > 0) return { label: late === 1 ? "متأخرة يومًا" : late === 2 ? "متأخرة يومين" : `متأخرة ${late} ${late <= 10 ? "أيام" : "يومًا"}`, tone: "late" };
     return late === 0 ? { label: "اليوم", tone: "today" } : { label: dateLabel(row.due_at), tone: "" };
   };
-  const priorityOrder: Record<string, number> = { "عاجلة": 0, "عالية": 1 }, kindOrder: Record<string, number> = { overdue: 0, withdrawal: 1, policy: 2 };
+  const priorityOrder: Record<string, number> = { "عاجلة": 0, "عالية": 1 }, kindOrder: Record<string, number> = { overdue: 0, due_today: 1, withdrawal: 2, policy: 3 };
   const rank = (row: OperationsCase) => [priorityOrder[row.priority || "عالية"] ?? 2, kindOrder[row.kind] ?? 3];
   const sortedCases = [...data.exceptions].sort((a, b) => { const [pa, ka] = rank(a), [pb, kb] = rank(b); return pa - pb || ka - kb || (a.due_at || "9").localeCompare(b.due_at || "9"); });
   const needle = caseQuery.trim().toLowerCase();
@@ -3920,7 +3921,7 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
   const scrollToPanel = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   const focusQueue = (next: OperationsCaseKind) => { clearFilters(); setKind(next); scrollToPanel("oc-queue"); };
   // The API caps each case query at 50 rows; say so instead of implying the list is complete.
-  const capped = [data.stats.overdue, data.stats.attention, data.stats.incomplete].some((count) => count >= 50);
+  const capped = [data.stats.overdue + (data.stats.dueToday || 0), data.stats.attention, data.stats.incomplete].some((count) => count >= 50);
   const agenda = [
     ...data.events.map((item) => ({ id: `event-${item.id}`, day: dayKey(item.event_date), type: "event" as const, title: item.title, detail: item.details || "موعد للفريق", extra: "", time: item.event_time || "طوال اليوم", tag: "موعد فريق" })),
     ...data.schedule.map((item) => ({ id: `schedule-${item.id}`, day: dayKey(item.assignment_date || item.start_date), type: "schedule" as const, title: item.program_name, detail: `${item.customer_name} · ${item.reservation_kind}${item.cohort_label ? ` · ${item.cohort_label}` : ""}`, extra: item.assignment_date && item.start_date ? `بداية البرنامج ${dateLabel(item.start_date)}` : "", time: item.assignment_date ? "موعد الإسناد" : "بداية البرنامج", tag: item.status })),
@@ -3935,7 +3936,7 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
     <section className="oh-pulse oc-pulse" aria-labelledby="oc-pulse-title">
       <header><h3 id="oc-pulse-title">نبض التشغيل</h3><p>اضغط على أي مؤشر لعرض الحالات التي تكوّن منها الرقم.</p></header>
       <div>
-        <HomeMetric icon={Clock3} label="مهام متأخرة" value={data.stats.overdue} note="مهام مفتوحة تجاوزت تاريخ تنفيذها" tone={data.stats.overdue ? "danger" : "neutral"} onClick={() => focusQueue("overdue")} />
+        <HomeMetric icon={Clock3} label="مهام متأخرة" value={data.stats.overdue} note={data.stats.dueToday ? `مهام تجاوزت تاريخ تنفيذها، و${data.stats.dueToday} مستحقة اليوم` : "مهام مفتوحة تجاوزت تاريخ تنفيذها"} tone={data.stats.overdue ? "danger" : "neutral"} onClick={() => focusQueue("overdue")} />
         <HomeMetric icon={ShieldCheck} label="السياسة والانسحاب" value={data.stats.attention} note="حالات تطبيق السياسة والانسحاب المفتوحة" tone={data.stats.attention ? "attention" : "neutral"} onClick={() => focusQueue("policy")} />
         <HomeMetric icon={CircleUserRound} label="بيانات ناقصة" value={data.stats.incomplete} note="عملاء دون جوال أو بريد، تؤثر على جاهزيتهم" tone={data.stats.incomplete ? "attention" : "neutral"} onClick={() => focusQueue("data")} />
         <HomeMetric icon={CalendarDays} label="مواعيد قادمة" value={data.stats.upcoming} note="الجدول التشغيلي لـ30 يومًا ومواعيد الفريق لـ90 يومًا" tone="brand" onClick={() => scrollToPanel("oc-agenda")} />
@@ -3961,7 +3962,7 @@ function LiveWork({ onNavigate,onOpenCustomer,currentEmail = "" }: { onNavigate:
                 <p className="oc-case-head"><span className="oc-kind">{kindLabel(item)}</span><b>{caseLabel(item)}</b></p>
                 <p className="oc-case-who">{item.customer_id ? <button type="button" className="exception-customer" onClick={(event) => { event.stopPropagation(); openCustomer(item); }}>{item.customer_name || "عميل"}</button> : <span>{item.customer_name || "إجراء داخلي"}</span>}<span>{[item.program_name, item.order_number].filter(Boolean).join(" · ") || "ملف العميل"}</span></p>
                 {nextAction(item) !== caseLabel(item) && <p className="oc-next"><small>الإجراء التالي</small>{nextAction(item)}</p>}
-                <dl className="oc-meta"><div><dt>بانتظار</dt><dd>{waitingFor(item)}</dd></div><div><dt>المسؤول</dt><dd>{shortEmail(item.responsible_email)}</dd></div><div><dt>عمر الحالة</dt><dd>{timeAgo(item.last_action_at)}</dd></div><div><dt>آخر إجراء</dt><dd>{item.last_action_by_email ? shortEmail(item.last_action_by_email) : "لم يسجل"}</dd></div></dl>
+                <dl className="oc-meta"><div><dt>بانتظار</dt><dd>{waitingFor(item)}</dd></div><div><dt>المسؤول</dt><dd>{staffLabel(item.responsible_name, item.responsible_email)}</dd></div><div><dt>عمر الحالة</dt><dd>{timeAgo(item.last_action_at)}</dd></div><div><dt>آخر إجراء</dt><dd>{item.last_action_by_email ? staffLabel(item.last_action_by_name, item.last_action_by_email) : "لم يسجل"}</dd></div></dl>
               </div>
               <div className="oc-case-side"><em className={`oc-due ${due.tone}`}>{due.label}</em><span className="oc-priority">أولوية {item.priority || "عالية"}</span></div>
               <div className="oc-actions">

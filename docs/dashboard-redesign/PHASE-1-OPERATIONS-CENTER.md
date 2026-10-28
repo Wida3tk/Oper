@@ -93,6 +93,35 @@ These need API, permission or product changes, which are outside this phase's ru
    which is no longer rendered (blank page).
 10. **Dead code:** `LegacyLiveWork` isn't used anywhere. Remove it in Phase 7.
 
+## Follow-up approved by the user (separate commit)
+
+The user approved suggestions 3, 4 and 9, and asked for a check that every dashboard figure is wired
+correctly.
+
+**Operations Center**
+- **#3 Names:** the API attaches `responsible_name` and `last_action_by_name` from `staff_accounts.display_name`.
+  The queue shows "ريم" instead of `academy.qa`, and falls back to the email prefix when no name is set.
+- **#4 Due today:** open tasks due today now come back with `kind: "due_today"`. They get their own segment
+  ("مستحقة اليوم") and are counted in `stats.dueToday`. `stats.overdue` still counts overdue tasks only.
+- **#9 Dead route:** cases with no customer no longer route to the removed `reservations` view.
+
+**Dashboard (`/api/dashboard/home`)**: each figure was recomputed in JS from the raw synthetic tables and
+compared with the API. All 12 match after these fixes:
+
+| Figure | Problem | Fix |
+|---|---|---|
+| عملاء يحتاجون متابعة | Counted distinct task *entities* (enrollment, payment, reservation…), so one customer with two tasks counted twice. It also included deleted customers, although the note says they're excluded | Maps every task type to its customer and counts distinct, non-deleted customers. Synthetic check: 17 (the old query gave 20) |
+| عملاء أضيفوا اليوم | Used the UTC date, so "today" started at 03:00 Riyadh | `date(created_at,'+3 hours')=date('now','+3 hours')`, like the other routes |
+| Default month, "today" in the chart and weeks | UTC on server and client | Riyadh month on the server, local date in the browser |
+| توزيع المتدربين | Counted withdrawn enrollments and deleted customers as trainees | Excludes `منسحب` enrollments and deleted customers |
+| Refunds | Subtracted refunds of deleted customers, whose payments aren't counted | Same deleted-customer filter as payments |
+
+Matched with no change: total customers, net sales, net collections, cash total, order count, contract value,
+remaining, pending review, and the daily chart summing to net sales.
+
+Not changed: the Finance module still uses UTC for its own month and "today" (`LiveFinance`). That belongs to Phase 4.
+Suggestion #8 (one window for upcoming items) still needs the user's choice.
+
 ## Known limits
 
 - The synthetic seed had no events, policy cases or incomplete-data cases. A local-only add-on script inserted

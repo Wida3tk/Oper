@@ -7,17 +7,27 @@ export async function GET(req:Request){
   const auth=await authorize(req,["sales","finance","academy","viewer"]);if(!auth.ok)return auth.response;
   const db=operationalDb();await ensureFinanceClassificationSchema(db);
   await db.prepare("CREATE TABLE IF NOT EXISTS withdrawals(id TEXT PRIMARY KEY,order_id TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,withdrawn_at TEXT NOT NULL,gross_paid REAL NOT NULL,non_refundable_amount REAL NOT NULL DEFAULT 0,refund_amount REAL NOT NULL DEFAULT 0,refund_source TEXT NOT NULL,refund_method TEXT NOT NULL,reference TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'مكتمل',created_by_email TEXT NOT NULL,created_at TEXT NOT NULL)").run();
-  const requested=new URL(req.url).searchParams.get("month")||new Date().toISOString().slice(0,7);
-  const month=/^\d{4}-\d{2}$/.test(requested)?requested:new Date().toISOString().slice(0,7);
-  const today=new Date().toISOString().slice(0,10),canSeeFinance=auth.roles.includes("admin")||auth.roles.includes("finance")||can(auth,"finance.view"),isAdmin=auth.roles.includes("admin");
+  // Business dates are Riyadh (UTC+3), matching the date('now','+3 hours') used by the other routes.
+  const riyadhMonth=new Date(Date.now()+3*3600_000).toISOString().slice(0,7);
+  const requested=new URL(req.url).searchParams.get("month")||riyadhMonth;
+  const month=/^\d{4}-\d{2}$/.test(requested)?requested:riyadhMonth;
+  const canSeeFinance=auth.roles.includes("admin")||auth.roles.includes("finance")||can(auth,"finance.view"),isAdmin=auth.roles.includes("admin");
   const taskScope=isAdmin?"":"AND assignee_email=?";
   const taskQuery=db.prepare(`SELECT id,title,department,priority,due_at FROM workflow_tasks WHERE status!='مكتملة' ${taskScope} ORDER BY CASE priority WHEN 'عاجلة' THEN 0 WHEN 'عالية' THEN 1 ELSE 2 END,due_at LIMIT 6`);
-  const pendingQuery=db.prepare(`SELECT COUNT(DISTINCT entity_id) count FROM workflow_tasks WHERE status!='مكتملة' ${taskScope}`);
+  // Count customers, not task entities: one customer can have open tasks on an enrollment, a payment and a reservation.
+  const pendingQuery=db.prepare(`SELECT COUNT(DISTINCT x.customer_id) count FROM (SELECT CASE entity_type
+      WHEN 'customer' THEN entity_id
+      WHEN 'enrollment' THEN (SELECT e.customer_id FROM enrollments e WHERE e.id=entity_id)
+      WHEN 'payment' THEN (SELECT o.customer_id FROM payments py JOIN orders o ON o.id=py.order_id WHERE py.id=entity_id)
+      WHEN 'reservation' THEN (SELECT r.customer_id FROM seat_reservations r WHERE r.id=entity_id)
+      WHEN 'reservation_transfer' THEN (SELECT r.customer_id FROM reservation_transfers rt JOIN seat_reservations r ON r.id=rt.from_reservation_id WHERE rt.id=entity_id)
+      WHEN 'trial' THEN (SELECT t.customer_id FROM program_trials t WHERE t.id=entity_id)
+    END customer_id FROM workflow_tasks WHERE status!='مكتملة' ${taskScope}) x JOIN customers c ON c.id=x.customer_id WHERE c.deleted_at IS NULL`);
   const [account,tasks,pendingCustomers,customers,totalCustomers,journey,activity,traineeRows]=await Promise.all([
     db.prepare("SELECT display_name FROM staff_accounts WHERE email=?").bind(auth.email).first<{display_name:string}>(),
     (isAdmin?taskQuery:taskQuery.bind(auth.email)).all(),
     (isAdmin?pendingQuery:pendingQuery.bind(auth.email)).first(),
-    db.prepare("SELECT COUNT(*) count FROM customers WHERE substr(created_at,1,10)=? AND deleted_at IS NULL").bind(today).first(),
+    db.prepare("SELECT COUNT(*) count FROM customers WHERE date(created_at,'+3 hours')=date('now','+3 hours') AND deleted_at IS NULL").first(),
     db.prepare("SELECT COUNT(*) count FROM customers WHERE deleted_at IS NULL").first(),
     db.prepare("SELECT status,COUNT(*) count FROM enrollments GROUP BY status ORDER BY MIN(created_at)").all(),
     db.prepare(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.actor_email,a.created_at,s.display_name actor_name,
@@ -34,7 +44,8 @@ export async function GET(req:Request){
       END subject_name
       FROM audit_log a LEFT JOIN staff_accounts s ON s.email=a.actor_email ORDER BY a.created_at DESC LIMIT 10`).all(),
     db.prepare(`SELECT p.name program_name,COALESCE(NULLIF(o.track,''),'غير محدد') detail,COUNT(DISTINCT e.customer_id) count
-      FROM enrollments e JOIN programs p ON p.id=e.program_id JOIN orders o ON o.id=e.order_id
+      FROM enrollments e JOIN programs p ON p.id=e.program_id JOIN orders o ON o.id=e.order_id JOIN customers c ON c.id=e.customer_id
+      WHERE c.deleted_at IS NULL AND e.status!='منسحب'
       GROUP BY p.name,COALESCE(NULLIF(o.track,''),'غير محدد') ORDER BY count DESC,p.name`).all(),
   ]);
   const traineeGroups=[
@@ -68,7 +79,7 @@ export async function GET(req:Request){
         FROM orders o JOIN customers c ON c.id=o.customer_id
         WHERE c.deleted_at IS NULL AND o.finance_review_status='pending'
         GROUP BY kind`).all(),
-      db.prepare("SELECT withdrawn_at day,COALESCE(SUM(CASE WHEN refund_source='sale' THEN refund_amount ELSE 0 END),0) sales_refunds,COALESCE(SUM(CASE WHEN refund_source='collection' THEN refund_amount ELSE 0 END),0) collection_refunds FROM withdrawals WHERE status='مكتمل' AND substr(withdrawn_at,1,7)=? GROUP BY withdrawn_at ORDER BY withdrawn_at").bind(month).all(),
+      db.prepare("SELECT w.withdrawn_at day,COALESCE(SUM(CASE WHEN w.refund_source='sale' THEN w.refund_amount ELSE 0 END),0) sales_refunds,COALESCE(SUM(CASE WHEN w.refund_source='collection' THEN w.refund_amount ELSE 0 END),0) collection_refunds FROM withdrawals w JOIN orders o ON o.id=w.order_id JOIN customers c ON c.id=o.customer_id WHERE c.deleted_at IS NULL AND w.status='مكتمل' AND substr(w.withdrawn_at,1,7)=? GROUP BY w.withdrawn_at ORDER BY w.withdrawn_at").bind(month).all(),
     ]);
     const dailyMap=new Map<string,{day:string;sales:number;collections:number}>();for(const row of flows.results)dailyMap.set(String(row.day),{day:String(row.day),sales:num(row.sales),collections:num(row.collections)});for(const row of refunds.results){const day=String(row.day),entry=dailyMap.get(day)||{day,sales:0,collections:0};entry.sales-=num(row.sales_refunds);entry.collections-=num(row.collection_refunds);dailyMap.set(day,entry)}const daily=[...dailyMap.values()].sort((a,b)=>a.day.localeCompare(b.day));
     const grossSales=flows.results.reduce((sum,row)=>sum+num(row.sales),0),grossCollections=flows.results.reduce((sum,row)=>sum+num(row.collections),0),salesRefunds=refunds.results.reduce((sum,row)=>sum+num(row.sales_refunds),0),collectionRefunds=refunds.results.reduce((sum,row)=>sum+num(row.collection_refunds),0),sales=grossSales-salesRefunds,collections=grossCollections-collectionRefunds,contractValue=num((contracts as Record<string,unknown>)?.value);

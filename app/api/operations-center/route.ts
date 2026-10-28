@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const canSeeFinance = auth.roles.includes("admin") || auth.roles.includes("finance") || can(auth, "finance.view");
   const canTakeAttentionAction = auth.roles.includes("academy");
   const financeFilter = canSeeFinance ? "" : "AND t.department!='المالية'";
-  const [schedule, events, overdue, attention, incomplete] = await Promise.all([
+  const [schedule, events, overdue, attention, incomplete, staff] = await Promise.all([
     db.prepare(`SELECT r.id,r.assignment_date,r.start_date,r.reservation_kind,r.cohort_label,r.status,c.name customer_name,p.name program_name
       FROM seat_reservations r JOIN customers c ON c.id=r.customer_id JOIN programs p ON p.id=r.program_id
       WHERE r.converted_enrollment_id IS NULL AND r.status IN ('مؤكد','بانتظار البدء','بانتظار الإسناد')
@@ -23,6 +23,7 @@ export async function GET(req: Request) {
       ORDER BY COALESCE(r.assignment_date,r.start_date),r.start_date LIMIT 100`).all(),
     db.prepare("SELECT * FROM team_events WHERE date(event_date) BETWEEN date('now','+3 hours') AND date('now','+3 hours','+90 days') ORDER BY event_date,event_time LIMIT 200").all<Record<string, unknown>>(),
     db.prepare(`SELECT t.id,t.title,t.department,t.due_at,t.entity_type,t.priority,t.assignee_email responsible_email,t.created_by_email last_action_by_email,t.created_at last_action_at,
+      CASE WHEN date(t.due_at)<date('now','+3 hours') THEN 'overdue' ELSE 'due_today' END task_state,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT e.customer_id FROM enrollments e WHERE e.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT r.customer_id FROM seat_reservations r WHERE r.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT o.customer_id FROM payments py JOIN orders o ON o.id=py.order_id WHERE py.id=t.entity_id) END customer_id,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT e.order_id FROM enrollments e WHERE e.id=t.entity_id) WHEN t.entity_type='reservation' THEN (SELECT r.order_id FROM seat_reservations r WHERE r.id=t.entity_id) WHEN t.entity_type='payment' THEN (SELECT py.order_id FROM payments py WHERE py.id=t.entity_id) END order_id,
       CASE WHEN t.entity_type='enrollment' THEN (SELECT c.name FROM enrollments e JOIN customers c ON c.id=e.customer_id WHERE e.id=t.entity_id)
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
       CASE WHEN t.entity_type='enrollment' THEN (SELECT p.name FROM enrollments e JOIN programs p ON p.id=e.program_id WHERE e.id=t.entity_id)
            WHEN t.entity_type='reservation' THEN (SELECT p.name FROM seat_reservations r JOIN programs p ON p.id=r.program_id WHERE r.id=t.entity_id)
            WHEN t.entity_type='payment' THEN (SELECT p.name FROM payments py JOIN orders o ON o.id=py.order_id LEFT JOIN programs p ON p.id=o.program_id WHERE py.id=t.entity_id) END program_name
-      FROM workflow_tasks t WHERE t.status!='مكتملة' AND t.due_at IS NOT NULL AND date(t.due_at)<date('now','+3 hours') ${financeFilter}
+      FROM workflow_tasks t WHERE t.status!='مكتملة' AND t.due_at IS NOT NULL AND date(t.due_at)<=date('now','+3 hours') ${financeFilter}
       ORDER BY t.due_at LIMIT 50`).all(),
     db.prepare(`SELECT CASE WHEN w.id IS NOT NULL THEN 'withdrawal-' ELSE 'policy-' END||o.id id,o.id order_id,c.id customer_id,c.name customer_name,c.phone,c.email,p.name program_name,o.order_number,o.purchase_source,o.track,o.delivery,o.total,o.paid,
       CASE WHEN w.id IS NOT NULL THEN 'العميل منسحب' ELSE 'تطبيق السياسة' END title,'المالية' department,NULL due_at,
@@ -54,12 +55,16 @@ export async function GET(req: Request) {
       FROM enrollments e JOIN customers c ON c.id=e.customer_id JOIN programs p ON p.id=e.program_id
       JOIN orders o ON o.id=e.order_id
       WHERE e.status!='مكتمل' AND (trim(COALESCE(c.phone,''))='' OR trim(COALESCE(c.email,''))='') ORDER BY e.updated_at LIMIT 50`).all(),
+    db.prepare("SELECT email,display_name FROM staff_accounts WHERE COALESCE(display_name,'')!=''").all<{ email: string; display_name: string }>(),
   ]);
+  const staffNames = new Map(staff.results.map((row: { email: string; display_name: string }) => [row.email, row.display_name]));
+  const withNames = (row: Record<string, unknown>) => ({ ...row, responsible_name: staffNames.get(String(row.responsible_email || "")) || null, last_action_by_name: staffNames.get(String(row.last_action_by_email || "")) || null });
+  const dueToday = overdue.results.filter((row: Record<string, unknown>) => row.task_state === "due_today").length;
   const exceptions = [
-    ...overdue.results.map((row) => ({ ...row, kind: "overdue", severity: "red" })),
+    ...overdue.results.map((row) => ({ ...row, kind: row.task_state === "due_today" ? "due_today" : "overdue", severity: row.task_state === "due_today" ? "amber" : "red" })),
     ...attention.results.map((row) => ({ ...row, kind: row.entity_type === "withdrawal" ? "withdrawal" : "policy", severity: row.entity_type === "withdrawal" ? "red" : row.attention_state === "finance_resolved" ? "green" : "red" })),
     ...incomplete.results.map((row) => ({ ...row, kind: "data", severity: "amber" })),
-  ];
+  ].map(withNames);
   const visibleEvents = events.results.filter((row) => {
     const audience = String(row.audience || "all").split(",");
     return auth.roles.includes("admin") || audience.includes("all") || auth.roles.some((role) => audience.includes(role));
@@ -73,7 +78,8 @@ export async function GET(req: Request) {
     canTakeAttentionAction,
     stats: {
       upcoming: schedule.results.length + visibleEvents.length,
-      overdue: overdue.results.length,
+      overdue: overdue.results.length - dueToday,
+      dueToday,
       attention: attention.results.length,
       incomplete: incomplete.results.length,
     },
