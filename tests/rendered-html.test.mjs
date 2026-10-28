@@ -1112,7 +1112,7 @@ test("holds scheduled live programmes until the assignment date", async () => {
   const finance = await read("../app/api/finance/route.ts");
   const customers = await read("../app/api/customers/route.ts");
   // Intake keeps a future assignment date as a waiting reservation, without an enrollment yet.
-  assert.match(intake, /heldUntilAssignment=\(\(!isAsara&&isDirectProgram\)\|\|isSupervision\|\|hasSeatReservation\)&&assignmentDate>riyadhToday/);
+  assert.match(intake, /heldUntilAssignment=isScheduled&&assignmentDate>riyadhToday/);
   assert.match(intake, /enrollmentId=seatOnly\|\|heldUntilAssignment\?null:id\("ENR"\)/);
   assert.match(intake, /else if\(!heldUntilAssignment\)statements\.push\(db\.prepare\("INSERT INTO enrollments/);
   assert.match(intake, /heldUntilAssignment\?"بانتظار الإسناد"/);
@@ -1125,4 +1125,18 @@ test("holds scheduled live programmes until the assignment date", async () => {
   assert.match(customers, /r\.converted_enrollment_id IS NULL AND r\.status IN \('بانتظار الإسناد','حجز فقط'\)\) assignment_date/);
   assert.match(page, /ينتقل إلى التهيئة تلقائياً في \$\{row\.assignment_date\}/);
   assert.match(page, /بانتظار الإسناد حتى ذلك اليوم/);
+});
+
+test("supervision asks only for the fixed 50 SAR seat, with no cohort or schedule", async () => {
+  const page = await read("../app/page.tsx");
+  const intake = await read("../app/api/intake/route.ts");
+  assert.match(intake, /if\(isSupervision\)\{cohort="";startDate="";assignmentDate=""\}/);
+  assert.match(intake, /const isScheduled=!isSupervision&&\(\(!isAsara&&isDirectProgram\)\|\|hasSeatReservation\);\s*if\(isScheduled\)\{/);
+  assert.match(intake, /isSupervision\?"حجز مع تسجيل":String\(body\.seatBookingType/);
+  assert.match(intake, /seatFee = hasSeatReservation \? \(isSupervision\?50:/);
+  assert.match(page, /const scheduledJourney = \(hasSeatReservation && !isSupervision\) \|\| \(!asara && directProgram\);/);
+  assert.match(page, /\{hasSeatReservation && !isSupervision && \(\s*<Field label="نوع حجز المقعد \*">/);
+  assert.match(page, /cohort: scheduledJourney \? form\.cohort : ""/);
+  assert.match(page, /const autoAsara = asara && !isStandaloneService && !hasSeatReservation;/);
+  assert.match(page, /!selected\.program\.includes\("الإشراف"\) && <div className="customer-cohort-field">/);
 });

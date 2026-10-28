@@ -1079,7 +1079,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
                   <div><dt>قناة الشراء</dt><dd>{selected.source}</dd></div>
                   <div><dt>سجّل الطلب</dt><dd>{!selected.owner || selected.owner === "غير مسند" ? "غير مسجَّل" : selected.owner}</dd></div>
                   <div><dt>رقم الطلب</dt><dd>{selectedDetails.orderId || "—"}</dd></div>
-                  {selectedDetails.delivery !== "مسجل" && <div className="customer-cohort-field"><dt>رقم الدفعة</dt><dd>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}{has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}</dd></div>}
+                  {selectedDetails.delivery !== "مسجل" && !selected.program.includes("الإشراف") && <div className="customer-cohort-field"><dt>رقم الدفعة</dt><dd>{selected.cohort && selected.cohort !== "—" ? selected.cohort : "غير متاح"}{has("customers.manage") && <CustomerCohortEditor customer={selectedDetails} onSaved={(cohort) => { setSelected({...selected,cohort} as typeof selected); setPeople((current) => current.map((item) => item.id === selected.id ? {...item,cohort} : item)); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }} />}</dd></div>}
                 </dl>
                 {has("customers.manage") && (
                   <CustomerDataEditor
@@ -1832,11 +1832,12 @@ function Registration({ done }: { done: () => void }) {
       ));
   const hasSeatReservation =
     seatReservationEligible && form.seatReserved === "نعم";
-  const seatOnly = hasSeatReservation && form.seatBookingType === "حجز مقعد فقط";
+  const seatOnly = hasSeatReservation && !isSupervision && form.seatBookingType === "حجز مقعد فقط";
   const programSeatFee = Number(selectedProgram?.seatFee || 0);
   const asara = form.source === "عصارة";
   const directPayment = form.source === "دفع مباشر";
-  const scheduledJourney = isSupervision || hasSeatReservation || (!asara && directProgram);
+  // Supervision has no cohort or schedule; it only asks for the fixed 50 SAR seat.
+  const scheduledJourney = (hasSeatReservation && !isSupervision) || (!asara && directProgram);
   const reservationDatesInvalid =
     scheduledJourney &&
     (!form.cohort ||
@@ -2029,6 +2030,10 @@ function Registration({ done }: { done: () => void }) {
         seatReserved: hasSeatReservation,
         seatBookingType: hasSeatReservation ? form.seatBookingType : "",
         seatFee,
+        // Hidden fields keep what was typed before a programme change; only send them when they apply.
+        cohort: scheduledJourney ? form.cohort : "",
+        startDate: scheduledJourney ? form.startDate : "",
+        assignmentDate: scheduledJourney ? form.assignmentDate : "",
         proofAssetKey: proof.data,
         proofFileName: proof.name,
         mode: !isStandaloneService && form.journey === "تجربة" ? "trial" : "payment",
@@ -2061,6 +2066,8 @@ function Registration({ done }: { done: () => void }) {
   };
   const money = (value: number) => `${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ر.س`;
   const deliveryLabel = isSupervision ? "إشراف" : isCompetencyService ? "خدمة تقييم" : isAbat ? "ABAT" : form.delivery || "—";
+  // Same rule as the intake API: عصارة completes on its own only for a plain programme without a seat.
+  const autoAsara = asara && !isStandaloneService && !hasSeatReservation;
   const routeComplete = form.journey === "تجربة" || (!isSupervision && form.payment !== "أقساط" && (!directPayment || form.method === "تمارا"));
   const steps = [
     "بيانات العميل",
@@ -2078,7 +2085,7 @@ function Registration({ done }: { done: () => void }) {
           {form.journey === "تجربة"
             ? "تم تسجيل العميل وبدء فترة التجربة."
             : isSupervision
-                ? "تم تسجيل عميل الإشراف وجدولة انتقاله إلى التهيئة."
+                ? "تم تسجيل عميل الإشراف وإضافته إلى التهيئة."
               : "تم تسجيل العميل بنجاح وإضافته إلى النظام."}
         </p>
         <dl className="cp-ledger">
@@ -2265,7 +2272,7 @@ function Registration({ done }: { done: () => void }) {
                   </select>
                 </Field>
               )}
-              {hasSeatReservation && (
+              {hasSeatReservation && !isSupervision && (
                 <Field label="نوع حجز المقعد *">
                   <select required value={form.seatBookingType} onChange={(e) => set("seatBookingType", e.target.value)}>
                     <option>حجز مع تسجيل</option>
@@ -2602,7 +2609,7 @@ function Registration({ done }: { done: () => void }) {
                   value={isSupervision ? "إشراف" : isObm ? `${isAbat ? "ABAT" : form.delivery} · ${form.language}` : (isAbat ? "ABAT" : form.delivery)}
                 />}
                 {isAbat && <Review label="تقييم الكفاءة" value={form.competencyAssessment} />}
-                {form.startDate && (
+                {scheduledJourney && form.startDate && (
                   <Review label="تاريخ بدء البرنامج" value={form.startDate} />
                 )}{" "}
                 {scheduledJourney && (
@@ -2673,20 +2680,20 @@ function Registration({ done }: { done: () => void }) {
                   </p>
                 ) : (
                   <>
-                    <p className={asara ? "done" : "next"}>
-                      <i>{asara ? "✓" : "2"}</i>
+                    <p className={autoAsara ? "done" : "next"}>
+                      <i>{autoAsara ? "✓" : "2"}</i>
                       <span>
                         <b>
-                          {asara
+                          {autoAsara
                             ? "تفعيل الدورة تلقائياً عبر عصارة"
                             : "بدء رحلة التسجيل الأكاديمي"}
                         </b>
                         <small>
-                          {asara ? "لا يحتاج تدخلاً يدوياً" : "الأكاديمية"}
+                          {autoAsara ? "لا يحتاج تدخلاً يدوياً" : "الأكاديمية"}
                         </small>
                       </span>
                     </p>
-                    {!asara && (
+                    {!autoAsara && (
                       <p className="next">
                         <i>3</i>
                         <span>

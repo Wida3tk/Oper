@@ -96,9 +96,9 @@ phone lookup.
 automatically on the assignment date". Since 6 September (`9260c21`) nothing waited, though: every reservation was
 promoted to onboarding on the next page load, and a live programme without a seat stored no date at all.
 
-**Decision:** every scheduled live programme waits for its assignment date. That covers live without a seat,
-supervision, seat with registration, and seat only. While waiting, the customer shows in the Operations Center
-"القادم" list and in their file.
+**Decision:** every scheduled live programme waits for its assignment date. That covers live without a seat, seat
+with registration, and seat only. Supervision is not scheduled (see below). While waiting, the customer shows in
+the Operations Center "القادم" list and in their file.
 
 | Where | Change |
 |---|---|
@@ -117,7 +117,6 @@ supervision, seat with registration, and seat only. While waiting, the customer 
 - A date of today goes straight to onboarding.
 - Seat with registration waits and keeps its 300 fee.
 - Seat only waits, is listed, and moves on its date.
-- Supervision waits.
 - عصارة without a seat still auto-completes.
 - A withdrawal before the date means it is never promoted. So does a deletion before the date.
 
@@ -128,5 +127,28 @@ In the browser, the customer file text and the review step were checked for both
 - The move happens the first time someone opens one of the pages above on or after the date. There is no
   scheduled job.
 - The upcoming list only shows the next 30 days.
-- Supervision without a seat is stored as «برنامج مباشر». The kinds «حجز مقعد»/«إشراف» are avoided on purpose: the
-  legacy seat-fee action marks those «تم التحويل», which would stop the promotion.
+- A waiting row without a seat is stored as «برنامج مباشر». The kinds «حجز مقعد»/«إشراف» are avoided on purpose:
+  the legacy seat-fee action marks those «تم التحويل», which would stop the promotion.
+
+## Supervision: seat only, no cohort (decided 2026-10-28)
+
+The user: supervision has no cohort. It only asks "seat reserved?" yes/no, with a fixed fee of 50 SAR.
+
+- **Form:** supervision shows only the programme and «هل تم حجز المقعد؟». With «نعم», the fee shows 50 and can't
+  be edited. Cohort, start date, assignment date and the booking type are hidden. The review timeline says
+  onboarding starts straight away. Hidden cohort and dates are no longer sent for any journey they don't apply to.
+- **API:** for supervision, intake ignores cohort, start and assignment dates, forces the booking type to «حجز مع
+  تسجيل» (no seat-only supervision), keeps the 50 fee, and creates the enrollment and onboarding task at once.
+  `isScheduled` is defined once, and it excludes supervision (`isDirectProgram` counts supervision as direct).
+- **Customer file:** no «رقم الدفعة» row for supervision.
+- The review timeline now uses the API's own rule for عصارة auto-completion. Before, it showed "auto-activated via
+  عصارة" for supervision and competency assessment too, which the API never did.
+
+Checks: 18 / 18 API scenarios on synthetic data:
+- Supervision without a seat goes straight to onboarding, with no cohort or dates stored, even when they are sent.
+- Supervision with a seat and «حجز مقعد فقط» + a fee of 999 sent: stored as 50, with registration, straight to
+  onboarding.
+- Live ABA still requires a cohort.
+- All the earlier assignment-date scenarios still pass.
+
+The form was checked in the browser. Tests: 94 / 94.

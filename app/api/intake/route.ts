@@ -23,7 +23,8 @@ export async function POST(req: Request) {
   if(!/^00[1-9]\d{8,14}$/.test(phone))return Response.json({error:"رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"},{status:400});
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"صيغة البريد الإلكتروني غير صحيحة"},{status:400});
   const journey=String(body.journey||"اشتراك");
-  const track=String(body.track||"").trim(),requestedDelivery=String(body.delivery||"").trim(),requestedLanguage=String(body.language||"").trim(),cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim(),assignmentDate=String(body.assignmentDate||"").trim();
+  const track=String(body.track||"").trim(),requestedDelivery=String(body.delivery||"").trim(),requestedLanguage=String(body.language||"").trim();
+  let cohort=String(body.cohort||"").trim(),startDate=String(body.startDate||"").trim(),assignmentDate=String(body.assignmentDate||"").trim();
   const db = operationalDb();
   await ensureFinanceClassificationSchema(db);
   await ensureDirectProgramSchema(db);
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
   const program = await db.prepare("SELECT id,name,program_kind kind,default_trial_days trial_days FROM programs WHERE id=? AND active=1").bind(programId).first<{ id: string; name: string; kind:string; trial_days: number }>();
   if (!program) return Response.json({ error: "البرنامج غير متاح" }, { status: 404 });
   const isSupervision=program.name.includes("الإشراف"),isCompetencyService=program.name.includes("تقييم الكفاءة"),isStandaloneService=isSupervision||isCompetencyService;
+  // Supervision has no cohort or schedule: it goes straight to onboarding.
+  if(isSupervision){cohort="";startDate="";assignmentDate=""}
   const delivery=isSupervision?"مباشر":isCompetencyService?"خدمة":requestedDelivery,language=isStandaloneService?"":requestedLanguage;
   if(!isStandaloneService&&!delivery)return Response.json({error:"نمط البرنامج مطلوب"},{status:400});
   if(isStandaloneService&&mode==="trial")return Response.json({error:"الخدمات المستقلة لا تدعم نوع التجربة"},{status:400});
@@ -49,11 +52,13 @@ export async function POST(req: Request) {
   const isDirectProgram=isSupervision||(!isCompetencyService&&delivery==="مباشر");
   const seatReservationEligible=isSupervision||(delivery==="مباشر"&&["تحليل السلوك التطبيقي","إدارة السلوك التنظيمي"].some(name=>program.name.includes(name)));
   const hasSeatReservation=body.seatReserved===true&&seatReservationEligible;
-  const seatBookingType=hasSeatReservation?String(body.seatBookingType||"حجز مع تسجيل"):"";
+  const seatBookingType=hasSeatReservation?(isSupervision?"حجز مع تسجيل":String(body.seatBookingType||"حجز مع تسجيل")):"";
   const seatOnly=hasSeatReservation&&seatBookingType==="حجز مقعد فقط";
   const autoAsara=isAsara&&!isSupervision&&!hasSeatReservation;
   if(hasSeatReservation&&!seatReservationEligible)return Response.json({error:"حجز المقعد متاح فقط للبرامج المؤهلة بالنمط المباشر"},{status:400});
-  if((!isAsara&&isDirectProgram)||isSupervision||hasSeatReservation){
+  // Live programmes with a cohort and assignment date; supervision has neither.
+  const isScheduled=!isSupervision&&((!isAsara&&isDirectProgram)||hasSeatReservation);
+  if(isScheduled){
    if(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة للبرنامج المباشر"},{status:400});
    if(assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   }
@@ -112,7 +117,7 @@ export async function POST(req: Request) {
   const isReservation=purchaseType==="حجز مقعد";
   if(!isAsara&&isReservation&&(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"تاريخ بدء البرنامج وتاريخ الإسناد مطلوبان لحجز المقعد"},{status:400});
   if(!isAsara&&isReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
-  if(hasSeatReservation&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة لحجز المقعد"},{status:400});
+  if(hasSeatReservation&&!isSupervision&&(!cohort||!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate)))return Response.json({error:"اسم الدفعة وتاريخ البدء وتاريخ الإسناد مطلوبة لحجز المقعد"},{status:400});
   if(hasSeatReservation&&assignmentDate>startDate)return Response.json({error:"تاريخ الإسناد يجب أن يكون في تاريخ بدء البرنامج أو قبله"},{status:400});
   if (!seatOnly&&(!(baseTotal > 0) || !(contractTotal > 0))) return Response.json({ error: "المبلغ الأساسي مطلوب" }, { status: 400 });
   if (!(amount > 0)) return Response.json({ error: "المبلغ المدفوع مطلوب" }, { status: 400 });
@@ -127,7 +132,7 @@ export async function POST(req: Request) {
   const existing = (await findExistingCustomers(db,phone,email))[0];
   // Scheduled live programmes wait as a reservation until the assignment date (Riyadh day); promoteDueReservations moves them into onboarding then.
   const riyadhToday=new Date(Date.now()+3*36e5).toISOString().slice(0,10);
-  const heldUntilAssignment=((!isAsara&&isDirectProgram)||isSupervision||hasSeatReservation)&&assignmentDate>riyadhToday;
+  const heldUntilAssignment=isScheduled&&assignmentDate>riyadhToday;
   const customerId=existing?.id||id("CUS"),orderId=id("ORD"),orderNumber=await nextOrderNumber(db,program.name),paymentId=id("PAY"),reservationId=hasSeatReservation||heldUntilAssignment?id("RSV"):null,enrollmentId=seatOnly||heldUntilAssignment?null:id("ENR");
   if(existing){const recent=await db.prepare("SELECT id,order_number FROM orders WHERE customer_id=? AND program_id=? AND created_at>=datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(customerId,programId).first<{id:string;order_number:string}>();if(recent)return Response.json({error:`تم تسجيل هذا العميل في البرنامج قبل قليل (${recent.order_number||recent.id})`},{status:409})}
   const statements=[];
@@ -140,7 +145,7 @@ export async function POST(req: Request) {
     db.prepare("INSERT INTO payment_intents(id,prospect_id,program_id,purchase_type,amount,method,reference,proof_asset_key,status,resulting_customer_id,resulting_order_id,created_by_email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(intentId,prospectId,programId,purchaseType,amount,method,reference,proofAssetKey,paymentIntentStatus,customerId,orderId,auth.email,now,now)
   );
   if(needsFinanceReview)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'payment',?,'المالية',?,'مفتوحة','عالية',?,?)").bind(id("TSK"),paymentId,isSupervision?"اعتماد طلب الإشراف للتحصيل":paymentPlan==="أقساط"?"اعتماد وتنظيم طلب أقساط":method==="Paytabs"?"مراجعة رابط مرجع Paytabs":method==="تمارا"?"مراجعة عملية تمارا":"مراجعة واعتماد التحويل البنكي",auth.email,now));
-  if(reservationId)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,reservation_kind,status,cohort_label,start_date,assignment_date,converted_enrollment_id,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(reservationId,customerId,programId,orderId,seatFee,seatOnly?"حجز مقعد فقط":hasSeatReservation?"حجز مع تسجيل":"برنامج مباشر",seatOnly?"حجز فقط":heldUntilAssignment?"بانتظار الإسناد":"مسجل",cohort||null,startDate,assignmentDate,enrollmentId,now,now,now));
+  if(reservationId)statements.push(db.prepare("INSERT INTO seat_reservations(id,customer_id,program_id,order_id,fee_amount,reservation_kind,status,cohort_label,start_date,assignment_date,converted_enrollment_id,confirmed_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(reservationId,customerId,programId,orderId,seatFee,seatOnly?"حجز مقعد فقط":hasSeatReservation?"حجز مع تسجيل":"برنامج مباشر",seatOnly?"حجز فقط":heldUntilAssignment?"بانتظار الإسناد":"مسجل",cohort||null,startDate||null,assignmentDate||null,enrollmentId,now,now,now));
   if(seatOnly)statements.push(db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,due_at,created_by_email,created_at) VALUES(?,'reservation',?,'المبيعات','متابعة حجز المقعد فقط','مفتوحة','عادية',?,?,?)").bind(id("TSK"),reservationId,assignmentDate,auth.email,now));
   else if(autoAsara&&!isCompetencyService)statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,status,completed_at,created_at,updated_at) VALUES(?,?,?,?,'مكتمل',?,?,?)").bind(enrollmentId,customerId,programId,orderId,now,now,now));
   else if(!heldUntilAssignment)statements.push(db.prepare("INSERT INTO enrollments(id,customer_id,program_id,order_id,source_reservation_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(enrollmentId,customerId,programId,orderId,reservationId,"تم التواصل",now,now),db.prepare("INSERT INTO workflow_tasks(id,entity_type,entity_id,department,title,status,priority,created_by_email,created_at) VALUES(?,'enrollment',?,'التشغيلية','تهيئة العميل واستكمال بياناته','مفتوحة','عالية',?,?)").bind(id("TSK"),enrollmentId,auth.email,now));
