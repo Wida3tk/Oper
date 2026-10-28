@@ -90,12 +90,15 @@ Merge to `main`, deploy or open a PR only when the user asks. **While branch pus
 again"), a push is a release: ask before pushing.**
 1. ~~Finance UTC dates~~ **Done:** every "today" default in `app/page.tsx` (11 spots: the intake purchase date, finance today/month/forms, B2B activity date and follow-ups, the export filename) now uses the local date. A test guards it.
 2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). **Done** (trial box and stuck "جديد" column): see [REVIEW-CONTACT.md](REVIEW-CONTACT.md). The `Registration` intake form was then reviewed, fixed and redesigned, with an end-to-end save checked: see [REGISTRATION.md](REGISTRATION.md). Released on 2026-10-28 (see "Released again").
-3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
+3. Phase 4 (Finance): **done on the branch, committed, not pushed** (a push releases it). Includes before/after-VAT
+   amounts. See [PHASE-4-FINANCE.md](PHASE-4-FINANCE.md). Then 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
 4. Open user decision: Phase 1 suggestion #8, one window for upcoming items (schedule 30 days vs. team events 90).
 
 Local QA recipe that worked on the second machine: a copy of the repo in `%TEMP%oper-preview` (no node_modules), `CI=true npx pnpm@10 install --frozen-lockfile`,
 `compatibility_date` set to 2026-05-22, start `npx vinext dev --port 3011`, POST `/api/auth` once to create the D1 file, stop, apply `drizzle/*.sql`
 with node:sqlite, run `dev/seed-synthetic.mjs`, restart. Some routes read runtime columns (`orders.order_number`). Call `/api/enrollments` once first.
+`GET /api/finance` returns 500 on a fresh local database until one `POST /api/finance` (any `orderId`, any action) has created
+`finance_undo_log`; production already has it.
 - `main` locally had 28 commits not on `origin/main` at handoff time. They reach GitHub only as history of
   this branch. `origin/main` was not touched.
 

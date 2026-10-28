@@ -6395,134 +6395,148 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     }
     void post({ action: "installment_status", installmentId: installment.id, status });
   };
+  const money0 = (n: number) => Number(n || 0).toLocaleString("ar-SA-u-nu-latn");
+  const beforeVat = (n: number) => `بدون ضريبة ${sar(withoutVat(n))}`;
+  const chipTone: Record<string, string> = { green: "success", red: "danger", amber: "warning", purple: "neutral", neutral: "neutral" };
+  const saleTone = (status: string) => (status === "مكتملة" ? "success" : status === "بانتظار المراجعة" ? "warning" : "danger");
+  const collectionTone = (status: string) =>
+    status === "مدفوع" ? "success" : ["متأخر", "منسحب"].includes(status) ? "danger" : ["بانتظار المراجعة", "مستحق اليوم"].includes(status) ? "warning" : ["دفعة جزئية", "غير مدفوع"].includes(status) ? "neutral" : "";
+  const listTotal = financeTab === "sales" ? salesEntries.length : collectionRows.length;
+  const listVisible = financeTab === "sales" ? filteredSales.length : filteredFinance.length;
+  const filtersActive = programFilter !== "الكل" || statusFilter !== "الكل" || (financeTab === "sales" && reviewTypeFilter !== "الكل");
+  const clearFilters = () => { setProgramFilter("الكل"); setStatusFilter("الكل"); setReviewTypeFilter("الكل"); };
+  const selectTab = (tab: "sales" | "collections") => { setFinanceTab(tab); setStatusFilter("الكل"); };
   return (
     <>
-      <div className="finance-tabs" role="tablist" aria-label="أقسام المالية">
-        <button
-          role="tab"
-          aria-selected={financeTab === "sales"}
-          className={financeTab === "sales" ? "active" : ""}
-          onClick={() => {
-            setFinanceTab("sales");
-            setStatusFilter("الكل");
-          }}
-        >
-          <BadgeDollarSign size={20} />
-          <span><b>المبيعات</b><small>الدفعة الأولى والدفع الكامل</small></span>
-          <em>{salesEntries.length}</em>
-        </button>
-        <button
-          role="tab"
-          aria-selected={financeTab === "collections"}
-          className={financeTab === "collections" ? "active" : ""}
-          onClick={() => {
-            setFinanceTab("collections");
-            setStatusFilter("الكل");
-          }}
-        >
-          <HandCoins size={20} />
-          <span><b>التحصيل</b><small>الأقساط والدفعات اللاحقة</small></span>
-          <em>{rows.filter((row) => row.remaining > 0).length}</em>
-        </button>
+    <div className="ops-home ops-finance" aria-busy={loading}>
+      <div className="oh-segment fin-tabs" role="tablist" aria-label="أقسام المالية">
+        <button type="button" role="tab" aria-selected={financeTab === "sales"} onClick={() => selectTab("sales")}><BadgeDollarSign size={16} aria-hidden="true" />المبيعات<span className="oc-seg-count">{salesEntries.length}</span></button>
+        <button type="button" role="tab" aria-selected={financeTab === "collections"} onClick={() => selectTab("collections")}><HandCoins size={16} aria-hidden="true" />التحصيل<span className="oc-seg-count">{collectionRows.length}</span></button>
       </div>
-      <div className="kpis finance-kpis">
-        {financeTab === "sales" ? (
-          <>
-            <Kpi title="مبيعات اليوم" value={salesToday.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="دفعات أولى ودفع كامل" tone="blue" />
-            <Kpi title="مبيعات الشهر" value={salesMonth.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="من بداية الشهر الحالي" tone="green" />
-            <Kpi title="إجمالي المبيعات" value={salesTotal.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="الحركات المسجلة" tone="blue" />
-            <Kpi title="بانتظار المراجعة" value={String(salesPending)} tag="عملية" note="تحتاج إجراء مالي" tone="amber" />
-          </>
-        ) : (
-          <>
-            <Kpi title="تحصيل اليوم" value={collectionsToday.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="أقساط مسجلة اليوم" tone="green" />
-            <Kpi title="تحصيل الشهر المحدد" value={collectionsMonth.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note={collectionMonthLabel} tone="blue" />
-            <Kpi title="المتبقي" value={Number(summary.remaining).toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note="بعد خصم جميع الدفعات" tone="amber" />
-            <Kpi title="إجمالي التحصيل" value={collectionsTotal.toLocaleString("ar-SA-u-nu-latn")} tag="ر.س" note={`${summary.overdue} قسط متأخر`} tone="red" />
-          </>
-        )}
-      </div>
-      {financeTab === "collections" && <section className="collection-dashboard"><header><div><span>لوحة التحصيل الفعلية</span><h3>{collectionMonthLabel}</h3><p>اختاري شهرًا حاليًا أو سابقًا؛ التحصيل الفعلي يعتمد على تاريخ سداد الدفعة، والمتبقي يعتمد على أقساط الشهر غير المسددة.</p></div><label><span>الشهر</span><input type="month" value={collectionMonth} onChange={event=>setCollectionMonth(event.target.value)}/></label></header><div><article><span>التحصيل الفعلي</span><b>{sar(collectionsMonth)}</b><small>دفعات التحصيل المسجلة خلال الشهر</small></article><article><span>الأقساط المجدولة</span><b>{sar(scheduledMonth)}</b><small>{monthInstallments.length} قسط بتاريخ استحقاق في الشهر</small></article><article className={remainingScheduledMonth>0?"outstanding":"settled"}><span>المتبقي من أقساط الشهر</span><b>{sar(remainingScheduledMonth)}</b><small>{remainingScheduledMonth>0?"يحتاج متابعة أو سداد":"تم سداد أقساط الشهر"}</small></article><article><span>المتبقي الكلي</span><b>{sar(Number(summary.remaining))}</b><small>جميع الأشهر والملفات النشطة</small></article></div></section>}
-      {financeTab === "collections" && <section className="collection-forecast"><details><summary><span><i>توقع تحصيل</i><b>{forecastMonthLabel}</b><small>يُحسب من الأقساط المجدولة غير المسددة في الشهر المحدد</small></span><em>{forecast.installments}</em><strong>{sar(forecast.due)} · عرض التوقعات</strong></summary><div className="collection-forecast-body"><div className="collection-forecast-month"><label>شهر التوقع<input type="month" value={collectionMonth} onChange={event=>setCollectionMonth(event.target.value)}/></label><span>إجمالي الأقساط المستحقة: <b>{sar(forecast.due)}</b></span></div><div className="collection-forecast-metrics"><article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article><article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article><article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article></div>{forecast.items.length>0&&<div className="collection-forecast-list">{forecast.items.map(item=><button type="button" key={item.installment_id} className={item.category} onClick={()=>{const row=rows.find(current=>current.order_id===item.order_id);if(row)open(row)}}><time>{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}</div></details></section>}
-      <LiveState loading={loading} error={error} empty={!rows.length} />
-      {!loading && !error && rows.length > 0 && (
-        <>
-          {financeTab === "sales" && <div className="finance-review-filter"><span>تصفية العمليات</span>{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","دفع مكتمل"]].map(([key,label])=><button type="button" key={key} className={reviewTypeFilter===key?"active":""} onClick={()=>{setReviewTypeFilter(key);setStatusFilter("الكل")}}><b>{reviewTypeCount(key)}</b>{label}</button>)}</div>}
-          <CustomerSmartFilters
-            programs={financePrograms}
-            statuses={activeStatuses}
-            program={programFilter}
-            status={statusFilter}
-            total={financeTab === "sales" ? salesEntries.length : rows.length}
-            visible={financeTab === "sales" ? filteredSales.length : filteredFinance.length}
-            onProgram={setProgramFilter}
-            onStatus={setStatusFilter}
-          />
-          <div className={`finance-order-list ${financeTab}`}>
-          {financeTab === "sales" ? filteredSales.map(({row,payment}) => (
-            <article className={`finance-order-card sale-card ${saleStatus({row,payment}) === "مكتملة" ? "settled" : saleStatus({row,payment}) === "منسحب" ? "withdrawn" : ""}`} onClick={() => open(row)} key={payment.id}>
-              <div className="finance-order-head"><i><ReceiptText size={18}/></i><div><b>{row.customer_name}</b><span>{row.program_name}</span><small className="finance-order-number">{row.order_id}</small></div><em className={`pill ${saleStatus({row,payment}) === "بانتظار المراجعة" ? "amber" : ["منسحب","مرفوض"].includes(saleStatus({row,payment})) ? "red" : "green"}`}>{saleStatus({row,payment})}</em></div>
-              {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
-              <div className="finance-order-money sale-money"><p className="paid"><span>المدفوع من البرنامج</span><b>{sar(payment.amount)}</b></p>{row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}<p><span>نوع العملية</span><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b></p><p><span>وسيلة الدفع</span><b>{payment.method || row.purchase_source}</b></p></div>
-              <footer className="finance-card-footer"><span>{saleDate(payment) || "دون تاريخ"}</span><div className="finance-card-reference" onClick={(event)=>event.stopPropagation()}><PaymentReferenceControl paymentId={payment.id.startsWith("pending-")?undefined:payment.id} initialReference={row.order_payment_reference || payment.reference} canEdit onSaved={(reference)=>updatePaymentReference(payment.id,reference)}/>{!payment.reference&&!row.order_payment_reference&&payment.id.startsWith("pending-")&&<em>لا توجد دفعة مرتبطة لإضافة المرجع</em>}</div><b>فتح الملف المالي ←</b></footer>
-            </article>
-          )) : filteredFinance.map((row) => (
-            <article
-              className={`finance-order-card ${financeStatus(row) === "مدفوع" ? "settled" : financeStatus(row) === "متأخر" ? "late" : ""}`}
-              onClick={() => open(row)}
-              key={row.order_id}
-            >
-              <div className="finance-order-head">
-                <i>﷼</i>
-                <div>
-                  <b>{row.customer_name}</b>
-                  <span>
-                    {row.program_name}
-                  </span>
-                  <small className="finance-order-number">{row.order_id}</small>
-                </div>
-                <em
-                  className={`pill ${row.finance_review_status === "pending" ? "amber" : row.remaining === 0 ? "green" : "blue"}`}
-                >
-                  {financeStatus(row)}
-                </em>
+      <section className="oh-pulse oc-pulse fin-pulse" aria-labelledby="fin-pulse-title">
+        <header><h3 id="fin-pulse-title">{financeTab === "sales" ? "المبيعات" : "التحصيل"}</h3><p>{financeTab === "sales" ? "الدفعة الأولى والدفع الكامل." : "الأقساط والدفعات اللاحقة."} المبالغ شاملة ضريبة القيمة المضافة 15%، والمبلغ بدون ضريبة تحت كل رقم.</p></header>
+        <div>
+          {financeTab === "sales" ? (
+            <>
+              <HomeMetric icon={BadgeDollarSign} label="مبيعات اليوم" value={money0(salesToday)} suffix="ر.س" note={`دفعات أولى ودفع كامل · ${beforeVat(salesToday)}`} tone="brand" />
+              <HomeMetric icon={CalendarDays} label="مبيعات الشهر" value={money0(salesMonth)} suffix="ر.س" note={`من بداية الشهر الحالي · ${beforeVat(salesMonth)}`} tone="success" />
+              <HomeMetric icon={ReceiptText} label="إجمالي المبيعات" value={money0(salesTotal)} suffix="ر.س" note={`الحركات المسجلة · ${beforeVat(salesTotal)}`} tone="neutral" />
+              <HomeMetric icon={ShieldCheck} label="بانتظار المراجعة" value={salesPending} suffix="عملية" note="تحتاج إجراء مالي. اضغط لعرضها" tone={salesPending ? "attention" : "neutral"} onClick={() => { setReviewTypeFilter("الكل"); setStatusFilter("بانتظار المراجعة"); }} />
+            </>
+          ) : (
+            <>
+              <HomeMetric icon={HandCoins} label="تحصيل اليوم" value={money0(collectionsToday)} suffix="ر.س" note={`أقساط مسجلة اليوم · ${beforeVat(collectionsToday)}`} tone="success" />
+              <HomeMetric icon={CalendarDays} label="تحصيل الشهر المحدد" value={money0(collectionsMonth)} suffix="ر.س" note={`${collectionMonthLabel} · ${beforeVat(collectionsMonth)}`} tone="brand" />
+              <HomeMetric icon={WalletCards} label="المتبقي" value={money0(Number(summary.remaining))} suffix="ر.س" note={`بعد خصم جميع الدفعات · ${beforeVat(Number(summary.remaining))}`} tone="attention" />
+              <HomeMetric icon={Clock3} label="إجمالي التحصيل" value={money0(collectionsTotal)} suffix="ر.س" note={`${summary.overdue} قسط متأخر · ${beforeVat(collectionsTotal)}`} tone={summary.overdue ? "danger" : "neutral"} />
+            </>
+          )}
+        </div>
+      </section>
+      {financeTab === "collections" && (
+        <section className="oh-panel collection-dashboard" aria-labelledby="fin-month-title">
+          <header className="oh-panel-head">
+            <span className="oh-icon"><CalendarDays size={18} /></span>
+            <div><h3 id="fin-month-title">لوحة التحصيل الفعلية · {collectionMonthLabel}</h3><p>التحصيل الفعلي حسب تاريخ سداد الدفعة، والمتبقي من أقساط الشهر غير المسددة.</p></div>
+            <label className="cu-select"><span>الشهر</span><input type="month" value={collectionMonth} onChange={(event) => setCollectionMonth(event.target.value)} /></label>
+          </header>
+          <dl className="fin-month">
+            <div><dt>التحصيل الفعلي</dt><dd>{sar(collectionsMonth)}<small>{beforeVat(collectionsMonth)}</small></dd><p>دفعات التحصيل المسجلة خلال الشهر</p></div>
+            <div><dt>الأقساط المجدولة</dt><dd>{sar(scheduledMonth)}<small>{beforeVat(scheduledMonth)}</small></dd><p>{monthInstallments.length} قسط بتاريخ استحقاق في الشهر</p></div>
+            <div className={remainingScheduledMonth > 0 ? "outstanding" : "settled"}><dt>المتبقي من أقساط الشهر</dt><dd>{sar(remainingScheduledMonth)}<small>{beforeVat(remainingScheduledMonth)}</small></dd><p>{remainingScheduledMonth > 0 ? "يحتاج متابعة أو سداد" : "تم سداد أقساط الشهر"}</p></div>
+            <div><dt>المتبقي الكلي</dt><dd>{sar(Number(summary.remaining))}<small>{beforeVat(Number(summary.remaining))}</small></dd><p>جميع الأشهر والملفات النشطة</p></div>
+          </dl>
+          <details className="collection-forecast">
+            <summary>
+              <span><i>توقع تحصيل</i><b>{forecastMonthLabel}</b><small>من الأقساط المجدولة غير المسددة في الشهر المحدد</small></span>
+              <em className="oc-seg-count">{forecast.installments}</em>
+              <strong>{sar(forecast.due)}<small>{beforeVat(forecast.due)}</small></strong>
+              <ChevronDown size={16} aria-hidden="true" />
+            </summary>
+            <div className="collection-forecast-body">
+              <div className="collection-forecast-month"><label className="cu-select">شهر التوقع<input type="month" value={collectionMonth} onChange={(event) => setCollectionMonth(event.target.value)} /></label><span>إجمالي الأقساط المستحقة: <b>{sar(forecast.due)}</b></span></div>
+              <div className="collection-forecast-metrics">
+                <article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article>
+                <article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article>
+                <article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article>
               </div>
-              {subscriptionMeta(row).length>0&&<div className="finance-subscription-meta">{subscriptionMeta(row).map(item=><span key={item}>{item}</span>)}</div>}
-              <div className="finance-order-money">
-                <p>
-                  <span>الإجمالي</span>
-                  <b>{sar(row.total)}</b>
-                </p>
-                <p className="paid">
-                  <span>المدفوع من البرنامج</span>
-                  <b>{sar(row.paid)}</b>
-                </p>
-                {row.seat_fee>0&&<p className="seat-fee-paid"><span>رسوم المقعد</span><b>{sar(row.seat_fee)}</b></p>}
-                <p className="remaining">
-                  <span>المتبقي</span>
-                  <b>{sar(row.remaining)}</b>
-                </p>
-              </div>
-              <footer>
-                <span>{row.payments.length} دفعة مسجلة</span>
-                <span>
-                  {row.installments.filter((x) => x.status !== "مدفوع").length}{" "}
-                  قسط متبقٍ
-                </span>
-                <em className={`installment-status-badge ${installmentStatusTone(currentInstallmentStatus(row))}`}>حالة السداد: {currentInstallmentStatus(row)}</em>
-                <em className={`payment-behavior-badge ${row.payment_behavior?.tone || "neutral"}`}>سلوك السداد: {row.payment_behavior?.label || "جديد"}</em>
-                <b>فتح الملف المالي ←</b>
-              </footer>
-            </article>
-          ))}
-          </div>
-        </>
+              {forecast.items.length > 0 && <div className="collection-forecast-list">{forecast.items.map((item) => <button type="button" key={item.installment_id} className={item.category} onClick={() => { const row = rows.find((current) => current.order_id === item.order_id); if (row) open(row); }}><time dir="ltr">{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}
+            </div>
+          </details>
+        </section>
       )}
+      {!rows.length && (loading || error) ? (
+        <LiveState loading={loading} error={error} empty={false} />
+      ) : (
+        <section className="oh-panel fin-directory" aria-labelledby="fin-list-title">
+          {error && !selected && <div className="oh-alert" role="alert">{error}</div>}
+          <header className="oh-panel-head">
+            <span className="oh-icon">{financeTab === "sales" ? <ReceiptText size={18} /> : <HandCoins size={18} />}</span>
+            <div><h3 id="fin-list-title">{financeTab === "sales" ? "عمليات البيع" : "ملفات التحصيل"}</h3><p>{financeTab === "sales" ? "كل دفعة أولى أو دفع كامل مع وسيلتها ومرجعها. اضغط على العملية لفتح الملف المالي." : "الطلبات المعتمدة بالأقساط والإشراف، مع المدفوع والمتبقي وحالة السداد."}</p></div>
+          </header>
+          <div className="cu-filters">
+            {financeTab === "sales" && <div className="oh-segment finance-review-filter" role="tablist" aria-label="نوع العملية">{[["الكل","الكل"],["installments","الأقساط"],["bank","التحويل البنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","الإشراف"],["other","دفع مكتمل"]].map(([key,label])=><button type="button" role="tab" aria-selected={reviewTypeFilter===key} key={key} onClick={()=>{setReviewTypeFilter(key);setStatusFilter("الكل")}}>{key === "الكل" ? "كل العمليات" : label}<span className="oc-seg-count">{reviewTypeCount(key)}</span></button>)}</div>}
+            <div className="cu-selects">
+              <label className="cu-select"><span>البرنامج</span><select value={programFilter} onChange={(e) => setProgramFilter(e.target.value)}><option value="الكل">كل البرامج</option>{financePrograms.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label className="cu-select"><span>الحالة</span><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="الكل">كل الحالات</option>{activeStatuses.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            </div>
+          </div>
+          <p className="oc-result-line cu-result" aria-live="polite">{listVisible} من {listTotal} {financeTab === "sales" ? "عملية" : "ملف"}{normalizedSearchQuery && <> · نتائج البحث عن «{searchQuery.trim()}»</>}{filtersActive && <button type="button" onClick={clearFilters}>مسح التصفية</button>}</p>
+          {!listVisible ? (
+            <div className="oh-empty">{loading ? "جارٍ تحميل البيانات…" : "لا توجد عمليات تطابق البحث والتصفية الحالية."}</div>
+          ) : financeTab === "sales" ? (
+            <div className="table-wrap cu-table fin-table">
+              <table>
+                <thead><tr><th>العميل</th><th>البرنامج</th><th>العملية</th><th>المبلغ</th><th>التاريخ</th><th>المرجع</th><th>الحالة</th></tr></thead>
+                <tbody>
+                  {filteredSales.map(({ row, payment }) => {
+                    const status = saleStatus({ row, payment });
+                    return (
+                      <tr key={payment.id} onClick={() => open(row)}>
+                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button><small dir="ltr">{row.order_id}</small></span></td>
+                        <td data-label="البرنامج"><b>{row.program_name}</b>{subscriptionMeta(row).length > 0 && <small>{subscriptionMeta(row).join(" · ")}</small>}</td>
+                        <td data-label="العملية"><b>{row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b><small>{payment.method || row.purchase_source}</small></td>
+                        <td data-label="المبلغ" className="fin-amount"><b>{sar(payment.amount)}</b><small>{beforeVat(payment.amount)}</small>{row.seat_fee > 0 && <small>+ رسوم المقعد {sar(row.seat_fee)}</small>}</td>
+                        <td data-label="التاريخ"><b dir="ltr">{saleDate(payment) || "—"}</b></td>
+                        <td data-label="المرجع" className="finance-card-reference" onClick={(event) => event.stopPropagation()}><PaymentReferenceControl paymentId={payment.id.startsWith("pending-") ? undefined : payment.id} initialReference={row.order_payment_reference || payment.reference} canEdit onSaved={(reference) => updatePaymentReference(payment.id, reference)} />{!payment.reference && !row.order_payment_reference && payment.id.startsWith("pending-") && <small>لا توجد دفعة مرتبطة لإضافة المرجع</small>}</td>
+                        <td data-label="الحالة"><em className={`cu-status ${saleTone(status)}`}>{status}</em></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="table-wrap cu-table fin-table">
+              <table>
+                <thead><tr><th>العميل</th><th>البرنامج</th><th>المدفوع</th><th>المتبقي</th><th>الأقساط</th><th>سلوك السداد</th><th>الحالة</th></tr></thead>
+                <tbody>
+                  {filteredFinance.map((row) => {
+                    const status = financeStatus(row), installmentStatus = currentInstallmentStatus(row), paidRatio = row.total ? Math.min(100, Math.round((row.paid / row.total) * 100)) : 0;
+                    return (
+                      <tr key={row.order_id} onClick={() => open(row)}>
+                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button><small dir="ltr">{row.order_id}</small></span></td>
+                        <td data-label="البرنامج"><b>{row.program_name}</b>{subscriptionMeta(row).length > 0 && <small>{subscriptionMeta(row).join(" · ")}</small>}</td>
+                        <td data-label="المدفوع" className="cu-paid fin-amount"><b>{sar(row.paid)} <small>من {sar(row.total)}</small></b><span className="cu-bar" aria-hidden="true"><i style={{ width: `${paidRatio}%` }} /></span><small>{beforeVat(row.paid)}{row.seat_fee > 0 ? ` · + رسوم المقعد ${sar(row.seat_fee)}` : ""}</small></td>
+                        <td data-label="المتبقي" className="fin-amount"><b>{sar(row.remaining)}</b><small>{beforeVat(row.remaining)}</small></td>
+                        <td data-label="الأقساط"><b>{row.installments.filter((x) => x.status !== "مدفوع").length} قسط متبقٍ</b><small>{row.payments.length} دفعة مسجلة</small><em className={`cu-status ${chipTone[installmentStatusTone(installmentStatus)] || ""}`}>{installmentStatus}</em></td>
+                        <td data-label="سلوك السداد"><em className={`cu-status ${chipTone[row.payment_behavior?.tone || "neutral"] || "neutral"}`}>{row.payment_behavior?.label || "جديد"}</em></td>
+                        <td data-label="الحالة"><em className={`cu-status ${collectionTone(status)}`}>{status}</em></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
       {selected && (
         <>
           <div className="overlay" onClick={() => setSelected(null)} />
-          <aside className="drawer finance-center-drawer">
-            <button className="close" onClick={() => setSelected(null)}>
+          <aside className="drawer finance-center-drawer" role="dialog" aria-modal="true" aria-label={`الملف المالي: ${selected.customer_name}`}>
+            <button type="button" className="close" aria-label="إغلاق الملف المالي" onClick={() => setSelected(null)}>
               ×
             </button>
             <div className="person">
@@ -6564,21 +6578,24 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
               <p>
                 <span>إجمالي البرنامج بعد الخصم</span>
                 <b>{sar(selected.total)}</b>
+                <small>{beforeVat(selected.total)}</small>
               </p>
               <p>
                 <span>المدفوع من قيمة البرنامج</span>
                 <b>{sar(selected.paid)}</b>
+                <small>{beforeVat(selected.paid)}</small>
               </p>
               <p>
                 <span>المتبقي</span>
                 <b>{sar(selected.remaining)}</b>
+                <small>{beforeVat(selected.remaining)}</small>
               </p>
               <p className="discount-rate">
                 <span>نسبة الخصم</span>
                 <b>{Number(selected.discount_percent || 0).toLocaleString("en-US")}%</b>
               </p>
-              {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b></p>}
-              {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b></p>}
+              {Number(selected.seat_fee||0)>0&&<p className="seat-fee-paid"><span>رسوم المقعد المدفوعة</span><b>{sar(selected.seat_fee)}</b><small>{beforeVat(selected.seat_fee)}</small></p>}
+              {Number(selected.seat_fee||0)>0&&<p className="actual-paid-total"><span>إجمالي المدفوع فعلياً</span><b>{sar(selected.paid+selected.seat_fee)}</b><small>{beforeVat(selected.paid+selected.seat_fee)}</small></p>}
               {Number(selected.refunded||0)>0&&<p className="refund-total"><span>المبلغ المسترد</span><b>- {sar(Number(selected.refunded))}</b></p>}
             </div>
             <div className="finance-action-center">
@@ -6716,7 +6733,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                     <details className={`installment-card ${inst.display_status === "متأخر" ? "late" : inst.status === "مدفوع" ? "paid" : ""}`} key={inst.id}>
                       <summary>
                         <i>{inst.sequence}</i>
-                        <span className="installment-card-title"><small>القسط {inst.sequence}</small><b>{sar(inst.amount)}</b></span>
+                        <span className="installment-card-title"><small>القسط {inst.sequence}</small><b>{sar(inst.amount)}</b><small>{beforeVat(inst.amount)}</small></span>
                         <span className="installment-card-due"><small>تاريخ الاستحقاق</small><b>{String(inst.due_date).slice(0,10)}</b></span>
                         <em className={`installment-status-badge ${installmentStatusTone(inst.display_status || inst.status)}`}>{inst.display_status || inst.status}</em>
                         <ChevronDown size={18} className="installment-chevron"/>
@@ -6741,6 +6758,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                   <article key={payment.id}>
                     <div>
                       <b>{sar(payment.amount)}</b>
+                      <small>{beforeVat(payment.amount)}</small>
                       <span>
                         {new Date(payment.paid_at || "").toLocaleDateString(
                           "ar-SA-u-nu-latn",

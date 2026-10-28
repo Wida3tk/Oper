@@ -1165,3 +1165,26 @@ test("keeps approved list prices with VAT and shows amounts before and after VAT
   // Discount approval levels are internal policy and are not enforced in the form.
   assert.match(page, /\[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50\]\.map/);
 });
+
+test("renders finance as a filterable ledger with amounts before and after VAT", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  // One page on the design system: segment tabs, metric ribbon, month panel, filters and a table.
+  assert.match(page, /<div className="ops-home ops-finance" aria-busy=\{loading\}>/);
+  assert.match(page, /className="oh-segment fin-tabs" role="tablist" aria-label="أقسام المالية"/);
+  assert.match(page, /className="oh-pulse oc-pulse fin-pulse"/);
+  assert.match(page, /className="table-wrap cu-table fin-table"/);
+  assert.doesNotMatch(page, /finance-order-card|className="finance-tabs"|finance-kpis/);
+  // The collections tab counts the files it lists, not every order with a balance.
+  assert.match(page, /التحصيل<span className="oc-seg-count">\{collectionRows\.length\}<\/span>/);
+  // Every money figure keeps its VAT-inclusive amount and shows the amount before VAT.
+  assert.match(page, /const beforeVat = \(n: number\) => `بدون ضريبة \$\{sar\(withoutVat\(n\)\)\}`;/);
+  assert.match(page, /<b>\{sar\(payment\.amount\)\}<\/b><small>\{beforeVat\(payment\.amount\)\}<\/small>/);
+  assert.match(page, /<b>\{sar\(selected\.remaining\)\}<\/b>\s*<small>\{beforeVat\(selected\.remaining\)\}<\/small>/);
+  assert.match(page, /<small>\{beforeVat\(inst\.amount\)\}<\/small>/);
+  // The finance file is a labelled dialog and its buttons stay readable on phones.
+  assert.match(page, /className="drawer finance-center-drawer" role="dialog" aria-modal="true"/);
+  assert.match(page, /aria-label="إغلاق الملف المالي"/);
+  assert.match(css, /\.finance-center-drawer \.primary\{width:auto;padding:0 14px;font-size:var\(--sk-fs-sm\)\}/);
+  assert.match(css, /:is\(\.ops-customers,\.ops-finance\) \.cu-table th\{position:sticky/);
+});

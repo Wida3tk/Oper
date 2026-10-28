@@ -40,14 +40,19 @@ for (let i = 1; i <= 46; i++) {
   const [pid, pname, tracks] = pick(programs), track = pick(tracks), total = pid === "PRG-ABA" ? 14500 : pid === "PRG-OBM" ? 9800 : pid === "PRG-COMP" ? 2400 : 1500;
   const pendingReview = i >= 38 && i <= 43 ? reviewKinds[i - 38] : null, plan = pendingReview ? pendingReview[0] : total > 5000 && i % 3 ? "أقساط" : "دفعة كاملة";
   const oid = `ORD-T${String(i).padStart(3, "0")}`;
-  sql.push(ins("orders", { id: oid, customer_id: id, program: pname, track, delivery: "عن بعد", language: "العربية", purchase_source: pick(["المنصة", "المتجر", "تسجيل مباشر"]), payment_plan: plan, total, paid: 0, status: "نشط", academy_status: "قيد التهيئة", owner: "غير مسند", competency: 0, seat_reservation: 0, created_at: createdAt, updated_at: createdAt, order_type: "برنامج", program_id: pid, finance_review_status: pendingReview ? "pending" : "not_required" }));
+  sql.push(ins("orders", { id: oid, customer_id: id, program: pname, track, delivery: "عن بعد", language: "العربية", purchase_source: pick(["المنصة", "المتجر", "تسجيل مباشر"]), payment_plan: plan, total, paid: 0, status: "نشط", academy_status: "قيد التهيئة", owner: "غير مسند", competency: 0, seat_reservation: 0, created_at: createdAt, updated_at: createdAt, order_type: "برنامج", program_id: pid, finance_review_status: pendingReview ? "pending" : "approved" }));
   sql.push(ins("enrollments", { id: `ENR-T${String(i).padStart(3, "0")}`, customer_id: id, program_id: pid, order_id: oid, status: pick(statuses), owner_email: "academy.qa@sulukera.test", created_at: createdAt, updated_at: createdAt }));
   if (createdAt.startsWith(MONTH)) {
     const amount = plan === "أقساط" ? Math.round(total * 0.3) : total;
     sql.push(ins("payments", { id: `PAY-S${i}`, order_id: oid, amount, paid_at: createdAt.slice(0, 10), status: "مدفوعة", method: pendingReview ? pendingReview[1] : pick(["PayTabs", "تحويل بنكي", "تمارا"]), reference: `SYN-${1000 + i}`, created_at: createdAt, flow_type: "sale", classification_status: pendingReview ? "pending" : "confirmed" }));
   } else if (plan === "أقساط") {
-    // September contracts paying an installment this month -> collections.
-    for (const day of [3, 10, 17, 24].filter((d) => (d + i) % 3 === 0)) sql.push(ins("payments", { id: `PAY-C${i}-${day}`, order_id: oid, amount: Math.round(total * 0.175), paid_at: `${MONTH}-${String(day + (i % 4)).padStart(2, "0")}`, status: "مدفوعة", method: "تحويل بنكي", reference: `SYN-C${i}${day}`, created_at: ts(day + (i % 4)), flow_type: "collection", classification_status: "confirmed" }));
+    // September contracts on installments: a 30% first payment, then four 17.5% installments
+    // (paid / late or reminded / due today / upcoming) so the collections screens have every state.
+    const first = Math.round(total * 0.3), share = Math.round(total * 0.175), paidFirst = i % 3 === 0;
+    sql.push(ins("payments", { id: `PAY-F${i}`, order_id: oid, amount: first, paid_at: createdAt.slice(0, 10), status: "مدفوعة", method: "تحويل بنكي", reference: `SYN-F${i}`, created_at: createdAt, flow_type: "sale", classification_status: "confirmed" }));
+    if (paidFirst) sql.push(ins("payments", { id: `PAY-C${i}`, order_id: oid, amount: share, paid_at: "2026-10-05", status: "مدفوعة", method: "تحويل بنكي", reference: `SYN-C${i}`, created_at: ts(5), flow_type: "collection", classification_status: "confirmed" }));
+    [["2026-10-05", paidFirst ? "مدفوع" : i % 2 ? "تذكير أول" : "قادم"], [TODAY, "قادم"], ["2026-11-28", "قادم"], ["2026-12-28", "قادم"]].forEach(([due, status], k) =>
+      sql.push(ins("installments", { id: `INS-T${i}-${k + 1}`, order_id: oid, sequence: k + 1, amount_cents: share * 100, due_date: due, status, paid_payment_id: k === 0 && paidFirst ? `PAY-C${i}` : null, paid_at: k === 0 && paidFirst ? "2026-10-05" : null, reference: k === 0 && paidFirst ? `SYN-C${i}` : null, created_at: createdAt, updated_at: createdAt })));
   }
 }
 // One refund-free withdrawal table is created by the API at runtime; targets:
