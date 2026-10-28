@@ -13,10 +13,22 @@
   same branch at the user's request. See [PHASE-1-OPERATIONS-CENTER.md](PHASE-1-OPERATIONS-CENTER.md), including
   the suggestions waiting for the user's decision. Phase 2 (Customers) followed on the same branch: see [PHASE-2-CUSTOMERS.md](PHASE-2-CUSTOMERS.md). Phase 3 started with the academy pages (onboarding review and fixes): see [PHASE-3-ACADEMY.md](PHASE-3-ACADEMY.md), The academy-permission question is resolved: real academy accounts see the page.
 
+## Released (2026-10-28, at the user's request)
+
+- `design/phase-0-shell` was fast-forwarded into `main` (`9feeded` → `ad619fa`). That also brought the 28 September
+  commits that had been on the first machine's local `main` only.
+- Deployed to Cloudflare Workers with `npx wrangler deploy --config wrangler.deploy.jsonc` from `ad619fa`:
+  version `3b8dcd9e-f537-4177-aed9-8a2498358f7c` at https://sulukera-operations.ro7e-entaa.workers.dev.
+  Checked: home 200, new CSS served, API 401 without a session. Signed-in pages weren't checked (no credentials used).
+- Previous live version, for rollback: `bb58c5db-8d9c-411e-9cce-186111b241a7` (deployed 2026-10-28 07:02 UTC by an
+  external tool, contents unknown). Roll back with:
+  `npx wrangler rollback bb58c5db-8d9c-411e-9cce-186111b241a7 --config wrangler.deploy.jsonc`
+- From now on, merge and deploy only when the user asks, as they did here.
+
 ## Next steps (agreed with the user, 2026-10-28)
 
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.
-Never merge, never push to `main`, never open a PR unless asked.
+Merge to `main`, deploy or open a PR only when the user asks.
 1. ~~Finance UTC dates~~ **Done:** every "today" default in `app/page.tsx` (11 spots: the intake purchase date, finance today/month/forms, B2B activity date and follow-ups, the export filename) now uses the local date. A test guards it.
 2. Phase 3 remainder: "تسليم العميل" (`TrialHandoff` + `Registration` under view `contact`). **Done** (trial box and stuck "جديد" column): see [REVIEW-CONTACT.md](REVIEW-CONTACT.md). Still to review: the `Registration` intake form (high-risk: it creates customers, orders and payments).
 3. Phase 4 (Finance), 5 (B2B), 6 (Programs/Users/Control/Reports), 7 (clean-up). Clean-up includes the unused `LegacyLiveWork`, `Customers`, `CustomerTable` and the `Dashboard` demo components.
