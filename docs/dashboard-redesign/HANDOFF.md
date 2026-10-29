@@ -68,6 +68,14 @@
   default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
 - **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
 
+## Released: customer phone on finance rows (2026-10-29, at the user's request)
+
+- Finance staff asked to see the customer's phone in the list. It now shows under the name in both finance
+  tables. Display only; the finance API already returned it.
+- **Rollback** to the finance file release (version `5f9abee5`, deployed 19:53:19 UTC on 2026-10-28):
+  `npx wrangler rollback 5f9abee5-d046-4884-8e0c-634b1531b97a --config wrangler.deploy.jsonc`.
+- Next: Phase 5 (B2B) started right after this release.
+
 ## Released: finance file layout (2026-10-29 evening, at the user's request)
 
 - `design/phase-0-shell` fast-forwarded into `main` (`1340147` → this commit) and pushed, so it deploys
