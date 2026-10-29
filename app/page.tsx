@@ -6949,8 +6949,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
   const reorderCard=(row:B2BRow,direction:"up"|"down",priority="الكل",contactStatus="الكل")=>void execute({action:"reorder_partnership_card",opportunityId:row.opportunity_id,direction,priority,contactStatus},false);
   const readLogo=(file:File|undefined,target:"form"|"account")=>{if(!file)return;if(file.size>500000||!/^image\/(png|jpeg|webp)$/.test(file.type)){setError("الشعار يجب أن يكون PNG أو JPG أو WebP وحجمه أقل من 500KB");return}const reader=new FileReader();reader.onload=()=>{const logoData=String(reader.result||"");target==="form"?setForm(current=>({...current,logoData})):setAccountDraft(current=>({...current,logoData}))};reader.readAsDataURL(file)};
   return (
-    <div className="b2b-workspace">
-      <section className="b2b-hero">
+    <div className="ops-home ops-b2b b2b-workspace" aria-busy={loading}>
+      <header className="b2b-masthead">
         <div>
           <span>
             {scope === "all"
@@ -6967,6 +6967,8 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
         {((section === "business" && canManage) ||
           (section === "partnerships" && canCreatePartnership)) && (
           <button
+            type="button"
+            className="oh-btn primary"
             onClick={() => {
               if (section === "partnerships")
                 setForm((current) => ({
@@ -6989,124 +6991,49 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
               setShowForm(true);
             }}
           >
-            <UserPlus size={17} /> إضافة جهة
+            <UserPlus size={16} aria-hidden="true" /> إضافة جهة
           </button>
         )}
+      </header>
+      <section className="oh-pulse b2b-pulse" aria-labelledby="b2b-pulse-title">
+        <header><h3 id="b2b-pulse-title">{section === "business" ? "نبض مبيعات الأعمال" : "نبض الشراكات"}</h3><p>{scope === "all" ? "ضمن جميع الفرق." : "ضمن نطاق عملك."} {section === "business" ? "طلبات التدريب المؤسسي لا تتحول إلى شراكات." : "مؤشرات B2B مستقلة عن مالية الأفراد."}</p></header>
+        <div>
+          <HomeMetric icon={section === "business" ? BriefcaseBusiness : Handshake} label={section === "business" ? "الجهات المسندة" : "إجمالي الشراكات"} value={rows.length} note={scope === "all" ? "ضمن جميع الفرق" : "ضمن نطاق عملك"} tone="brand" />
+          <HomeMetric icon={PhoneCall} label={section === "business" ? "تم التواصل اليوم" : "شراكات نشطة"} value={section === "business" ? contactedToday : rows.filter((x) => x.status === "نشطة").length} note={section === "business" ? `${contacted} جهة تم التواصل معها إجمالًا` : "قيد التفعيل والمتابعة"} tone="success" />
+          <HomeMetric icon={CalendarDays} label={section === "business" ? "متابعات مستحقة" : "تجديد خلال 60 يومًا"} value={section === "business" ? followUps : rows.filter((x) => { const d = days(x.end_date); return d !== null && d >= 0 && d <= 60; }).length} note={section === "business" ? `${awaitingSignature} بانتظار التوقيع` : "تحتاج تخطيطًا مبكرًا"} tone="neutral" />
+          <HomeMetric icon={section === "business" ? ClipboardList : CircleDollarSign} label={section === "business" ? "طلبات التدريب المؤسسي" : "قيمة الاتفاقيات"} value={section === "business" ? trainingRequests : totalValue.toLocaleString("en-US")} suffix={section === "business" ? undefined : "ر.س"} note={section === "business" ? "لا تتحول إلى شراكات" : "مؤشر B2B مستقل"} tone="neutral" />
+          <HomeMetric icon={Clock3} label="متابعات متأخرة" value={overdueFollowUps} note={overdueFollowUps ? "تجاوزت تاريخ المتابعة القادمة" : "جميع المتابعات ضمن موعدها"} tone={overdueFollowUps ? "danger" : "neutral"} />
+        </div>
       </section>
-      <div className="b2b-kpis">
-        <article>
-          <span>
-            {section === "business" ? "الجهات المسندة" : "إجمالي الشراكات"}
-          </span>
-          <b>{rows.length}</b>
-          <small>{scope === "all" ? "ضمن جميع الفرق" : "ضمن نطاق عملك"}</small>
-        </article>
-        <article>
-          <span>
-            {section === "business" ? "تم التواصل اليوم" : "شراكات نشطة"}
-          </span>
-          <b>
-            {section === "business"
-              ? contactedToday
-              : rows.filter((x) => x.status === "نشطة").length}
-          </b>
-          <small>
-            {section === "business"
-              ? `${contacted} جهة تم التواصل معها إجمالًا`
-              : "قيد التفعيل والمتابعة"}
-          </small>
-        </article>
-        <article>
-          <span>
-            {section === "business" ? "متابعات مستحقة" : "تجديد خلال 60 يومًا"}
-          </span>
-          <b>
-            {section === "business"
-              ? followUps
-              : rows.filter((x) => {
-                  const d = days(x.end_date);
-                  return d !== null && d >= 0 && d <= 60;
-                }).length}
-          </b>
-          <small>
-            {section === "business"
-              ? `${awaitingSignature} بانتظار التوقيع`
-              : "تحتاج تخطيطًا مبكرًا"}
-          </small>
-        </article>
-        <article>
-          <span>
-            {section === "business"
-              ? "طلبات التدريب المؤسسي"
-              : "قيمة الاتفاقيات"}
-          </span>
-          <b>
-            {section === "business"
-              ? trainingRequests
-              : totalValue.toLocaleString("en-US")}{" "}
-            {section !== "business" && <small>ر.س</small>}
-          </b>
-          <small>
-            {section === "business" ? "لا تتحول إلى شراكات" : "مؤشر B2B مستقل"}
-          </small>
-        </article>
-        <article className={overdueFollowUps ? "attention" : ""}>
-          <span>متابعات متأخرة</span>
-          <b>{overdueFollowUps}</b>
-          <small>
-            {overdueFollowUps
-              ? "تجاوزت تاريخ المتابعة القادمة"
-              : "جميع المتابعات ضمن موعدها"}
-          </small>
-        </article>
-      </div>
       {section === "partnerships" && recentActivities.length > 0 && (
-        <section className="b2b-team-activity" aria-label="آخر تحديثات فريق الشراكات">
-          <header><div><span>نبض الفريق</span><b>آخر تحديثات الشراكات</b></div><small>تتحدث تلقائيًا</small></header>
-          <div>{recentActivities.slice(0,6).map((activity)=><article key={String(activity.id)}><i>{String(activity.actor_name||"ف").slice(0,2)}</i><span><b>{activity.actor_name||activity.actor_email}</b><small>{activity.activity_type} · {activity.account_name}</small></span><time>{new Date(String(activity.created_at)).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"short",timeStyle:"short"})}</time></article>)}</div>
+        <section className="oh-panel b2b-team-activity" aria-labelledby="b2b-team-title">
+          <header className="oh-panel-head"><span className="oh-icon"><Activity size={18} /></span><div><h3 id="b2b-team-title">آخر تحديثات الشراكات</h3><p>نبض الفريق · تتحدث تلقائيًا</p></div></header>
+          <ol className="b2b-feed">{recentActivities.slice(0,6).map((activity)=><li key={String(activity.id)}><i aria-hidden="true">{String(activity.actor_name||"ف").slice(0,2)}</i><span><b>{activity.actor_name||activity.actor_email}</b><small>{activity.activity_type} · {activity.account_name}</small></span><time>{new Date(String(activity.created_at)).toLocaleString("ar-SA-u-nu-latn",{dateStyle:"short",timeStyle:"short"})}</time></li>)}</ol>
         </section>
       )}
       {section === "business" && (
-        <section className="b2b-funnel">
-          <header>
-            <div>
-              <b>تقدم فرص الشراكة</b>
-              <span>
-                طلبات التدريب المؤسسي تظهر في تصنيف مستقل ولا تدخل هذا المسار
-              </span>
-            </div>
-          </header>
-          <div>
+        <section className="oh-panel b2b-funnel" aria-labelledby="b2b-funnel-title">
+          <header className="oh-panel-head"><span className="oh-icon"><ChartNoAxesCombined size={18} /></span><div><h3 id="b2b-funnel-title">تقدم فرص الشراكة</h3><p>طلبات التدريب المؤسسي تظهر في تصنيف مستقل ولا تدخل هذا المسار. اضغط على أي مرحلة لعرض جهاتها.</p></div></header>
+          <ol className="b2b-funnel-steps">
             {funnelStages.map((stage, index) => {
-              const partnershipRows = rows.filter(
-                  (row) => row.opportunity_kind !== "corporate_training",
-                ),
-                count = partnershipRows.filter(
-                  (row) => funnelStages.indexOf(String(row.stage)) >= index,
-                ).length,
-                percent = partnershipRows.length
-                  ? Math.round((count / partnershipRows.length) * 100)
-                  : 0;
+              const partnershipRows = rows.filter((row) => row.opportunity_kind !== "corporate_training"),
+                count = partnershipRows.filter((row) => funnelStages.indexOf(String(row.stage)) >= index).length,
+                percent = partnershipRows.length ? Math.round((count / partnershipRows.length) * 100) : 0;
               return (
-                <button
-                  key={stage}
-                  onClick={() => {
-                    setKindFilter("partnership");
-                    setStageFilter(stage);
-                  }}
-                >
-                  <span>{stage}</span>
-                  <b>{count}</b>
-                  <i>
-                    <em style={{ width: `${percent}%` }} />
-                  </i>
-                </button>
+                <li key={stage}>
+                  <button type="button" aria-pressed={kindFilter === "partnership" && stageFilter === stage} onClick={() => { setKindFilter("partnership"); setStageFilter(stage); }}>
+                    <span>{stage}</span>
+                    <b>{count}</b>
+                    <i aria-hidden="true"><em style={{ width: `${percent}%` }} /></i>
+                    <small>{percent}%</small>
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ol>
         </section>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <div className="oh-alert" role="alert">{error}</div>}
       {showForm && (
         <section className="b2b-form-card">
           <header>
@@ -7664,68 +7591,44 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
           </footer>
         </section>
       )}
-      <section className="b2b-list">
-        <header>
-          <div>
-            <b>{section === "business" ? "قائمة الجهات" : "سجل الشراكات"}</b>
-            <span>
-              {visibleRows.length} من {rows.length} جهة
-            </span>
-          </div>
+      <section className="oh-panel b2b-list" aria-labelledby="b2b-list-title">
+        <header className="oh-panel-head">
+          <span className="oh-icon">{section === "business" ? <BriefcaseBusiness size={18} /> : <Handshake size={18} />}</span>
+          <div><h3 id="b2b-list-title">{section === "business" ? "قائمة الجهات" : "سجل الشراكات"}</h3><p>{section === "business" ? "اضغط على أي جهة لفتح ملفها ومتابعة مرحلتها." : "اسحب البطاقة بين مراحل دورة الحياة، أو افتحها لمتابعة الجهة."}</p></div>
         </header>
-        <div className="b2b-toolbar">
-          <label>
-            <Search size={16} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث باسم الجهة أو المسؤول أو التدريب..."
-            />
+        <div className="cu-filters b2b-filters">
+          <label className="b2b-search">
+            <Search size={16} aria-hidden="true" />
+            <input type="search" aria-label="بحث في الجهات" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم الجهة أو المسؤول أو التدريب..." />
           </label>
-          {section === "business" && (
-            <select
-              value={kindFilter}
-              onChange={(e) => setKindFilter(e.target.value)}
-            >
-              <option value="الكل">كل الأنواع</option>
-              <option value="partnership">فرص الشراكة</option>
-              <option value="corporate_training">طلبات الجهات</option>
-            </select>
-          )}
-          <select
-            value={pathFilter}
-            onChange={(e) => setPathFilter(e.target.value)}
-          >
-            <option>الكل</option>
-            <option>ABA</option>
-            <option>OBM</option>
-            <option value="BOTH">جميع المجالات</option>
-          </select>
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-          >
-            <option>الكل</option>
-            {options.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-          {(search ||
-            stageFilter !== "الكل" ||
-            pathFilter !== "الكل" ||
-            kindFilter !== "الكل") && (
-            <button
-              onClick={() => {
-                setSearch("");
-                setStageFilter("الكل");
-                setPathFilter("الكل");
-                setKindFilter("الكل");
-              }}
-            >
-              مسح التصفية
-            </button>
-          )}
+          <div className="cu-selects">
+            {section === "business" && (
+              <label className="cu-select"><span>النوع</span><select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+                <option value="الكل">كل الأنواع</option>
+                <option value="partnership">فرص الشراكة</option>
+                <option value="corporate_training">طلبات الجهات</option>
+              </select></label>
+            )}
+            <label className="cu-select"><span>المسار</span><select value={pathFilter} onChange={(e) => setPathFilter(e.target.value)}>
+              <option value="الكل">كل المسارات</option>
+              <option>ABA</option>
+              <option>OBM</option>
+              <option value="BOTH">جميع المجالات</option>
+            </select></label>
+            <label className="cu-select"><span>المرحلة</span><select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+              <option value="الكل">كل المراحل</option>
+              {options.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select></label>
+          </div>
         </div>
+        <p className="oc-result-line cu-result" aria-live="polite">
+          {visibleRows.length} من {rows.length} جهة
+          {(search || stageFilter !== "الكل" || pathFilter !== "الكل" || kindFilter !== "الكل") && (
+            <button type="button" onClick={() => { setSearch(""); setStageFilter("الكل"); setPathFilter("الكل"); setKindFilter("الكل"); }}>مسح التصفية</button>
+          )}
+        </p>
         {loading ? (
           <LiveState loading error="" empty={false} />
         ) : visibleRows.length === 0 ? (

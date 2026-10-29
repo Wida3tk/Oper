@@ -1243,3 +1243,19 @@ test("shows the customer's phone on every finance row", async () => {
   const page = await read("../app/page.tsx");
   assert.equal((page.match(/\{row\.phone && <small dir="ltr" className="fin-phone">\{row\.phone\}<\/small>\}/g) || []).length, 2);
 });
+
+test("renders the B2B main screen on the design system with a 12px floor", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<div className="ops-home ops-b2b b2b-workspace" aria-busy=\{loading\}>/);
+  assert.match(page, /<header className="b2b-masthead">/);
+  assert.match(page, /className="oh-pulse b2b-pulse"/);
+  assert.match(page, /<ol className="b2b-feed">/);
+  assert.match(page, /<ol className="b2b-funnel-steps">/);
+  assert.match(page, /aria-pressed=\{kindFilter === "partnership" && stageFilter === stage\}/);
+  assert.match(page, /className="cu-filters b2b-filters"/);
+  assert.match(page, /<p className="oc-result-line cu-result" aria-live="polite">\s*\{visibleRows\.length\} من \{rows\.length\} جهة/);
+  assert.doesNotMatch(page, /className="b2b-hero"|className="b2b-kpis"|className="b2b-toolbar"/);
+  assert.match(css, /\/\* B2B 12px floor \(Phase 5\)/);
+  assert.match(css, /\.b2b-pulse>div\{grid-template-columns:repeat\(5,minmax\(0,1fr\)\)\}/);
+});
