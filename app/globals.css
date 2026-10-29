@@ -1678,3 +1678,45 @@ section.transfer-review-panel .transfer-review-actions .primary{width:auto;paddi
 .ops-b2b .b2b-card-dates span{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:3px 0;background:none;border-radius:0}
 .ops-b2b .b2b-intake-decision>div:last-child{flex:none}
 .ops-b2b .b2b-intake-decision button{white-space:nowrap}
+/* Phase 5 part 2: B2B partner file on the customer-file layout. Overrides the legacy navy header; scoped to .ops-b2b. */
+.ops-b2b .b2b-overlay{background:rgb(15 23 42/.45)}
+.ops-b2b .b2b-drawer{background:var(--sk-canvas);box-shadow:var(--sk-shadow-2);color:var(--sk-ink)}
+.ops-b2b .b2b-drawer>.b2b-file-head{padding:20px 22px 18px;background:var(--sk-surface);color:var(--sk-ink)}
+.ops-b2b .b2b-file-head .cp-close{float:none;border:1px solid var(--sk-line);background:var(--sk-surface);color:var(--sk-ink-2);font-size:inherit;cursor:pointer}
+.ops-b2b .b2b-file-head .cp-close:hover{border-color:var(--sk-brand);color:var(--sk-brand)}
+.ops-b2b .b2b-file-head .cp-close:focus-visible{outline:0;box-shadow:var(--sk-ring)}
+.ops-b2b .b2b-file-head .cp-avatar{color:var(--sk-brand);font-size:var(--sk-fs-lg)}
+.ops-b2b .b2b-file-head .b2b-file-kind{display:block;color:var(--sk-brand);font-size:var(--sk-fs-xs);font-weight:700}
+.ops-b2b .b2b-file-head h2{margin:2px 0 0;color:var(--sk-ink);font-size:var(--sk-fs-xl);font-weight:700;line-height:1.35}
+.ops-b2b .b2b-file-head .cp-meta{margin:2px 0 0}
+.ops-b2b .b2b-file-head .cp-meta span{color:var(--sk-muted);font-size:var(--sk-fs-xs)}
+.ops-b2b .b2b-file-head .drawer-lifecycle{gap:10px;margin-top:2px;padding-top:14px;border-top:1px solid var(--sk-line)}
+.ops-b2b .b2b-file-head .drawer-lifecycle-title span{color:var(--sk-muted)!important;font-size:var(--sk-fs-xs)}
+.ops-b2b .b2b-file-head .drawer-lifecycle-title b{color:var(--sk-ink);font-size:var(--sk-fs-sm)}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track span{color:var(--sk-muted)!important;font-size:var(--sk-fs-xs)}
+/* RTL: each step joins the previous step on its right (the legacy rule drew past the last step). */
+.ops-b2b .b2b-file-head .drawer-lifecycle-track span:after{top:10px;right:auto;left:56%;background:var(--sk-line)}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track i{width:22px;height:22px;border-color:var(--sk-line-strong);background:var(--sk-surface);color:var(--sk-muted);font-variant-numeric:tabular-nums}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track b{font-weight:600;line-height:1.35}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track span.done{color:var(--sk-ink)!important}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track span.done i{border-color:var(--sk-brand);background:var(--sk-brand);color:#fff}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track span.done:after{background:var(--sk-brand)}
+.ops-b2b .b2b-file-head .drawer-lifecycle-track.rejected span:last-child i{border-color:var(--sk-danger);background:var(--sk-danger);color:#fff}
+.ops-b2b .b2b-file-head .drawer-lifecycle-select span{color:var(--sk-ink-2)!important}
+.ops-b2b .b2b-file-head .drawer-lifecycle-select select{height:36px!important;border-color:var(--sk-line-strong)!important;background:var(--sk-surface)!important;color:var(--sk-ink)!important}
+.ops-b2b .b2b-drawer-body{gap:12px;padding:16px 18px 28px}
+.ops-b2b .b2b-drawer-body>section,.ops-b2b .b2b-drawer .b2b-convert{padding:16px 18px;border:1px solid var(--sk-line);border-radius:var(--sk-radius-lg);background:var(--sk-surface);box-shadow:var(--sk-shadow-1)}
+.ops-b2b .b2b-drawer-body>section>h3,.ops-b2b .b2b-drawer .b2b-progress-head h3{color:var(--sk-ink);font-size:var(--sk-fs-md);font-weight:700}
+.ops-b2b .b2b-drawer .b2b-progress-head p{color:var(--sk-muted);font-size:var(--sk-fs-sm);line-height:1.6}
+.ops-b2b .b2b-drawer .b2b-progress-head em{background:var(--sk-brand-soft);color:var(--sk-brand);font-size:var(--sk-fs-xs);font-weight:600;white-space:nowrap}
+.ops-b2b .b2b-drawer .b2b-document-form button{min-height:38px;border-radius:var(--sk-radius-sm);background:var(--sk-brand);font-weight:600}
+.ops-b2b .b2b-drawer dl div{border-radius:var(--sk-radius-sm);background:var(--sk-sunken)}
+.ops-b2b .b2b-drawer dt{color:var(--sk-muted)}
+.ops-b2b .b2b-drawer dd{color:var(--sk-ink);font-size:var(--sk-fs-sm);font-weight:600}
+.ops-b2b .b2b-drawer label{color:var(--sk-ink-2)}
+.ops-b2b .b2b-drawer :is(input,select){border-color:var(--sk-line-strong);border-radius:var(--sk-radius-sm);background:var(--sk-surface);color:var(--sk-ink)}
+.ops-b2b .b2b-drawer :is(input,select):focus-visible{outline:0;border-color:var(--sk-brand);box-shadow:var(--sk-ring)}
+.ops-b2b .b2b-drawer-body>.b2b-danger-zone{border-color:#f4c7cc;background:var(--sk-surface)}
+.ops-b2b .b2b-drawer .b2b-danger-zone h3{color:var(--sk-danger)}
+.ops-b2b .b2b-drawer .b2b-danger-zone p{color:var(--sk-muted)}
+@media(max-width:720px){.ops-b2b .b2b-drawer>.b2b-file-head{padding:16px 16px 14px}.ops-b2b .b2b-drawer-body{padding:12px 12px 24px}.ops-b2b .b2b-drawer-body>section{padding:14px}}

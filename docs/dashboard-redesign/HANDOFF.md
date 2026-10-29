@@ -54,9 +54,11 @@
 ## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
 
 - **Live = `main` = `fd0945d`** (the customer phone on finance rows, see below).
-- **On the branch, not pushed:** Phase 5 B2B part 1 ([PHASE-5-B2B.md](PHASE-5-B2B.md)). It covers the
-  partnerships and business-sales main screens. Pushing it releases it.
-  Part 2 rearranges the partner file like the customer file.
+- **On the branch, not pushed (pushing releases them):**
+  - Phase 5 B2B parts 1 and 2 ([PHASE-5-B2B.md](PHASE-5-B2B.md)): the main screens, and the partner file on
+    the customer-file layout.
+  - The payment-default pause ([FINANCE-AUDIT.md](FINANCE-AUDIT.md)): an order under «تطبيق السياسة» leaves
+    the collection forecast and gets no reminders until finance lifts it.
 - **Done today:**
   - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
     before/after-VAT amounts.
@@ -66,7 +68,7 @@
      (`flow_type = 'seat_fee'`) so it counts in finance totals? Today it shows in the file but is in no total.
   2. **Audit #5:** roughly how many orders are in production? `GET /api/finance` loads only the latest 200.
      If there are more, compute the totals over all orders.
-- **Next phases:** 5 part 2 (the partner file), 6 (Programs/Users/Control/Reports), 7 (clean-up). Small items: registration's
+- **Next phases:** 6 (Programs/Users/Control/Reports), 7 (clean-up). Small items: registration's
   default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
 - **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
 

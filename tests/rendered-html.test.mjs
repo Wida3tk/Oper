@@ -1265,3 +1265,14 @@ test("renders the B2B main screen on the design system with a 12px floor", async
   assert.match(css, /\/\* B2B 12px floor \(Phase 5\)/);
   assert.match(css, /\.b2b-pulse>div\{grid-template-columns:repeat\(5,minmax\(0,1fr\)\)\}/);
 });
+
+test("lays out the B2B partner file like the customer file", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /<aside className="b2b-drawer" role="dialog" aria-modal="true" aria-labelledby="b2b-file-title">/);
+  assert.match(page, /<header className="cp-head b2b-file-head">\s*<button type="button" className="cp-close" aria-label="إغلاق الملف"/);
+  assert.match(page, /<h2 id="b2b-file-title">\{selected\.account_name\}<\/h2>/);
+  assert.match(css, /\/\* Phase 5 part 2: B2B partner file/);
+  assert.match(css, /\.ops-b2b \.b2b-drawer>\.b2b-file-head\{[^}]*background:var\(--sk-surface\)/);
+  assert.match(css, /\.ops-b2b \.b2b-file-head \.drawer-lifecycle-track span:after\{top:10px;right:auto;left:56%/);
+});

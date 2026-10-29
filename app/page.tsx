@@ -7903,19 +7903,20 @@ function B2BWorkspace({section,canManage,canConvert}:{section:"business"|"partne
             aria-label="إغلاق"
             onClick={() => setSelected(null)}
           />
-          <aside className="b2b-drawer">
-            <header>
-              <button onClick={() => setSelected(null)}>×</button>
-              <span>
-                {section === "business" ? "ملف فرصة الأعمال" : "ملف الشراكة"}
-              </span>
-              <h2>{selected.account_name}</h2>
-              <p>
-                {section === "business" && selected.account_type
-                  ? `${selected.account_type} · `
-                  : ""}
-                {selected.region || selected.city || "الموقع غير محدد"}
-              </p>
+          <aside className="b2b-drawer" role="dialog" aria-modal="true" aria-labelledby="b2b-file-title">
+            <header className="cp-head b2b-file-head">
+              <button type="button" className="cp-close" aria-label="إغلاق الملف" onClick={() => setSelected(null)}><X size={18} /></button>
+              <div className="cp-identity">
+                <span className="cp-avatar" aria-hidden="true">{String(selected.account_name || "؟").trim().slice(0, 2)}</span>
+                <div>
+                  <small className="b2b-file-kind">{section === "business" ? "ملف فرصة الأعمال" : "ملف الشراكة"}</small>
+                  <h2 id="b2b-file-title">{selected.account_name}</h2>
+                  <p className="cp-meta">
+                    {section === "business" && Boolean(selected.account_type) && <span>{selected.account_type}</span>}
+                    <span>{selected.region || selected.city || "الموقع غير محدد"}</span>
+                  </p>
+                </div>
+              </div>
               {section === "partnerships" && (
                 <div className="drawer-lifecycle">
                   <div className="drawer-lifecycle-title">

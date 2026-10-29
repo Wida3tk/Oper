@@ -48,8 +48,33 @@ rules shared with the form card lost only their dead selectors.
 | `npm test` | 100 / 100 (1 new test) |
 | Lint / type errors | 59 (was 60) / 101 (unchanged) |
 
-## Not done here (part 2)
+## Part 2: the partner file
 
-- The partner file's layout (header, lifecycle, panels) is unchanged apart from type size. A rearrangement like the
-  customer and finance files is next.
+| Partner file, 1440px | Operations stage, 1440px | 375px |
+|---|---|---|
+| ![](screenshots/phase-5/part2-file-1440.png) | ![](screenshots/phase-5/part2-file-operations-1440.png) | ![](screenshots/phase-5/part2-file-375.png) |
+
+Compare with `before-file-1440.png` / `before-file-375.png` above.
+
+| Before | After | Why |
+|---|---|---|
+| Navy gradient header, a bare «×», kind / name / location as loose text | **Customer-file header** (`cp-head`): close button (labelled), avatar with initials, file kind, name, location (and type for business) | Same header as the customer and finance files. The file is now a labelled dialog (`role="dialog"`, `aria-modal`, `aria-labelledby`). |
+| Lifecycle in white on navy. The connector after the last step ran off to the edge | Same stepper on the light header: brand for reached stages, red for «غير مناسب». Each connector joins a step to the previous one | Reads in the page's colours and stops at the last step. |
+| Sections as plain white boxes with legacy colours and inputs | Sections as `cp-section` panels (line, radius, light shadow), md titles, muted descriptions, token inputs with a focus ring. The delete zone looks like `cp-danger` | Matches the other files. |
+| On a phone the «إرفاق» button was 18px tall and the contact-state badge wrapped | Button 38px, badge on one line | |
+
+Markup changed only in the header. The body's markup and every action (edit, classify, contact path, approvals,
+operations, documents, delete) are unchanged. The styles are one block in `globals.css` scoped to
+`.ops-b2b .b2b-drawer`. It overrides the legacy rules instead of deleting them, because the body's own `<header>`
+elements (meeting minutes, approvals) still use them.
+
+Checked on synthetic data:
+
+- The first partner file in each of the 7 board columns, at 1440 and 375px: stage shown correctly, no text under
+  12px, no horizontal scroll in the file or the page.
+- The operations-stage file shows the approvals, operation steps, offer details and documents in the new panels.
+
+## Not done
+
 - The B2B synthetic data is created by a scratch script, not the repo seed.
+- The legacy navy-header rules are overridden, not deleted. They can go in the Phase 7 clean-up.
