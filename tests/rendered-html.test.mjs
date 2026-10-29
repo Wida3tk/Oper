@@ -1238,3 +1238,8 @@ test("lays out the finance file like the customer file, with the review action a
   assert.match(css, /\.fin-head\{position:sticky;top:0;z-index:2\}/);
   assert.match(css, /section\.transfer-review-panel>details>summary span b\{color:var\(--sk-ink\);font-size:var\(--sk-fs-md\)\}/);
 });
+
+test("shows the customer's phone on every finance row", async () => {
+  const page = await read("../app/page.tsx");
+  assert.equal((page.match(/\{row\.phone && <small dir="ltr" className="fin-phone">\{row\.phone\}<\/small>\}/g) || []).length, 2);
+});

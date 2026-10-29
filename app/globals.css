@@ -1471,3 +1471,4 @@ section.transfer-review-panel .transfer-route>p b{font-size:var(--sk-fs-sm)}
 section.transfer-review-panel textarea{border-color:var(--sk-line-strong);border-radius:var(--sk-radius-sm);font-size:var(--sk-fs-sm)}
 section.transfer-review-panel .pill{font-size:var(--sk-fs-xs)}
 section.transfer-review-panel .transfer-review-actions .primary{width:auto;padding:0 14px;font-size:var(--sk-fs-sm)}
+.ops-finance .customer-name-cell .fin-phone{color:var(--sk-ink-2);font-variant-numeric:tabular-nums;text-align:end}

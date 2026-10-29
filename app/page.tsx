@@ -6490,7 +6490,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                     const status = saleStatus({ row, payment });
                     return (
                       <tr key={payment.id} onClick={() => open(row)}>
-                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button><small dir="ltr">{row.order_id}</small></span></td>
+                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button>{row.phone && <small dir="ltr" className="fin-phone">{row.phone}</small>}<small dir="ltr">{row.order_id}</small></span></td>
                         <td data-label="البرنامج"><b>{row.program_name}</b>{subscriptionMeta(row).length > 0 && <small>{subscriptionMeta(row).join(" · ")}</small>}</td>
                         <td data-label="العملية"><b>{payment.flow_type === "seat_fee" ? "رسوم مقعد" : payment.flow_type === "collection" ? (row.order_type === "إشراف" ? "تحصيل إشراف" : "تحصيل") : row.payment_plan === "أقساط" ? "دفعة أولى" : "دفع كامل"}</b><small>{payment.method || row.purchase_source}</small></td>
                         <td data-label="المبلغ" className="fin-amount"><b>{sar(payment.amount)}</b><small>{beforeVat(payment.amount)}</small>{row.seat_fee > 0 && payment.flow_type !== "seat_fee" && <small>+ رسوم المقعد {sar(row.seat_fee)}</small>}</td>
@@ -6512,7 +6512,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                     const status = financeStatus(row), installmentStatus = currentInstallmentStatus(row), paidRatio = row.total ? Math.min(100, Math.round((row.paid / row.total) * 100)) : 0;
                     return (
                       <tr key={row.order_id} onClick={() => open(row)}>
-                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button><small dir="ltr">{row.order_id}</small></span></td>
+                        <td className="customer-name-cell"><i aria-hidden="true">{row.customer_name.trim().slice(0, 2)}</i><span><button type="button" onClick={(event) => { event.stopPropagation(); open(row); }}>{row.customer_name}</button>{row.phone && <small dir="ltr" className="fin-phone">{row.phone}</small>}<small dir="ltr">{row.order_id}</small></span></td>
                         <td data-label="البرنامج"><b>{row.program_name}</b>{subscriptionMeta(row).length > 0 && <small>{subscriptionMeta(row).join(" · ")}</small>}</td>
                         <td data-label="المدفوع" className="cu-paid fin-amount"><b>{sar(row.paid)} <small>من {sar(row.total)}</small></b><span className="cu-bar" aria-hidden="true"><i style={{ width: `${paidRatio}%` }} /></span><small>{beforeVat(row.paid)}{row.seat_fee > 0 ? ` · + رسوم المقعد ${sar(row.seat_fee)}` : ""}</small></td>
                         <td data-label="المتبقي" className="fin-amount"><b>{sar(row.remaining)}</b><small>{beforeVat(row.remaining)}</small></td>
