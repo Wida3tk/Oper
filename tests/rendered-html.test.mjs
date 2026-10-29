@@ -1022,6 +1022,12 @@ test("forecasts selected-month collections from open scheduled installments only
   assert.match(finance,/requestedForecastMonth/);
   assert.match(finance,/item\.status!=="مدفوع"&&item\.status!=="ملغي"/);
   assert.match(finance,/forecastMonth/);
+  // An order under «تطبيق السياسة» is paused: out of the forecast, counted separately, no reminder button.
+  assert.match(finance,/order\.withdrawal\|\|onPolicy\(order\)\?\[\]:monthOpen\(order\)/);
+  assert.match(finance,/paused_installments:pausedItems\.length/);
+  assert.match(finance,/if\(installments\.some\(x=>String\(x\.status\)==="تطبيق السياسة"\)\)return \{label:"تطبيق السياسة"/);
+  assert.match(page,/selectedOnPolicy && <small className="installment-reminder-meta">موقوف: تطبيق السياسة/);
+  assert.match(page,/!selectedOnPolicy && <button type="button" className="installment-whatsapp-reminder"/);
   assert.match(page,/توقع تحصيل/);
   assert.match(page,/متوقع التحصيل/);
   assert.match(page,/عالي المخاطر/);

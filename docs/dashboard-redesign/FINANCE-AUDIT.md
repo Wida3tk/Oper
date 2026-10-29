@@ -63,6 +63,33 @@ dashboard, with the amount under review shown on its own.
 Still open: #3b (record a seat fee paid with registration as its own payment), #5 (the 200-order cap; needs the
 production order count). Not changed: the registration form's default purchase date still uses the device's date.
 
+## Payment default pauses the order (2026-10-29, the user's decision)
+
+Before, an order with an instalment under «تطبيق السياسة» (payment default) still had its other instalments in the
+month's collection forecast as «متوقع التحصيل», each with a WhatsApp reminder button. Its «سلوك السداد» showed the
+most common status, so it could read «ملتزم».
+
+Now, while any instalment of an order is under «تطبيق السياسة»:
+
+- **Forecast:** none of its open instalments are counted. They show on their own line: «موقوف (تطبيق السياسة): n
+  قسط بقيمة x».
+- **Finance file:** the reminder button is gone on every open instalment. Each one says «موقوف: تطبيق السياسة».
+- **Payment behaviour:** shows «تطبيق السياسة».
+
+When finance changes that status, the order is back in the forecast.
+
+Checked on synthetic data (ORD-T011, November):
+
+| Step | Forecast due | Paused | Order listed |
+|---|---|---|---|
+| Before | 5,145 | 0 | Yes |
+| Under policy | 3,430 | 1,715 | No |
+| Policy lifted | 5,145 | 0 | Yes |
+
+The file showed 0 reminder buttons and 4 «موقوف» notes, and behaviour read «تطبيق السياسة».
+
+The system has no separate «تعثر سداد» status. The user confirmed «تطبيق السياسة» is that status.
+
 ## Proposed fixes (original list)
 
 - **Clear bugs, read-side only:** #2 (sales = `flow_type = 'sale'` only; keep the fallback only for old payments

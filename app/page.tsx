@@ -2913,7 +2913,7 @@ type FinanceOrder = {
   withdrawal?: { id:string;reason:string;withdrawn_at:string;gross_paid:number;non_refundable_amount:number;refund_amount:number;refund_source:string;refund_method:string;reference:string;status:string;created_by_email:string;created_at:string } | null;
   undo_available?: { id: string; action: string; label: string; created_at: string } | null;
 };
-type CollectionForecast = { month:string; due:number; expected:number; follow_up:number; risk:number; installments:number; items:{customer_name:string;program_name:string;order_id:string;installment_id:string;amount:number;due_date:string;status:string;reminder_count:number;category:"expected"|"follow_up"|"risk"}[] };
+type CollectionForecast = { month:string; due:number; expected:number; follow_up:number; risk:number; installments:number; paused:number; paused_installments:number; items:{customer_name:string;program_name:string;order_id:string;installment_id:string;amount:number;due_date:string;status:string;reminder_count:number;category:"expected"|"follow_up"|"risk"}[] };
 type FinanceSummary = { total:number; paid:number; remaining:number; overdue:number; forecast:CollectionForecast };
 type ProgramTrack = { id?: string; name: string; active?: number };
 type Program = {
@@ -6020,7 +6020,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
       paid: 0,
       remaining: 0,
       overdue: 0,
-      forecast:{month:"",due:0,expected:0,follow_up:0,risk:0,installments:0,items:[]},
+      forecast:{month:"",due:0,expected:0,follow_up:0,risk:0,installments:0,paused:0,paused_installments:0,items:[]},
     }),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -6343,6 +6343,8 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     : undefined;
   const selectedReferencePayment = selected?.payments.find((payment) => payment.id === selectedPaymentRecordId) || defaultReferencePayment;
   const selectedFirstProgramPayment=selected?firstPayment(selected):undefined;
+  // Payment default pauses the whole order: no reminders on any open instalment (matches the forecast API).
+  const selectedOnPolicy = Boolean(selected?.installments.some((item) => item.status === "تطبيق السياسة"));
   const selectedPaidPct = selected && selected.total > 0 ? Math.min(100, Math.round((selected.paid / selected.total) * 100)) : 0;
   useEffect(() => {
     setPaymentRecordDate(String(selectedReferencePayment?.paid_at || selectedReferencePayment?.created_at || "").slice(0,10));
@@ -6457,6 +6459,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                 <article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article>
                 <article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article>
               </div>
+              {forecast.paused_installments > 0 && <p className="collection-forecast-paused">موقوف (تطبيق السياسة): {forecast.paused_installments} قسط بقيمة {sar(forecast.paused)}، غير محسوب في التوقع ولا يُرسل له تذكير.</p>}
               {forecast.items.length > 0 && <div className="collection-forecast-list">{forecast.items.map((item) => <button type="button" key={item.installment_id} className={item.category} onClick={() => { const row = rows.find((current) => current.order_id === item.order_id); if (row) open(row); }}><time dir="ltr">{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}
             </div>
           </details>
@@ -6737,7 +6740,8 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                         <label className="installment-date-editor due-date-editor"><span>تعديل تاريخ الاستحقاق</span><span><input type="date" value={installmentDueDates[inst.id] || String(inst.due_date).slice(0,10)} onChange={(e) => setInstallmentDueDates((current) => ({...current,[inst.id]:e.target.value}))}/><button type="button" disabled={saving || !installmentDueDates[inst.id] || installmentDueDates[inst.id] === String(inst.due_date).slice(0,10)} onClick={() => post({action:"update_installment_due_date",installmentId:inst.id,dueDate:installmentDueDates[inst.id]})}>حفظ</button></span></label>
                         {Boolean(inst.reminder_count) && <small className="installment-reminder-meta">{inst.reminder_count} تذكير · آخر تسجيل بواسطة {inst.last_reminded_by_email}</small>}
                         <label className="installment-behavior"><span>حالة السداد</span><select disabled={inst.status === "مدفوع" || saving} value={inst.status==="مدفوع"?"تم السداد":inst.status} onChange={(e) => post({action:"installment_status",installmentId:inst.id,status:e.target.value})}><option>ملتزم</option><option>تذكير أول</option><option>تذكير ثاني</option><option>تذكير ثالث</option><option>تذكير نهائي</option><option>موافقة تمديد</option><option>تطبيق السياسة</option><option>متأخر</option>{inst.status === "مدفوع" && <option>تم السداد</option>}</select></label>
-                        {inst.status !== "مدفوع" && <button type="button" className="installment-whatsapp-reminder" disabled={saving || Number(inst.reminder_count || 0) >= 4} onClick={() => sendInstallmentReminder(inst)}><FaWhatsapp size={17} />{Number(inst.reminder_count || 0) >= 4 ? "تم إرسال التذكير النهائي" : `إرسال ${reminderStatus(inst)} عبر واتساب`}</button>}
+                        {inst.status !== "مدفوع" && selectedOnPolicy && <small className="installment-reminder-meta">موقوف: تطبيق السياسة. لا يُرسل تذكير حتى تُعدّل المالية حالة السداد.</small>}
+                        {inst.status !== "مدفوع" && !selectedOnPolicy && <button type="button" className="installment-whatsapp-reminder" disabled={saving || Number(inst.reminder_count || 0) >= 4} onClick={() => sendInstallmentReminder(inst)}><FaWhatsapp size={17} />{Number(inst.reminder_count || 0) >= 4 ? "تم إرسال التذكير النهائي" : `إرسال ${reminderStatus(inst)} عبر واتساب`}</button>}
                         {inst.status === "مدفوع" ? <div className="paid-ref"><b>تم السداد</b><span>{inst.reference}</span><label className="installment-date-editor installment-payment-date"><span>تاريخ السداد الفعلي</span><span><input type="date" value={installmentPaymentDates[inst.id] || String(inst.paid_at || "").slice(0,10)} onChange={(e) => setInstallmentPaymentDates((current) => ({...current,[inst.id]:e.target.value}))}/><button type="button" disabled={saving || !installmentPaymentDates[inst.id] || installmentPaymentDates[inst.id] === String(inst.paid_at || "").slice(0,10)} onClick={() => post({action:"update_payment_date",installmentId:inst.id,paymentDate:installmentPaymentDates[inst.id]})}>حفظ</button></span></label></div> : <div className="installment-quick-pay"><select aria-label={`وسيلة سداد القسط ${inst.sequence}`} value={installmentMethods[inst.id]||"تحويل بنكي"} onChange={e=>setInstallmentMethods(current=>({...current,[inst.id]:e.target.value}))}><option>تحويل بنكي</option><option>دفع إلكتروني</option><option>PayTabs</option><option>تمارا</option><option>نقدي</option></select><input aria-label={`مرجع سداد القسط ${inst.sequence}`} value={installmentRefs[inst.id]||""} onChange={e=>setInstallmentRefs(current=>({...current,[inst.id]:e.target.value}))} placeholder="مرجع السداد" /><button className="installment-paid-check" aria-label={`تحديد القسط ${inst.sequence} كمدفوع`} disabled={saving||!String(installmentRefs[inst.id]||"").trim()} onClick={()=>post({action:"pay_installment",installmentId:inst.id,method:installmentMethods[inst.id]||"تحويل بنكي",reference:String(installmentRefs[inst.id]||"").trim()})}>✓</button></div>}
                       </div>
                     </details>

@@ -1348,6 +1348,7 @@ html,body{max-width:100%;overflow-x:hidden}
 .collection-forecast-metrics .risk{border-inline-start-color:var(--sk-danger-mark)}
 .collection-forecast-metrics span,.collection-forecast-metrics small{color:var(--sk-muted);font-size:var(--sk-fs-xs)}
 .collection-forecast-metrics b{color:var(--sk-ink);font-size:var(--sk-fs-lg);font-variant-numeric:tabular-nums}
+.collection-forecast-paused{padding:10px 14px;border:1px solid var(--sk-line);border-inline-start:3px solid var(--sk-danger-mark);border-radius:var(--sk-radius-sm);background:var(--sk-surface);color:var(--sk-ink-2);font-size:var(--sk-fs-sm)}
 .collection-forecast-list{display:grid;overflow:hidden;border:1px solid var(--sk-line);border-radius:var(--sk-radius-sm);background:var(--sk-surface)}
 .collection-forecast-list button{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 14px;border:0;border-top:1px solid var(--sk-line);border-inline-start:3px solid transparent;background:transparent;color:var(--sk-ink-2);font:inherit;font-size:var(--sk-fs-sm);text-align:start;cursor:pointer;transition:background-color var(--sk-dur-fast) ease}
 .collection-forecast-list button:first-child{border-top:0}
