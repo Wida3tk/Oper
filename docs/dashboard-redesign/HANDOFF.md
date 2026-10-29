@@ -53,13 +53,9 @@
 
 ## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
 
-- **Live = `main` = `fd0945d`** (the customer phone on finance rows, see below).
-- **On the branch, not pushed (pushing releases them):**
-  - Phase 5 B2B parts 1 and 2 ([PHASE-5-B2B.md](PHASE-5-B2B.md)): the main screens, and the partner file on
-    the customer-file layout.
-  - The payment-default pause ([FINANCE-AUDIT.md](FINANCE-AUDIT.md)): an order under «تطبيق السياسة» leaves
-    the collection forecast and gets no reminders until finance lifts it.
-- **Done today:**
+- **Live = `main` = `design/phase-0-shell`.** Last release: Phase 5 B2B and the payment-default pause (see
+  below). Everything is pushed and nothing is waiting on the branch.
+- **Done on 2026-10-29:**
   - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
     before/after-VAT amounts.
   - A finance calculations audit and its fixes ([FINANCE-AUDIT.md](FINANCE-AUDIT.md)).
@@ -71,6 +67,23 @@
 - **Next phases:** 6 (Programs/Users/Control/Reports), 7 (clean-up). Small items: registration's
   default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
 - **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
+
+## Released: Phase 5 B2B and the payment-default pause (2026-10-30, at the user's request)
+
+- `design/phase-0-shell` fast-forwarded into `main` (`fd0945d` → this commit) and pushed. It deploys
+  automatically.
+- Carries three commits:
+  - `b86a4d5`: the B2B main screens on the design system.
+  - `93eeb8c`: the payment-default pause. An order with an instalment under «تطبيق السياسة» leaves the
+    collection forecast and shows as a separate paused amount. Its file has no reminder buttons, and its
+    payment behaviour reads «تطبيق السياسة». The finance API's `forecast` gains `paused` and
+    `paused_installments`. No data or schema change.
+  - `88dda16`: the partner file on the customer-file layout.
+  See [PHASE-5-B2B.md](PHASE-5-B2B.md) and [FINANCE-AUDIT.md](FINANCE-AUDIT.md).
+- **Rollback** to the customer-phone release (version `5baafa0d`, deployed 16:42:56 UTC on 2026-10-29):
+  `npx wrangler rollback 5baafa0d-3d64-40e9-a0ac-491e86bb3680 --config wrangler.deploy.jsonc`.
+  This release writes no new data, so a rollback restores everything. Orders under policy then appear in the
+  forecast again.
 
 ## Released: customer phone on finance rows (2026-10-29, at the user's request)
 
