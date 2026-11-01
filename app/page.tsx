@@ -2934,6 +2934,9 @@ type ProgramPrice = { track: string; delivery: string; price: number };
 const withoutVat = (amount: number) => Math.round((Number(amount || 0) / 1.15) * 100) / 100;
 // Business days are Riyadh days, whatever time zone the device is in.
 const riyadhToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+// The Riyadh day of a stored date: same day for "YYYY-MM-DD" and Riyadh-noon values, shifted for exact UTC moments
+// (a payment at 01:00 Riyadh is stored as 22:00Z the day before). Matches date(x,'+3 hours') in the home API.
+const riyadhDayOf = (value: string) => { const time = new Date(value).getTime(); return Number.isNaN(time) ? value.slice(0, 10) : new Date(time + 3 * 36e5).toISOString().slice(0, 10); };
 
 async function apiJson(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -3148,7 +3151,7 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
  useEffect(()=>{void load()},[month]);
  if(!data)return loading?<HomeDashboardSkeleton/>:<LiveState loading={false} error={error} empty/>;
  const f=data.finance,days=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate(),raw=Array.from({length:days},(_,index)=>{const key=`${month}-${String(index+1).padStart(2,"0")}`;return f?.daily.find(row=>row.day===key)||{day:key,sales:0,collections:0}});
- let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),rawMax=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections]),mode==="cumulative"?Number(f?.target||0):0),magnitude=10**Math.floor(Math.log10(rawMax)),chartMax=Math.ceil(rawMax/magnitude*2)/2*magnitude,money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),compactMoney=(value:number)=>value>=1000?`${Number((value/1000).toFixed(value>=10000?0:1))}K`:money(value),targetRatio=f?.target?Math.min(100,Math.round(f.sales/f.target*100)):0,activeDays=raw.filter(row=>row.sales>0||row.collections>0).length,peak=raw.reduce((best,row)=>row.sales+row.collections>best.sales+best.collections?row:best,raw[0]),chartTicks=[chartMax,chartMax*.75,chartMax*.5,chartMax*.25,0];
+ let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),rawMax=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections]),mode==="cumulative"?Number(f?.target||0):0),magnitude=10**Math.floor(Math.log10(rawMax)),chartMax=Math.ceil(rawMax/magnitude*2)/2*magnitude,money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),compactMoney=(value:number)=>value>=1000?`${Number((value/1000).toFixed(value>=10000?0:1))}K`:money(value),targetPercent=f?.target?Math.round(f.sales/f.target*100):0,targetRatio=Math.min(100,Math.max(0,targetPercent)),activeDays=raw.filter(row=>row.sales>0||row.collections>0).length,peak=raw.reduce((best,row)=>row.sales+row.collections>best.sales+best.collections?row:best,raw[0]),chartTicks=[chartMax,chartMax*.75,chartMax*.5,chartMax*.25,0];
  const monthStart=new Date(`${month}-01T12:00:00`),firstSaturdayDay=1+(6-monthStart.getDay()+7)%7,monthEndDay=days,weekRanges:Array<{start:number;end:number}>=[];
  for(let startDay=firstSaturdayDay;startDay<=monthEndDay;startDay+=7)weekRanges.push({start:startDay,end:Math.min(startDay+5,monthEndDay)});
  const todayKey=now.toLocaleDateString("en-CA");
@@ -3156,7 +3159,9 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
  const lastTrendIndex=month<todayKey.slice(0,7)?days-1:month===todayKey.slice(0,7)?Number(todayKey.slice(8,10))-1:-1,trendX=(index:number)=>days-index-.5,trendY=(value:number)=>100-Math.max(0,value)/chartMax*100,trendPath=(key:"sales"|"collections")=>chart.slice(0,lastTrendIndex+1).map((row,index)=>`${index?"L":"M"}${trendX(index)},${trendY(row[key])}`).join(" "),salesArea=lastTrendIndex>=0?`${trendPath("sales")} L${trendX(lastTrendIndex)},100 L${trendX(0)},100 Z`:"";
  const hovered=hoverDay!==null&&(mode==="daily"||hoverDay<=lastTrendIndex)?chart[hoverDay]:null,hoverDate=hovered?new Date(`${hovered.day}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{weekday:"long",day:"numeric",month:"long"}):"";
  const weeklyProgress=weekRanges.map((range,index)=>{const rows=raw.filter(row=>{const day=Number(row.day.slice(-2));return day>=range.start&&day<=range.end}),actual=rows.reduce((sum,row)=>sum+row.sales,0),weekIndex=index+1,weekTarget=Number(f?.weeklyTargets?.[String(weekIndex)]||0),ratio=weekTarget?Math.round(actual/weekTarget*100):0,startKey=`${month}-${String(range.start).padStart(2,"0")}`,endKey=`${month}-${String(range.end).padStart(2,"0")}`;return {index:weekIndex,...range,actual,target:weekTarget,ratio,isCurrent:todayKey>=startKey&&todayKey<=endKey}});
- const displayedSales=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).sales:(chart.at(-1)?.sales||0),displayedCollections=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).collections:(chart.at(-1)?.collections||0),displayedTotal=displayedSales+displayedCollections;
+ // Daily cards show today in the current month; in another month, its last day with movement, named by date.
+ const displayRow=raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0],displayDayLabel=displayRow.day===todayKey?"اليوم":new Date(`${displayRow.day}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{day:"numeric",month:"long"});
+ const displayedSales=mode==="daily"?displayRow.sales:(chart.at(-1)?.sales||0),displayedCollections=mode==="daily"?displayRow.collections:(chart.at(-1)?.collections||0),displayedTotal=displayedSales+displayedCollections;
  const selectedWeeklyProgress=weeklyProgress.find(week=>week.index===selectedWeek)||weeklyProgress[0];
  const activityPageSize=8,activityPages=Math.max(1,Math.ceil(data.activity.length/activityPageSize)),visibleActivity=data.activity.slice(activityPage*activityPageSize,(activityPage+1)*activityPageSize),weekLabels=["الأول","الثاني","الثالث","الرابع","الخامس"];
  const saveTarget=async()=>{try{await apiJson("/api/dashboard/home",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({month,target:Number(target||0)})});setEditingTarget(false);await load()}catch(e){setError((e as Error).message)}};
@@ -3176,10 +3181,10 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
    <label className="oh-month"><CalendarDays size={16} aria-hidden="true"/><span className="sr-only">شهر العرض</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label>
   </header>
   <section className="oh-pulse" aria-labelledby="oh-pulse-title">
-   <header><h3 id="oh-pulse-title">مؤشرات العملاء</h3><p>اضغط على أي مؤشر لفتح السجل الذي تكوّن منه الرقم. لا تشمل الأرقام الملفات المحذوفة.</p></header>
+   <header><h3 id="oh-pulse-title">مؤشرات العملاء</h3><p>أرقام اللحظة الحالية ولا تتأثر بالشهر المختار. اضغط على أي مؤشر لفتح السجل الذي تكوّن منه الرقم. لا تشمل الملفات المحذوفة.</p></header>
    <div>
-    <HomeMetric icon={ListChecks} label="عملاء يحتاجون متابعة" value={data.operations.pendingCustomers} note="عدد العملاء المرتبطين بمهمة مفتوحة واحدة على الأقل" tone={data.operations.pendingCustomers>0?"attention":"brand"} onClick={onOpenTasks}/>
-    <HomeMetric icon={UserPlus} label="عملاء أضيفوا اليوم" value={data.operations.customersToday} note="ملفات عملاء أُنشئت بتاريخ اليوم" tone="brand" onClick={onOpenCustomers}/>
+    <HomeMetric icon={ListChecks} label="عملاء يحتاجون متابعة" value={data.operations.pendingCustomers} note={data.user.roles.includes("admin")?"عملاء مرتبطون بمهمة مفتوحة واحدة على الأقل، لكل الفريق":"عملاء مرتبطون بمهمة مفتوحة مسندة إليك"} tone={data.operations.pendingCustomers>0?"attention":"brand"} onClick={onOpenTasks}/>
+    <HomeMetric icon={UserPlus} label="عملاء أضيفوا اليوم" value={data.operations.customersToday} note="ملفات عملاء أُنشئت اليوم بتوقيت الرياض" tone="brand" onClick={onOpenCustomers}/>
     <HomeMetric icon={UsersRound} label="إجمالي ملفات العملاء" value={data.operations.totalCustomers} note="جميع ملفات العملاء الفعلية غير المحذوفة" tone="neutral" onClick={onOpenCustomers}/>
    </div>
   </section>
@@ -3196,13 +3201,13 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
        <em>المبيعات + التحصيل لهذا الشهر · عرض التفاصيل</em>
       </button>
       <div className="oh-ledger">
-       <HomeMetric icon={BadgeDollarSign} label="صافي المبيعات المدفوعة" value={money(f.sales)} suffix="ر.س" note={f.salesRefunds?`دفعات أولى وكاملة بعد خصم ${money(f.salesRefunds)} ر.س استردادات`:"دفعات أولى وكاملة مؤكدة حسب تاريخ الدفع"} tone="brand" onClick={onOpenFinance}/>
+       <HomeMetric icon={BadgeDollarSign} label="صافي المبيعات المدفوعة" value={money(f.sales)} suffix="ر.س" note={f.salesRefunds?`دفعات أولى وكاملة مؤكدة بعد خصم ${money(f.salesRefunds)} ر.س استردادات · دون رسوم المقعد`:"دفعات أولى وكاملة مؤكدة حسب تاريخ الدفع · دون رسوم المقعد"} tone="brand" onClick={onOpenFinance}/>
        <HomeMetric icon={WalletCards} label="صافي تحصيل الأقساط" value={money(f.collections)} suffix="ر.س" note={f.collectionRefunds?`أقساط مسددة بعد خصم ${money(f.collectionRefunds)} ر.س استردادات`:"دفعات الأقساط المؤكدة حسب تاريخ السداد"} tone="success" onClick={onOpenFinance}/>
-       <HomeMetric icon={ReceiptText} label="قيمة العقود المنشأة" value={money(f.contractValue)} suffix="ر.س" note={`قيمة ${f.orders} طلب أُنشئ خلال الشهر، وليست مبلغًا مقبوضًا`} tone="neutral" onClick={onOpenFinance}/>
-       <HomeMetric icon={HandCoins} label="المتبقي من عقود الشهر" value={money(f.remaining)} suffix="ر.س" note="قيمة العقود المنشأة بعد خصم دفعاتها المؤكدة" tone="neutral" onClick={onOpenFinance}/>
+       <HomeMetric icon={ReceiptText} label="قيمة العقود المنشأة" value={money(f.contractValue)} suffix="ر.س" note={`قيمة ${f.orders} طلب أُنشئ خلال الشهر عدا المنسحبة، وليست مبلغًا مقبوضًا`} tone="neutral" onClick={onOpenFinance}/>
+       <HomeMetric icon={HandCoins} label="المتبقي من عقود الشهر" value={money(f.remaining)} suffix="ر.س" note="عقود الشهر ناقص دفعاتها المؤكدة حتى الآن، دون رسوم المقعد. ما زال تحت المراجعة لا يُخصم" tone="neutral" onClick={onOpenFinance}/>
       </div>
      </div>
-     <p className="oh-footnote"><Info size={14} aria-hidden="true"/>المبيعات تعتمد تاريخ دفع العميل، والتحصيل يعتمد تاريخ سداد الأقساط. لا تدخل العمليات المعلّقة حتى اعتمادها.</p>
+     <p className="oh-footnote"><Info size={14} aria-hidden="true"/>المبيعات حسب تاريخ دفع العميل، والتحصيل حسب تاريخ سداد القسط، بتوقيت الرياض. الاسترداد يُخصم في شهر الانسحاب. لا تدخل العمليات المعلّقة حتى اعتمادها، ولا تدخل رسوم المقعد.</p>
     </section>}
     {f&&<section className="oh-panel sales-performance" aria-labelledby="oh-performance-title">
      <header className="oh-panel-head"><span className="oh-icon"><ChartNoAxesCombined size={18}/></span><div><h3 id="oh-performance-title">المبيعات والتحصيل خلال الشهر</h3><p>الأهداف أولًا، ثم حركة كل يوم أو الإجمالي المتراكم حتى ذلك اليوم.</p></div></header>
@@ -3210,12 +3215,12 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
       <figure className="oh-chart">
        <div className="oh-chart-toolbar">
         <div className="oh-segment" role="tablist" aria-label="طريقة عرض الرسم"><button type="button" role="tab" aria-selected={mode==="daily"} onClick={()=>setMode("daily")}>يومي</button><button type="button" role="tab" aria-selected={mode==="cumulative"} onClick={()=>setMode("cumulative")}>تراكمي</button></div>
-        <figcaption className="oh-chart-meta"><span className="oh-legend"><span><i className="sales"/>المبيعات</span><span><i className="collection"/>التحصيل</span></span><span><b>{activeDays}</b> أيام فيها حركة</span><span>أعلى يوم <b>{compactMoney(peak.sales+peak.collections)}</b></span></figcaption>
+        <figcaption className="oh-chart-meta"><span className="oh-legend"><span><i className="sales"/>المبيعات</span><span><i className="collection"/>التحصيل</span></span><span><b>{activeDays}</b> أيام فيها حركة</span>{activeDays>0&&<span>أعلى يوم {new Date(`${peak.day}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{day:"numeric",month:"short"})} <b>{compactMoney(peak.sales+peak.collections)}</b></span>}</figcaption>
        </div>
        <div className="chart-total-cards">
-        <p><span><i className="sales"/>{mode==="daily"?"مبيعات اليوم":"إجمالي المبيعات"}</span><b>{money(displayedSales)}<small>ر.س</small></b></p>
-        <p><span><i className="collection"/>{mode==="daily"?"تحصيل اليوم":"إجمالي التحصيل"}</span><b>{money(displayedCollections)}<small>ر.س</small></b></p>
-        <p><span><i/>{mode==="daily"?"إجمالي اليوم":"الإجمالي التراكمي"}</span><b>{money(displayedTotal)}<small>ر.س</small></b></p>
+        <p><span><i className="sales"/>{mode==="daily"?`مبيعات ${displayDayLabel}`:"إجمالي المبيعات"}</span><b>{money(displayedSales)}<small>ر.س</small></b></p>
+        <p><span><i className="collection"/>{mode==="daily"?`تحصيل ${displayDayLabel}`:"إجمالي التحصيل"}</span><b>{money(displayedCollections)}<small>ر.س</small></b></p>
+        <p><span><i/>{mode==="daily"?`إجمالي ${displayDayLabel}`:"الإجمالي التراكمي"}</span><b>{money(displayedTotal)}<small>ر.س</small></b></p>
        </div>
        <div className="oh-chart-plot">
         <div className="oh-chart-scale" aria-hidden="true">{chartTicks.map((tick,index)=><span key={index} style={{bottom:`${100-index*25}%`}}>{compactMoney(tick)}</span>)}</div>
@@ -3230,8 +3235,8 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
       </figure>
       <aside className="goals-rail" aria-label="أهداف المبيعات">
        <section className={`month-target ${f.target>0&&targetRatio>=100?"achieved":""}`}>
-        <span className="oh-ring" aria-hidden="true"><svg viewBox="0 0 76 76" width="76" height="76"><circle className="track" cx="38" cy="38" r="32"/><circle className="value" cx="38" cy="38" r="32" strokeDasharray={ringLength} strokeDashoffset={ringLength*(1-targetRatio/100)}/></svg><b>{targetRatio}%</b></span>
-        <div><span><Target size={14} aria-hidden="true"/> هدف مبيعات الشهر</span><b>{money(f.target)} <small>ر.س</small></b><p>{!f.target?"لم يُحدَّد هدف لهذا الشهر":targetRatio>=100?"تم تحقيق الهدف — أداء رائع!":`تحقق ${targetRatio}% من الهدف`}</p></div>
+        <span className="oh-ring" aria-hidden="true"><svg viewBox="0 0 76 76" width="76" height="76"><circle className="track" cx="38" cy="38" r="32"/><circle className="value" cx="38" cy="38" r="32" strokeDasharray={ringLength} strokeDashoffset={ringLength*(1-targetRatio/100)}/></svg><b>{f.target?`${targetPercent}%`:"—"}</b></span>
+        <div><span><Target size={14} aria-hidden="true"/> هدف مبيعات الشهر</span><b>{money(f.target)} <small>ر.س</small></b><p>{!f.target?"لم يُحدَّد هدف لهذا الشهر":targetPercent>=100?`تم تحقيق الهدف (${targetPercent}%) · صافي المبيعات ${money(f.sales)} ر.س`:`صافي المبيعات ${money(f.sales)} ر.س = ${targetPercent}% من الهدف`}</p></div>
         {data.canEditFinanceTarget&&(editingTarget?<form className="oh-inline-edit" onSubmit={e=>{e.preventDefault();void saveTarget()}}><label className="sr-only" htmlFor="oh-month-target">هدف مبيعات الشهر</label><input id="oh-month-target" inputMode="decimal" value={target} onChange={e=>setTarget(e.target.value)}/><button type="submit" className="oh-btn primary">حفظ</button><button type="button" className="oh-btn" onClick={()=>setEditingTarget(false)}>إلغاء</button></form>:<button type="button" className="oh-btn ghost oh-target-trigger" onClick={()=>setEditingTarget(true)}>تعديل الهدف</button>)}
        </section>
        {selectedWeeklyProgress&&<section className={`weekly-challenge-compact ${selectedWeeklyProgress.target>0&&selectedWeeklyProgress.ratio>=100?"achieved":""}`}>
@@ -3258,12 +3263,12 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
      <button type="button" className="oh-link" onClick={onOpenTasks}>فتح مركز العمليات<ChevronLeft size={15} aria-hidden="true"/></button>
     </section>
     {f&&f.reviewCount>0&&<section className="oh-panel oh-review" aria-labelledby="oh-review-title">
-     <header className="oh-panel-head"><span className="oh-icon warm"><ReceiptText size={18}/></span><div><h3 id="oh-review-title">بانتظار المراجعة المالية</h3><p>عمليات لا تدخل الأرقام المالية حتى اعتمادها</p></div><span className="oh-count">{f.reviewCount}</span></header>
+     <header className="oh-panel-head"><span className="oh-icon warm"><ReceiptText size={18}/></span><div><h3 id="oh-review-title">بانتظار المراجعة المالية</h3><p>طلبات من كل الأشهر لا تدخل الأرقام المالية حتى اعتمادها</p></div><span className="oh-count">{f.reviewCount}</span></header>
      <ul className="finance-review-breakdown">{reviewItems.map(([key,label])=><li key={key}><button type="button" onClick={()=>onOpenFinanceReview(key)}><span>{label}</span><b>{f.reviewBreakdown[key]}</b><ChevronLeft size={15} aria-hidden="true"/></button></li>)}</ul>
     </section>}
     <section className="oh-panel oh-trainees" aria-labelledby="oh-trainees-title">
-     <header className="oh-panel-head"><span className="oh-icon"><UsersRound size={18}/></span><div><h3 id="oh-trainees-title">توزيع المتدربين</h3><p>حسب البرنامج والمسار</p></div></header>
-     <ShareDonut segments={traineeShares} label="توزيع المتدربين حسب البرنامج" centerValue={String(traineeTotal)} centerLabel="متدرب" active={activeTrainee} onActive={setActiveTrainee}/>
+     <header className="oh-panel-head"><span className="oh-icon"><UsersRound size={18}/></span><div><h3 id="oh-trainees-title">توزيع المتدربين</h3><p>التسجيلات غير المنسحبة الآن، من «جديد» حتى «نشط»، حسب البرنامج والمسار. لا تتأثر بالشهر المختار.</p></div></header>
+     <ShareDonut segments={traineeShares} label="توزيع المتدربين حسب البرنامج" centerValue={String(traineeTotal)} centerLabel="تسجيل" active={activeTrainee} onActive={setActiveTrainee}/>
      <div className="oh-trainee-list">{data.trainees.map((group,groupIndex)=>{const open=openTraineeGroup===group.key;return <article className={`${open?"open":""}${activeTrainee===group.key?" active":""}`} key={group.key} onMouseEnter={()=>setActiveTrainee(group.key)} onMouseLeave={()=>setActiveTrainee(null)}><button type="button" onClick={()=>setOpenTraineeGroup(open?"":group.key)} aria-expanded={open}><i className="oh-swatch" style={{background:traineeColors[group.key]||"var(--sk-cat-other)"}} aria-hidden="true"/><span>{group.label}</span><b>{group.count}</b><em>{traineePercents[groupIndex]}%</em><ChevronDown className="oh-chevron" size={16} aria-hidden="true"/></button>{open&&<div>{group.details.length?group.details.map(detail=><p key={detail.label}><span>{detail.label}</span><b>{detail.count}</b></p>):<small>لا يوجد متدربون في هذا التصنيف حالياً.</small>}</div>}</article>})}</div>
     </section>
    </div>
@@ -6261,12 +6266,12 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   const todayKey = riyadhToday();
   const monthKey = todayKey.slice(0, 7);
   const saleDate = (payment: FinancePayment) =>
-    String(payment.paid_at || payment.created_at || "").slice(0, 10);
+    riyadhDayOf(String(payment.paid_at || payment.created_at || ""));
   // Same rule as the home dashboard: confirmed payments of the flow, by payment day, minus completed refunds
   // charged to that flow, by withdrawal day. Summed in halalas to avoid floating-point drift.
   const confirmedNet = (flow: "sale" | "collection", inPeriod: (day: string) => boolean) => {
     const gross = rows.flatMap((row) => row.payments).filter((payment) => payment.flow_type === flow && payment.classification_status === "confirmed" && inPeriod(saleDate(payment))).reduce((sum, payment) => sum + Math.round(Number(payment.amount || 0) * 100), 0);
-    const refunds = rows.filter((row) => row.withdrawal?.status === "مكتمل" && row.withdrawal.refund_source === flow && inPeriod(String(row.withdrawal.withdrawn_at || "").slice(0, 10))).reduce((sum, row) => sum + Math.round(Number(row.withdrawal?.refund_amount || 0) * 100), 0);
+    const refunds = rows.filter((row) => row.withdrawal?.status === "مكتمل" && row.withdrawal.refund_source === flow && inPeriod(riyadhDayOf(String(row.withdrawal.withdrawn_at || "")))).reduce((sum, row) => sum + Math.round(Number(row.withdrawal?.refund_amount || 0) * 100), 0);
     return (gross - refunds) / 100;
   };
   const salesTotal = confirmedNet("sale", () => true);

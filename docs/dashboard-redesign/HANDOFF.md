@@ -54,8 +54,11 @@
 ## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
 
 - **Live = `main` = `81b5e9f`** (Phase 5 B2B and the payment-default pause, see below).
-- **On the branch, not pushed (pushing releases it):** the charts as percentages ([CHARTS.md](CHARTS.md)).
-  It covers the home page, reports and the collection forecast.
+- **On the branch, not pushed (pushing releases them):**
+  - The charts as percentages ([CHARTS.md](CHARTS.md)): the home page, reports and the collection forecast.
+  - The home numbers audit and its fixes ([HOME-AUDIT.md](HOME-AUDIT.md)): Riyadh days, seat fees left out of
+    the remaining amount, and labels that say what each number counts. The weekly challenge waits for the
+    user's decision.
 - **Done on 2026-10-29:**
   - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
     before/after-VAT amounts.

@@ -1297,3 +1297,21 @@ test("shows shares as donuts with percentage legends and the cumulative chart ag
   assert.match(css, /--sk-cat-1:#315efb;--sk-cat-2:#eb6834;--sk-cat-3:#1baf7a;--sk-cat-4:#eda100/);
   assert.doesNotMatch(css, /\.oh-share\{/);
 });
+test("computes home numbers on Riyadh days and labels where each one comes from", async () => {
+  const page = await read("../app/page.tsx");
+  const home = await read("../app/api/dashboard/home/route.ts");
+  // Riyadh day of the stored moment for payments, refunds and contracts; seat fees are not contract payments.
+  assert.match(home, /SELECT date\(COALESCE\(p\.paid_at,p\.created_at\),'\+3 hours'\) day,/);
+  assert.match(home, /AND substr\(date\(COALESCE\(p\.paid_at,p\.created_at\),'\+3 hours'\),1,7\)=\?/);
+  assert.match(home, /SELECT date\(w\.withdrawn_at,'\+3 hours'\) day,/);
+  assert.match(home, /substr\(date\(o\.created_at,'\+3 hours'\),1,7\)=\? AND p\.classification_status='confirmed' AND COALESCE\(p\.flow_type,''\)!='seat_fee'/);
+  assert.doesNotMatch(home, /substr\(COALESCE\(p\.paid_at,p\.created_at\),1,(7|10)\)/);
+  // The finance page uses the same day rule, so both screens agree.
+  assert.match(page, /const saleDate = \(payment: FinancePayment\) =>\s*riyadhDayOf\(/);
+  assert.match(page, /inPeriod\(riyadhDayOf\(String\(row\.withdrawal\.withdrawn_at \|\| ""\)\)\)/);
+  // Labels say which day, the real share of the target, and what the trainee centre counts.
+  assert.match(page, /mode==="daily"\?`مبيعات \$\{displayDayLabel\}`/);
+  assert.match(page, /<b>\{f\.target\?`\$\{targetPercent\}%`:"—"\}<\/b>/);
+  assert.match(page, /centerValue=\{String\(traineeTotal\)\} centerLabel="تسجيل"/);
+  assert.match(page, /ولا تدخل رسوم المقعد\./);
+});
