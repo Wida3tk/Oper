@@ -1276,3 +1276,24 @@ test("lays out the B2B partner file like the customer file", async () => {
   assert.match(css, /\.ops-b2b \.b2b-drawer>\.b2b-file-head\{[^}]*background:var\(--sk-surface\)/);
   assert.match(css, /\.ops-b2b \.b2b-file-head \.drawer-lifecycle-track span:after\{top:10px;right:auto;left:56%/);
 });
+test("shows shares as donuts with percentage legends and the cumulative chart against the target", async () => {
+  const page = await read("../app/page.tsx");
+  const css = await read("../app/globals.css");
+  assert.match(page, /function ShareDonut\(/);
+  assert.match(page, /function ShareLegend\(/);
+  assert.match(page, /const sharePercents=/);
+  // Home: trainee donut, cash split percentages, trend layer, target line and hover readout.
+  assert.match(page, /<ShareDonut segments=\{traineeShares\} label="توزيع المتدربين حسب البرنامج"/);
+  assert.match(page, /مبيعات <b>\{salesPercent\}%<\/b>/);
+  assert.match(page, /<svg className="oh-trend"/);
+  assert.match(page, /className="oh-chart-target"/);
+  assert.match(page, /className=\{`oh-chart-tip/);
+  // Reports: donuts instead of bars, and no invented scale for the workload chart.
+  assert.match(page, /<ShareDonut segments=\{programSegments\} label="التسجيلات حسب البرنامج"/);
+  assert.match(page, /<ShareDonut segments=\{departmentSegments\} label="المهام المفتوحة حسب القسم"/);
+  assert.doesNotMatch(page, /Math\.min\(count \* 12, 100\)/);
+  // Finance forecast: status donut over the month's due amount.
+  assert.match(page, /<ShareDonut segments=\{forecastShares\}/);
+  assert.match(css, /--sk-cat-1:#315efb;--sk-cat-2:#eb6834;--sk-cat-3:#1baf7a;--sk-cat-4:#eda100/);
+  assert.doesNotMatch(css, /\.oh-share\{/);
+});

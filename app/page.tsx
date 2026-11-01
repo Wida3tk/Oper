@@ -3143,15 +3143,18 @@ const activitySentence=(item:HomeData["activity"][number])=>{
  return (activityVerbs[item.action]||((name:string)=>`نفّذ ${name} تحديثًا في النظام`))(actor);
 };
 function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceReview}:{onOpenTasks:()=>void;onOpenCustomers:()=>void;onOpenFinance:()=>void;onOpenFinanceReview:(kind:string)=>void}){
- const now=new Date(),[month,setMonth]=useState(now.toLocaleDateString("en-CA").slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[weeklyDrafts,setWeeklyDrafts]=useState<Record<string,string>>({}),[savingWeek,setSavingWeek]=useState<number|null>(null),[selectedWeek,setSelectedWeek]=useState(1),[editingWeeklyTarget,setEditingWeeklyTarget]=useState(false),[activityPage,setActivityPage]=useState(0),[openTraineeGroup,setOpenTraineeGroup]=useState("aba");
+ const now=new Date(),[month,setMonth]=useState(now.toLocaleDateString("en-CA").slice(0,7)),[mode,setMode]=useState<"daily"|"cumulative">("daily"),[data,setData]=useState<HomeData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editingTarget,setEditingTarget]=useState(false),[target,setTarget]=useState(""),[weeklyDrafts,setWeeklyDrafts]=useState<Record<string,string>>({}),[savingWeek,setSavingWeek]=useState<number|null>(null),[selectedWeek,setSelectedWeek]=useState(1),[editingWeeklyTarget,setEditingWeeklyTarget]=useState(false),[activityPage,setActivityPage]=useState(0),[openTraineeGroup,setOpenTraineeGroup]=useState("aba"),[activeTrainee,setActiveTrainee]=useState<string|null>(null),[hoverDay,setHoverDay]=useState<number|null>(null);
  const load=async()=>{setLoading(true);setError("");try{const result=await apiJson(`/api/dashboard/home?month=${month}`);setData(result);setTarget(String(result.finance?.target||""));setWeeklyDrafts(Object.fromEntries(Object.entries(result.finance?.weeklyTargets||{}).map(([key,value])=>[key,String(value||"")])))}catch(e){setError((e as Error).message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[month]);
  if(!data)return loading?<HomeDashboardSkeleton/>:<LiveState loading={false} error={error} empty/>;
  const f=data.finance,days=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate(),raw=Array.from({length:days},(_,index)=>{const key=`${month}-${String(index+1).padStart(2,"0")}`;return f?.daily.find(row=>row.day===key)||{day:key,sales:0,collections:0}});
- let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),rawMax=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections])),magnitude=10**Math.floor(Math.log10(rawMax)),chartMax=Math.ceil(rawMax/magnitude*2)/2*magnitude,money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),compactMoney=(value:number)=>value>=1000?`${Number((value/1000).toFixed(value>=10000?0:1))}K`:money(value),targetRatio=f?.target?Math.min(100,Math.round(f.sales/f.target*100)):0,activeDays=raw.filter(row=>row.sales>0||row.collections>0).length,peak=raw.reduce((best,row)=>row.sales+row.collections>best.sales+best.collections?row:best,raw[0]),chartTicks=[chartMax,chartMax*.75,chartMax*.5,chartMax*.25,0];
+ let runningSales=0,runningCollections=0;const chart=raw.map(row=>mode==="daily"?row:{...row,sales:runningSales+=row.sales,collections:runningCollections+=row.collections}),rawMax=Math.max(1,...chart.flatMap(row=>[row.sales,row.collections]),mode==="cumulative"?Number(f?.target||0):0),magnitude=10**Math.floor(Math.log10(rawMax)),chartMax=Math.ceil(rawMax/magnitude*2)/2*magnitude,money=(value:number)=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:2}),compactMoney=(value:number)=>value>=1000?`${Number((value/1000).toFixed(value>=10000?0:1))}K`:money(value),targetRatio=f?.target?Math.min(100,Math.round(f.sales/f.target*100)):0,activeDays=raw.filter(row=>row.sales>0||row.collections>0).length,peak=raw.reduce((best,row)=>row.sales+row.collections>best.sales+best.collections?row:best,raw[0]),chartTicks=[chartMax,chartMax*.75,chartMax*.5,chartMax*.25,0];
  const monthStart=new Date(`${month}-01T12:00:00`),firstSaturdayDay=1+(6-monthStart.getDay()+7)%7,monthEndDay=days,weekRanges:Array<{start:number;end:number}>=[];
  for(let startDay=firstSaturdayDay;startDay<=monthEndDay;startDay+=7)weekRanges.push({start:startDay,end:Math.min(startDay+5,monthEndDay)});
  const todayKey=now.toLocaleDateString("en-CA");
+ // Cumulative lines stop at today: later days have no movement yet, and a flat line there would read as a stall.
+ const lastTrendIndex=month<todayKey.slice(0,7)?days-1:month===todayKey.slice(0,7)?Number(todayKey.slice(8,10))-1:-1,trendX=(index:number)=>days-index-.5,trendY=(value:number)=>100-Math.max(0,value)/chartMax*100,trendPath=(key:"sales"|"collections")=>chart.slice(0,lastTrendIndex+1).map((row,index)=>`${index?"L":"M"}${trendX(index)},${trendY(row[key])}`).join(" "),salesArea=lastTrendIndex>=0?`${trendPath("sales")} L${trendX(lastTrendIndex)},100 L${trendX(0)},100 Z`:"";
+ const hovered=hoverDay!==null&&(mode==="daily"||hoverDay<=lastTrendIndex)?chart[hoverDay]:null,hoverDate=hovered?new Date(`${hovered.day}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{weekday:"long",day:"numeric",month:"long"}):"";
  const weeklyProgress=weekRanges.map((range,index)=>{const rows=raw.filter(row=>{const day=Number(row.day.slice(-2));return day>=range.start&&day<=range.end}),actual=rows.reduce((sum,row)=>sum+row.sales,0),weekIndex=index+1,weekTarget=Number(f?.weeklyTargets?.[String(weekIndex)]||0),ratio=weekTarget?Math.round(actual/weekTarget*100):0,startKey=`${month}-${String(range.start).padStart(2,"0")}`,endKey=`${month}-${String(range.end).padStart(2,"0")}`;return {index:weekIndex,...range,actual,target:weekTarget,ratio,isCurrent:todayKey>=startKey&&todayKey<=endKey}});
  const displayedSales=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).sales:(chart.at(-1)?.sales||0),displayedCollections=mode==="daily"?(raw.find(row=>row.day===todayKey)||raw.filter(row=>row.sales||row.collections).at(-1)||raw[0]).collections:(chart.at(-1)?.collections||0),displayedTotal=displayedSales+displayedCollections;
  const selectedWeeklyProgress=weeklyProgress.find(week=>week.index===selectedWeek)||weeklyProgress[0];
@@ -3165,7 +3168,7 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
  const dayLabel=(day:string)=>day===localToday?"اليوم":day===localYesterday?"أمس":new Date(`${day}T12:00:00`).toLocaleDateString(dateLocale,{weekday:"long",day:"numeric",month:"long"});
  const reviewKinds=[["installments","أقساط"],["bank","تحويل بنكي"],["paytabs","PayTabs"],["tamara","تمارا"],["supervision","إشراف"],["other","أخرى"]],reviewItems=f?reviewKinds.filter(([key])=>Number(f.reviewBreakdown?.[key]||0)>0):[];
  const cashSales=Math.max(0,f?.sales||0),cashCollections=Math.max(0,f?.collections||0),salesShare=cashSales+cashCollections?cashSales/(cashSales+cashCollections)*100:0;
- const traineeMax=Math.max(1,...data.trainees.map(group=>group.count)),ringLength=2*Math.PI*32;
+ const traineeColors:Record<string,string>={aba:"var(--sk-cat-1)",obm:"var(--sk-cat-2)",ca:"var(--sk-cat-3)",ceu:"var(--sk-cat-4)"},traineeShares=data.trainees.map(group=>({key:group.key,label:group.label,value:group.count,color:traineeColors[group.key]||"var(--sk-cat-other)"})),traineeTotal=shareTotal(traineeShares),traineePercents=sharePercents(traineeShares.map(item=>item.value)),[salesPercent,collectionPercent]=sharePercents([cashSales,cashCollections]),ringLength=2*Math.PI*32;
  return <div className="ops-home" aria-busy={loading}>
   {error&&<div className="oh-alert" role="alert">{error}</div>}
   <header className="oh-masthead">
@@ -3189,7 +3192,7 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
        <span>إجمالي المقبوض الفعلي</span>
        <b>{money(f.cash)}<small>ر.س</small></b>
        <span className="oh-split" aria-hidden="true">{salesShare>0&&<i className="sales" style={{width:`${salesShare}%`}}/>}{salesShare<100&&cashCollections>0&&<i className="collection" style={{width:`${100-salesShare}%`}}/>}</span>
-       <span className="oh-split-legend"><span><i className="sales"/>مبيعات {money(f.sales)}</span><span><i className="collection"/>تحصيل {money(f.collections)}</span></span>
+       <span className="oh-split-legend"><span><i className="sales"/>مبيعات <b>{salesPercent}%</b>{money(f.sales)}</span><span><i className="collection"/>تحصيل <b>{collectionPercent}%</b>{money(f.collections)}</span></span>
        <em>المبيعات + التحصيل لهذا الشهر · عرض التفاصيل</em>
       </button>
       <div className="oh-ledger">
@@ -3216,7 +3219,13 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
        </div>
        <div className="oh-chart-plot">
         <div className="oh-chart-scale" aria-hidden="true">{chartTicks.map((tick,index)=><span key={index} style={{bottom:`${100-index*25}%`}}>{compactMoney(tick)}</span>)}</div>
-        <div className="oh-chart-bars" role="img" aria-label={`رسم المبيعات والتحصيل لشهر ${monthLabel}`}>{chart.map((row,index)=><div className={`oh-chart-day${row.day===todayKey?" today":""}`} key={row.day} title={`${row.day} — المبيعات ${money(row.sales)} ر.س، التحصيل ${money(row.collections)} ر.س`}><div><i className="sales" style={{height:`${Math.max(0,row.sales)/chartMax*100}%`}}/><i className="collection" style={{height:`${Math.max(0,row.collections)/chartMax*100}%`}}/></div><span>{(index===0||((index+1)%5===0&&index<chart.length-3)||index===chart.length-1)?index+1:""}</span></div>)}</div>
+        <div className={`oh-chart-bars${mode==="cumulative"?" trend":""}`} role="img" aria-label={mode==="cumulative"?`المبيعات والتحصيل التراكمي لشهر ${monthLabel}: المبيعات ${money(chart[Math.max(lastTrendIndex,0)]?.sales||0)} ر.س${f.target?` (${sharePct(chart[Math.max(lastTrendIndex,0)]?.sales||0,f.target)}% من الهدف)`:""}، التحصيل ${money(chart[Math.max(lastTrendIndex,0)]?.collections||0)} ر.س`:`المبيعات والتحصيل اليومي لشهر ${monthLabel}`} onMouseLeave={()=>setHoverDay(null)}>
+         {mode==="cumulative"&&lastTrendIndex>=0&&<svg className="oh-trend" viewBox={`0 0 ${days} 100`} preserveAspectRatio="none" aria-hidden="true"><path className="area" d={salesArea}/><path className="line sales" d={trendPath("sales")} vectorEffect="non-scaling-stroke"/><path className="line collection" d={trendPath("collections")} vectorEffect="non-scaling-stroke"/></svg>}
+         {mode==="cumulative"&&f.target>0&&<div className="oh-chart-target" style={{bottom:`calc(var(--oh-axis-h) + var(--oh-plot-h) * ${f.target/chartMax})`}} aria-hidden="true"><span>هدف الشهر {compactMoney(f.target)}</span></div>}
+         {mode==="cumulative"&&lastTrendIndex>=0&&(["sales","collections"] as const).map(key=>{const index=hovered?hoverDay!:lastTrendIndex;return <i key={key} className={`oh-trend-dot ${key==="sales"?"sales":"collection"}`} style={{insetInlineStart:`${(index+.5)/days*100}%`,bottom:`calc(var(--oh-axis-h) + var(--oh-plot-h) * ${Math.max(0,chart[index][key])/chartMax})`}} aria-hidden="true"/>})}
+         {chart.map((row,index)=><div className={`oh-chart-day${row.day===todayKey?" today":""}${hoverDay===index?" hover":""}`} key={row.day} onMouseEnter={()=>setHoverDay(index)}><div>{mode==="daily"&&<><i className="sales" style={{height:`${Math.max(0,row.sales)/chartMax*100}%`}}/><i className="collection" style={{height:`${Math.max(0,row.collections)/chartMax*100}%`}}/></>}</div><span>{(index===0||((index+1)%5===0&&index<chart.length-3)||index===chart.length-1)?index+1:""}</span></div>)}
+         {hovered&&<div className={`oh-chart-tip${hoverDay!<4?" start":hoverDay!>days-5?" end":""}`} style={{insetInlineStart:`${(hoverDay!+.5)/days*100}%`}} aria-hidden="true"><b>{hoverDate}</b><p><i className="sales"/>{mode==="daily"?"المبيعات":"المبيعات حتى اليوم"}<span>{money(hovered.sales)} ر.س</span></p>{mode==="cumulative"&&f.target>0&&<p className="oh-tip-note">{sharePct(hovered.sales,f.target)}% من هدف الشهر</p>}<p><i className="collection"/>{mode==="daily"?"التحصيل":"التحصيل حتى اليوم"}<span>{money(hovered.collections)} ر.س</span></p>{mode==="daily"&&<p className="oh-tip-total">الإجمالي<span>{money(hovered.sales+hovered.collections)} ر.س</span></p>}</div>}
+        </div>
        </div>
       </figure>
       <aside className="goals-rail" aria-label="أهداف المبيعات">
@@ -3254,13 +3263,37 @@ function HomeDashboard({onOpenTasks,onOpenCustomers,onOpenFinance,onOpenFinanceR
     </section>}
     <section className="oh-panel oh-trainees" aria-labelledby="oh-trainees-title">
      <header className="oh-panel-head"><span className="oh-icon"><UsersRound size={18}/></span><div><h3 id="oh-trainees-title">توزيع المتدربين</h3><p>حسب البرنامج والمسار</p></div></header>
-     <div className="oh-trainee-list">{data.trainees.map(group=>{const open=openTraineeGroup===group.key;return <article className={open?"open":""} key={group.key}><button type="button" onClick={()=>setOpenTraineeGroup(open?"":group.key)} aria-expanded={open}><span>{group.label}</span><b>{group.count}</b><ChevronDown className="oh-chevron" size={16} aria-hidden="true"/><span className="oh-share" aria-hidden="true"><i style={{width:`${group.count/traineeMax*100}%`}}/></span></button>{open&&<div>{group.details.length?group.details.map(detail=><p key={detail.label}><span>{detail.label}</span><b>{detail.count}</b></p>):<small>لا يوجد متدربون في هذا التصنيف حالياً.</small>}</div>}</article>})}</div>
+     <ShareDonut segments={traineeShares} label="توزيع المتدربين حسب البرنامج" centerValue={String(traineeTotal)} centerLabel="متدرب" active={activeTrainee} onActive={setActiveTrainee}/>
+     <div className="oh-trainee-list">{data.trainees.map((group,groupIndex)=>{const open=openTraineeGroup===group.key;return <article className={`${open?"open":""}${activeTrainee===group.key?" active":""}`} key={group.key} onMouseEnter={()=>setActiveTrainee(group.key)} onMouseLeave={()=>setActiveTrainee(null)}><button type="button" onClick={()=>setOpenTraineeGroup(open?"":group.key)} aria-expanded={open}><i className="oh-swatch" style={{background:traineeColors[group.key]||"var(--sk-cat-other)"}} aria-hidden="true"/><span>{group.label}</span><b>{group.count}</b><em>{traineePercents[groupIndex]}%</em><ChevronDown className="oh-chevron" size={16} aria-hidden="true"/></button>{open&&<div>{group.details.length?group.details.map(detail=><p key={detail.label}><span>{detail.label}</span><b>{detail.count}</b></p>):<small>لا يوجد متدربون في هذا التصنيف حالياً.</small>}</div>}</article>})}</div>
     </section>
    </div>
   </div>
  </div>
 }
 function HomeMetric({icon:Icon,label,value,suffix,note,tone,onClick}:{icon:LucideIcon;label:string;value:string|number;suffix?:string;note:string;tone:string;onClick?:()=>void}){const content=<><span className="oh-metric-icon"><Icon size={17}/></span><span className="oh-metric-label">{label}</span><b className="oh-metric-value">{value}{suffix&&<small>{suffix}</small>}</b><p>{note}</p>{onClick&&<ChevronLeft className="oh-metric-go" size={16} aria-hidden="true"/>}</>;return onClick?<button type="button" className={`oh-metric ${tone}`} onClick={onClick} aria-label={`${label}: ${value}${suffix?` ${suffix}`:""}. عرض التفاصيل`}>{content}</button>:<article className={`oh-metric ${tone}`}>{content}</article>}
+// Part-to-whole charts: a donut with a legend that carries every label, value and share.
+// Colours follow the entity (passed in by the caller), never its rank.
+type ShareSegment={key:string;label:string;value:number;color:string};
+const sharePct=(value:number,total:number)=>total>0?Math.round(Math.max(0,value)/total*100):0;
+const shareTotal=(segments:ShareSegment[])=>segments.reduce((total,item)=>total+Math.max(0,item.value),0);
+// Each share rounded on its own: equal values always show the same percentage (the total may read 99–101%).
+const sharePercents=(values:number[])=>{const total=values.reduce((sum,value)=>sum+Math.max(0,value),0);return values.map(value=>sharePct(value,total))};
+function ShareDonut({segments,label,centerValue,centerLabel,active,onActive}:{segments:ShareSegment[];label:string;centerValue:string;centerLabel:string;active?:string|null;onActive?:(key:string|null)=>void}){
+ const total=shareTotal(segments),percents=sharePercents(segments.map(item=>item.value)),percentOf=(key:string)=>percents[segments.findIndex(item=>item.key===key)]||0,radius=40,circumference=2*Math.PI*radius,parts=segments.filter(item=>item.value>0),gap=parts.length>1?1.6:0,shown=segments.find(item=>item.key===active),starts=parts.map((_,index)=>parts.slice(0,index).reduce((sum,item)=>sum+item.value/total*circumference,0));
+ return <figure className="sk-donut">
+  <svg viewBox="0 0 100 100" role="img" aria-label={`${label}: ${segments.map((item,index)=>`${item.label} ${percents[index]}%`).join("، ")}`}>
+   <circle className="sk-donut-track" cx="50" cy="50" r={radius}/>
+   <g transform="rotate(-90 50 50)">{parts.map((item,index)=>{const dash=Math.max(item.value/total*circumference-gap,.6),offset=starts[index];return <circle key={item.key} className={active&&active!==item.key?"dim":undefined} cx="50" cy="50" r={radius} style={{stroke:item.color}} strokeDasharray={`${dash} ${circumference-dash}`} strokeDashoffset={-offset} onMouseEnter={()=>onActive?.(item.key)} onMouseLeave={()=>onActive?.(null)}><title>{`${item.label}: ${percentOf(item.key)}%`}</title></circle>})}</g>
+  </svg>
+  <figcaption aria-hidden="true">{shown?<><b>{percentOf(shown.key)}%</b><span>{shown.label}</span></>:<><b>{centerValue}</b><span>{centerLabel}</span></>}</figcaption>
+ </figure>
+}
+function ShareLegend({segments,format,active,onActive}:{segments:ShareSegment[];format:(value:number)=>string;active?:string|null;onActive?:(key:string|null)=>void}){
+ const percents=sharePercents(segments.map(item=>item.value));
+ return <ul className="sk-legend">{segments.map((item,index)=><li key={item.key} className={active===item.key?"active":undefined} onMouseEnter={()=>onActive?.(item.key)} onMouseLeave={()=>onActive?.(null)}><i style={{background:item.color}} aria-hidden="true"/><span>{item.label}</span><b>{format(item.value)}</b><em>{percents[index]}%</em></li>)}</ul>
+}
+// Keeps the largest parts and folds the rest into «أخرى», so a donut never has more than `keep + 1` slices.
+const foldShares=(segments:ShareSegment[],keep:number)=>{const sorted=[...segments].sort((a,b)=>b.value-a.value);if(sorted.length<=keep+1)return sorted;const rest=sorted.slice(keep);return [...sorted.slice(0,keep),{key:"other",label:"أخرى",value:rest.reduce((total,item)=>total+item.value,0),color:"var(--sk-cat-other)"}]};
 function HomeDashboardSkeleton(){return <div className="ops-home oh-skeleton" aria-busy="true" aria-label="جارٍ تحميل البيانات الحية…"><i className="oh-sk-masthead"/><i className="oh-sk-pulse"/><div className="oh-body"><div className="oh-main"><i className="oh-sk-panel tall"/><i className="oh-sk-panel"/></div><div className="oh-aside"><i className="oh-sk-panel"/><i className="oh-sk-panel short"/></div></div></div>}
 type TodayData = {
   user: { email: string; name: string; roles: string[] };
@@ -3505,7 +3538,9 @@ function LiveDashboard() {
 function LiveReports() {
   const [data, setData] = useState<OperationsReport | null>(null),
     [loading, setLoading] = useState(true),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [activeProgram, setActiveProgram] = useState<string | null>(null),
+    [activeDepartment, setActiveDepartment] = useState<string | null>(null);
   useEffect(() => {
     apiJson("/api/reports/operations")
       .then(setData)
@@ -3514,29 +3549,27 @@ function LiveReports() {
   }, []);
   if (loading || error || !data)
     return <LiveState loading={loading} error={error} empty={!data} />;
-  const max = Math.max(
-      ...data.programs.map((x) => Number(x.enrollment_count)),
-      1,
+  const openTasks = data.tasks.filter((x) => x.status !== "مكتملة"),
+    // The four largest programmes keep their own slice. Colours follow the programme, the same as the home trainee chart.
+    // shortcut: any programme outside these four shares slot 5; give it its own slot if two such programmes ever rank in the top four.
+    programColor = (name: string) => name.includes("تحليل السلوك") ? "var(--sk-cat-1)" : name.includes("إدارة السلوك") ? "var(--sk-cat-2)" : name.includes("الكفاءة") ? "var(--sk-cat-3)" : name.includes("التعليم المستمر") ? "var(--sk-cat-4)" : "var(--sk-cat-5)",
+    programSegments = foldShares(
+      data.programs.map((row) => ({ key: String(row.program_name), label: String(row.program_name), value: Number(row.enrollment_count) || 0, color: programColor(String(row.program_name)) })),
+      4,
     ),
-    openTasks = data.tasks.filter((x) => x.status !== "مكتملة");
+    departmentColors: Record<string, string> = { "المبيعات": "var(--sk-cat-1)", "المالية": "var(--sk-cat-2)", "التشغيل": "var(--sk-cat-3)", "الأكاديمية": "var(--sk-cat-4)" },
+    departmentSegments = Object.entries(
+      openTasks.reduce<Record<string, number>>((totals, x) => { const dept = String(x.department || "غير محدد"), key = departmentColors[dept] ? dept : "أخرى"; totals[key] = (totals[key] || 0) + Number(x.count); return totals; }, {}),
+    ).map(([dept, count]) => ({ key: dept, label: dept, value: count, color: departmentColors[dept] || "var(--sk-cat-other)" })).sort((a, b) => b.value - a.value),
+    enrollmentTotal = shareTotal(programSegments),
+    openTaskTotal = shareTotal(departmentSegments);
   return (
     <div className="reports">
       <Card title="التسجيلات حسب البرنامج" action="من قاعدة البيانات">
-        <div className="bars">
-          {data.programs.map((row) => (
-            <div key={row.program_name}>
-              <span>{row.program_name}</span>
-              <i>
-                <u
-                  style={{
-                    width: `${(Number(row.enrollment_count) / max) * 100}%`,
-                  }}
-                />
-              </i>
-              <b>{row.enrollment_count}</b>
-            </div>
-          ))}
-        </div>
+        {enrollmentTotal ? <div className="sk-share">
+          <ShareDonut segments={programSegments} label="التسجيلات حسب البرنامج" centerValue={String(enrollmentTotal)} centerLabel="تسجيل" active={activeProgram} onActive={setActiveProgram} />
+          <ShareLegend segments={programSegments} format={(value) => String(value)} active={activeProgram} onActive={setActiveProgram} />
+        </div> : <p className="sk-share-empty">لا توجد تسجيلات بعد.</p>}
       </Card>
       <Card title="كفاءة رحلة التسجيل" action="الوضع الحالي">
         <div className="metric">
@@ -3561,24 +3594,10 @@ function LiveReports() {
         </div>
       </Card>
       <Card title="عبء العمل حسب القسم" action="المهام غير المكتملة">
-        <div className="bars">
-          {Array.from(
-            new Set(openTasks.map((x) => x.department || "غير محدد")),
-          ).map((dept) => {
-            const count = openTasks
-              .filter((x) => x.department === dept)
-              .reduce((s, x) => s + Number(x.count), 0);
-            return (
-              <div key={dept}>
-                <span>{dept}</span>
-                <i>
-                  <u style={{ width: `${Math.min(count * 12, 100)}%` }} />
-                </i>
-                <b>{count}</b>
-              </div>
-            );
-          })}
-        </div>
+        {openTaskTotal ? <div className="sk-share">
+          <ShareDonut segments={departmentSegments} label="المهام المفتوحة حسب القسم" centerValue={String(openTaskTotal)} centerLabel="مهمة مفتوحة" active={activeDepartment} onActive={setActiveDepartment} />
+          <ShareLegend segments={departmentSegments} format={(value) => String(value)} active={activeDepartment} onActive={setActiveDepartment} />
+        </div> : <p className="sk-share-empty">لا توجد مهام مفتوحة.</p>}
       </Card>
       <Card
         title="ملخص العمليات"
@@ -6052,6 +6071,7 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
     [statusFilter, setStatusFilter] = useState("الكل"),
     [reviewTypeFilter, setReviewTypeFilter] = useState(initialReviewFilter),
     [reminderTemplates,setReminderTemplates]=useState<Record<string,string>>({}),
+    [activeForecast,setActiveForecast]=useState<string|null>(null),
     [saving, setSaving] = useState(false);
   useEffect(() => { setReviewTypeFilter(initialReviewFilter); if (initialReviewFilter !== "الكل") { setFinanceTab("sales"); setStatusFilter("بانتظار المراجعة"); } }, [initialReviewFilter]);
   useEffect(()=>{void apiJson("/api/reminder-templates").then(data=>setReminderTemplates(data.templates||{})).catch(()=>setReminderTemplates({}))},[]);
@@ -6261,6 +6281,8 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
   const collectionsMonth = confirmedNet("collection", (day) => day.startsWith(collectionMonth));
   const collectionsTotal = confirmedNet("collection", () => true);
   const forecast=summary.forecast;
+  // Status colours (a label always goes with them); the slices add up to the month's due amount.
+  const forecastShares=[{key:"expected",label:"متوقع التحصيل",value:forecast.expected,color:"var(--sk-collection)"},{key:"followup",label:"بحاجة متابعة",value:forecast.follow_up,color:"var(--sk-warning-mark)"},{key:"risk",label:"عالي المخاطر",value:forecast.risk,color:"var(--sk-danger-mark)"}],forecastPercents=sharePercents(forecastShares.map(item=>item.value));
   const forecastMonthLabel=forecast.month?new Date(`${forecast.month}-01T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn",{month:"long",year:"numeric"}):"الشهر القادم";
   const collectionMonthLabel=new Date(`${collectionMonth}-01T12:00:00`).toLocaleDateString("ar-SA-u-nu-latn",{month:"long",year:"numeric"});
   const monthInstallments=rows.flatMap(row=>row.withdrawal?[]:row.installments.filter(item=>String(item.due_date||"").startsWith(collectionMonth)&&item.status!=="ملغي").map(item=>({row,item})));
@@ -6454,10 +6476,11 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
             </summary>
             <div className="collection-forecast-body">
               <div className="collection-forecast-month"><label className="cu-select">شهر التوقع<input type="month" value={collectionMonth} onChange={(event) => setCollectionMonth(event.target.value)} /></label><span>إجمالي الأقساط المستحقة: <b>{sar(forecast.due)}</b></span></div>
-              <div className="collection-forecast-metrics">
-                <article className="expected"><span>متوقع التحصيل</span><b>{sar(forecast.expected)}</b><small>أقساط ملتزمة بلا تنبيه</small></article>
-                <article className="followup"><span>بحاجة متابعة</span><b>{sar(forecast.follow_up)}</b><small>تذكير أو تمديد مسجل</small></article>
-                <article className="risk"><span>عالي المخاطر</span><b>{sar(forecast.risk)}</b><small>تذكيران أو تصعيد مالي</small></article>
+              <div className="collection-forecast-share">
+                {forecast.due > 0 && <ShareDonut segments={forecastShares} label={`توزيع أقساط ${forecastMonthLabel}`} centerValue={`${forecast.installments}`} centerLabel="قسط مستحق" active={activeForecast} onActive={setActiveForecast} />}
+                <div className="collection-forecast-metrics">
+                  {forecastShares.map((item, index) => <article key={item.key} className={`${item.key}${activeForecast === item.key ? " active" : ""}`} onMouseEnter={() => setActiveForecast(item.key)} onMouseLeave={() => setActiveForecast(null)}><span>{item.label}<em>{forecastPercents[index]}%</em></span><b>{sar(item.value)}</b><small>{item.key === "expected" ? "أقساط ملتزمة بلا تنبيه" : item.key === "followup" ? "تذكير أو تمديد مسجل" : "تذكيران أو تصعيد مالي"}</small></article>)}
+                </div>
               </div>
               {forecast.paused_installments > 0 && <p className="collection-forecast-paused">موقوف (تطبيق السياسة): {forecast.paused_installments} قسط بقيمة {sar(forecast.paused)}، غير محسوب في التوقع ولا يُرسل له تذكير.</p>}
               {forecast.items.length > 0 && <div className="collection-forecast-list">{forecast.items.map((item) => <button type="button" key={item.installment_id} className={item.category} onClick={() => { const row = rows.find((current) => current.order_id === item.order_id); if (row) open(row); }}><time dir="ltr">{item.due_date}</time><span><b>{item.customer_name}</b><small>{item.program_name} · {item.status}</small></span><strong>{sar(item.amount)}</strong></button>)}</div>}

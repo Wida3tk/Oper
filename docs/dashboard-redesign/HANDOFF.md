@@ -53,8 +53,9 @@
 
 ## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
 
-- **Live = `main` = `design/phase-0-shell`.** Last release: Phase 5 B2B and the payment-default pause (see
-  below). Everything is pushed and nothing is waiting on the branch.
+- **Live = `main` = `81b5e9f`** (Phase 5 B2B and the payment-default pause, see below).
+- **On the branch, not pushed (pushing releases it):** the charts as percentages ([CHARTS.md](CHARTS.md)).
+  It covers the home page, reports and the collection forecast.
 - **Done on 2026-10-29:**
   - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
     before/after-VAT amounts.
