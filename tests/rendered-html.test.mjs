@@ -330,15 +330,15 @@ test("renders the application shell on design tokens without invented status", a
   assert.match(css, /\.shell :is\(\.sidebar,\.topbar,\.sk-page-head\) :is\(button,input,a\):focus-visible\{outline:none;box-shadow:var\(--sk-ring\)\}/);
 });
 
-test("tracks motivational weekly targets from Saturday through Thursday", async () => {
+test("tracks motivational weekly targets from Saturday through Friday, week 1 from day 1", async () => {
   const page = await read("../app/page.tsx");
   const css = await read("../app/globals.css");
   const api = await read("../app/api/dashboard/home/route.ts");
   const operations = await read("../app/api/_lib/operations.ts");
-  assert.match(page, /firstSaturdayDay=1\+\(6-monthStart\.getDay\(\)\+7\)%7/);
-  assert.match(page, /startDay\+5/);
+  assert.match(page, /firstFridayDay=1\+\(5-monthStart\.getDay\(\)\+7\)%7/);
+  assert.match(page, /startDay\+6/);
   assert.match(page, /تحدي الأسبوع/);
-  assert.match(page, /السبت–الخميس/);
+  assert.match(page, /\{weekdayName\(selectedWeeklyProgress\.start\)\}–\{weekdayName\(selectedWeeklyProgress\.end\)\}/);
   assert.match(page, /saveWeeklyTarget/);
   assert.match(page, /هدف الأسبوع/);
   assert.match(page, /إجمالي المبيعات/);
@@ -355,7 +355,7 @@ test("tracks motivational weekly targets from Saturday through Thursday", async 
   assert.match(page, /activityPageSize=8/);
   assert.match(page, /activity-nav/);
   assert.doesNotMatch(page, /مسار العملاء الحالي/);
-  assert.match(page, /weekLabels=\["الأول","الثاني","الثالث","الرابع","الخامس"\]/);
+  assert.match(page, /weekLabels=\["الأول","الثاني","الثالث","الرابع","الخامس","السادس"\]/);
 });
 
 test("aligns paid installment details as a compact right-side panel", async () => {
@@ -1314,4 +1314,9 @@ test("computes home numbers on Riyadh days and labels where each one comes from"
   assert.match(page, /<b>\{f\.target\?`\$\{targetPercent\}%`:"—"\}<\/b>/);
   assert.match(page, /centerValue=\{String\(traineeTotal\)\} centerLabel="تسجيل"/);
   assert.match(page, /ولا تدخل رسوم المقعد\./);
+  // Weekly challenge: Saturday–Friday weeks, week 1 from day 1, so every day of the month is in one week.
+  assert.match(page, /firstFridayDay=1\+\(5-monthStart\.getDay\(\)\+7\)%7,weekRanges:Array<\{start:number;end:number\}>=\[\{start:1,end:firstFridayDay\}\];/);
+  assert.match(page, /for\(let startDay=firstFridayDay\+1;startDay<=days;startDay\+=7\)weekRanges\.push\(\{start:startDay,end:Math\.min\(startDay\+6,days\)\}\);/);
+  assert.match(page, /weekLabels=\["الأول","الثاني","الثالث","الرابع","الخامس","السادس"\]/);
+  assert.doesNotMatch(page, /السبت–الخميس/);
 });

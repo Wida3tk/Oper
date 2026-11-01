@@ -49,13 +49,21 @@ All of these match the independent calculation for October and November:
 - customers today and total customers;
 - the trainee centre.
 
-## Needs the user's decision
+## Weekly challenge (the user's decision, same day)
 
-- **Weekly challenge.** Weeks run Saturday to Thursday from the first Saturday of the month, as the card says.
-  Days before the first Saturday, and every Friday, fall in no week.
-  - October: 12,800 of 55,790 in sales is outside every week.
-  - November: 1–6 Nov is in no week.
-  - Options: make week 1 start on day 1, and decide whether Friday counts with its week.
+- **Before.** Weeks ran Saturday to Thursday from the first Saturday of the month. Days before the first
+  Saturday, and every Friday, fell in no week.
+  - October: 12,800 of 55,790 in sales sat outside every week.
+  - November: 1–6 Nov was in no week.
+- **Now.** Weeks run **Saturday to Friday**. **Week 1 starts on day 1** and ends on the first Friday, so a month
+  has up to 6 weeks (the label «السادس» was added; the target API already accepts week 6).
+- **Check.** Over January 2026 to December 2027, every day falls in exactly one week. Every week after the first
+  starts on a Saturday, and every week before the last ends on a Friday.
+  - November 2026: 1–6, 7–13, 14–20, 21–27, 28–30.
+- **Card label.** It names the real weekdays, e.g. «1–6 من الشهر · الأحد–الجمعة».
+- **Existing weekly targets.** They are stored by week number, so a target saved before this change now applies
+  to the new range of that number. For November, «الأسبوع الأول» was 7–12 and is now 1–6. Check this month's
+  weekly targets after the release.
 
 ## Not changed
 
