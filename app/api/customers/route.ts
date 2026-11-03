@@ -90,22 +90,28 @@ export async function DELETE(req: Request) {
 export async function PATCH(req: Request) {
   const auth = await authorize(req, ["sales", "finance", "academy", "viewer"]);
   if (!auth.ok) return auth.response;
-  if (!can(auth, "customers.manage")) return Response.json({ error: "ليس لديك صلاحية تعديل بيانات العملاء" }, { status: 403 });
   const body = await req.json() as Record<string, unknown>;
+  // Finance edits from an order's file, so source and cohort go to that order instead of the customer's latest.
+  const orderId = String(body.orderId || "").trim();
+  if (!can(auth, "customers.manage") && !(orderId && auth.roles.includes("finance"))) return Response.json({ error: "ليس لديك صلاحية تعديل بيانات العملاء" }, { status: 403 });
   const customerId = String(body.customerId || "").trim();
   const name = String(body.name || "").trim();
-  const phone = String(body.phone || "").replace(/\s/g, "");
+  const phone = String(body.phone || "").replace(/\s/g, "").replace(/^\+/, "00");
   const email = String(body.email || "").trim().toLowerCase();
   const source = String(body.source || "").trim();
   const cohort = String(body.cohort || "").trim();
   if (!customerId || !name || !phone || !email) return Response.json({ error: "الاسم والجوال والبريد مطلوبة" }, { status: 400 });
+  if (orderId && !source) return Response.json({ error: "مصدر الشراء مطلوب" }, { status: 400 });
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"صيغة البريد الإلكتروني غير صحيحة"},{status:400});
   if(!/^00[1-9]\d{8,14}$/.test(phone))return Response.json({error:"رقم الجوال يجب أن يبدأ بمفتاح الدولة، مثال: 009665xxxxxxxx"},{status:400});
   const db = operationalDb();
   const current = await db.prepare(`SELECT c.id,c.name,c.phone,c.email,o.id order_id,o.purchase_source source,o.cohort_label cohort
-    FROM customers c LEFT JOIN orders o ON o.id=(SELECT id FROM orders WHERE customer_id=c.id ORDER BY created_at DESC LIMIT 1)
-    WHERE c.id=? AND c.deleted_at IS NULL`).bind(customerId).first<Record<string, unknown>>();
+    FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.id=${orderId ? "?" : "(SELECT id FROM orders WHERE customer_id=c.id ORDER BY created_at DESC LIMIT 1)"}
+    WHERE c.id=? AND c.deleted_at IS NULL`).bind(...(orderId ? [orderId, customerId] : [customerId])).first<Record<string, unknown>>();
   if (!current) return Response.json({ error: "العميل غير موجود" }, { status: 404 });
+  if (orderId && !current.order_id) return Response.json({ error: "الطلب غير موجود لهذا العميل" }, { status: 404 });
+  const taken = await db.prepare("SELECT phone FROM customers WHERE id!=? AND (phone=? OR email=?) LIMIT 1").bind(customerId, phone, email).first<{ phone: string }>();
+  if (taken) return Response.json({ error: taken.phone === phone ? "رقم الجوال مسجل لعميل آخر" : "البريد الإلكتروني مسجل لعميل آخر" }, { status: 409 });
   const changes: Record<string, { from: string; to: string }> = {};
   for (const [field, from, to] of [["name", current.name, name], ["phone", current.phone, phone], ["email", current.email, email], ["source", current.source, source], ["cohort", current.cohort, cohort]] as const) {
     if (String(from || "") !== to) changes[field] = { from: String(from || ""), to };
@@ -113,8 +119,10 @@ export async function PATCH(req: Request) {
   if (!Object.keys(changes).length) return Response.json({ ok: true, unchanged: true });
   const now = new Date().toISOString();
   const statements = [
-    db.prepare("UPDATE customers SET name=?,phone=?,email=?,admitted_via=?,updated_at=? WHERE id=?").bind(name, phone, email, source, now, customerId),
-    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_CUSTOMER_DATA','customer',?,?,?)").bind(id("AUD"), auth.email, customerId, JSON.stringify({ changes }), now),
+    orderId
+      ? db.prepare("UPDATE customers SET name=?,phone=?,email=?,updated_at=? WHERE id=?").bind(name, phone, email, now, customerId)
+      : db.prepare("UPDATE customers SET name=?,phone=?,email=?,admitted_via=?,updated_at=? WHERE id=?").bind(name, phone, email, source, now, customerId),
+    db.prepare("INSERT INTO audit_log(id,actor_email,action,entity_type,entity_id,details,created_at) VALUES(?,?,'UPDATE_CUSTOMER_DATA','customer',?,?,?)").bind(id("AUD"), auth.email, customerId, JSON.stringify(orderId ? { changes, orderId } : { changes }), now),
   ];
   if (current.order_id) statements.splice(1, 0,
     db.prepare("UPDATE orders SET purchase_source=?,cohort_label=?,updated_at=? WHERE id=?").bind(source, cohort || null, now, current.order_id),

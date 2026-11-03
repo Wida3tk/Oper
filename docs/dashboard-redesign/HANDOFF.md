@@ -162,6 +162,13 @@
 2. Open the project in Claude and say: «اقرأ docs/dashboard-redesign/HANDOFF.md وكمّل».
 3. For tests and local checks you need Node.js ≥ 22.13 and Git (this office machine got both through winget).
 
+## Finance can edit the customer's data (2026-11-03)
+
+- Financial data was already editable from the finance file (discount, seat fee, first payment, schedule, installment and payment dates, reference, withdrawal, undo), each under its own `finance.*` permission.
+- New: anyone with the `finance` role edits **name, phone, email, purchase source and cohort** there, with the change in "سجل تعديل البيانات". `PATCH /api/customers` takes `orderId`: source and cohort go to that order (it must belong to the customer) instead of the latest order, and `customers.admitted_via` stays as it is. Editing the source changes the order's label only: `payments.method` and finance review stay as they were.
+- The route now answers 409 when the phone or email belongs to another customer (it was a unique-index 500), and accepts `+966…`.
+- Local QA note: `GET /api/finance` fails on a fresh database until one POST with an `orderId` creates `finance_undo_log`.
+
 ## Next steps (agreed with the user, 2026-10-28)
 
 The user said to continue in whatever order works best and to push each batch to `design/phase-0-shell` as it's done.

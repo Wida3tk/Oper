@@ -1000,7 +1000,7 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
           {view === "finance" && (
             <>
               <TransferReviews />
-              <LiveFinance initialReviewFilter={financeReviewFilter} searchQuery={query} />
+              <LiveFinance initialReviewFilter={financeReviewFilter} searchQuery={query} canEditCustomer={has("customers.manage") || currentUser.roles.includes("finance")} />
             </>
           )}
           {view === "b2b-business" && <B2BWorkspace section="business" canManage={has("b2b.manage")} canConvert={has("b2b.partnerships.manage")} />}
@@ -1139,12 +1139,13 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
 }
 
 type EditableCustomer = typeof initialPeople[number] & { email?: string; orderId?: string };
-function CustomerDataEditor({ customer, onSaved }: { customer: EditableCustomer; onSaved: (customer: { name: string; phone: string; email: string; source: string }) => void }) {
-  const [editing, setEditing] = useState(false), [name, setName] = useState(customer.name), [phone, setPhone] = useState(customer.phone), [email, setEmail] = useState(customer.email || ""), [source, setSource] = useState(customer.source), [saving, setSaving] = useState(false), [error, setError] = useState("");
-  useEffect(() => { setName(customer.name); setPhone(customer.phone); setEmail(customer.email || ""); setSource(customer.source) }, [customer.id, customer.name, customer.phone, customer.email, customer.source]);
-  const save = async () => { setSaving(true); setError(""); try { await apiJson("/api/customers", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ customerId: customer.id, name, phone, email, source, cohort: customer.cohort === "—" ? "" : customer.cohort }) }); onSaved({ name, phone, email, source }); setEditing(false); window.dispatchEvent(new CustomEvent("sulukera:customer-history-changed", { detail: customer.id })) } catch (e) { setError((e as Error).message) } finally { setSaving(false) } };
+function CustomerDataEditor({ customer, onSaved, orderId, showCohort = false }: { customer: EditableCustomer; onSaved: (customer: { name: string; phone: string; email: string; source: string }) => void; orderId?: string; showCohort?: boolean }) {
+  const currentCohort = customer.cohort === "—" ? "" : String(customer.cohort || "");
+  const [editing, setEditing] = useState(false), [name, setName] = useState(customer.name), [phone, setPhone] = useState(customer.phone), [email, setEmail] = useState(customer.email || ""), [source, setSource] = useState(customer.source), [cohort, setCohort] = useState(currentCohort), [saving, setSaving] = useState(false), [error, setError] = useState("");
+  useEffect(() => { setName(customer.name); setPhone(customer.phone); setEmail(customer.email || ""); setSource(customer.source); setCohort(currentCohort) }, [customer.id, customer.name, customer.phone, customer.email, customer.source, currentCohort]);
+  const save = async () => { setSaving(true); setError(""); try { await apiJson("/api/customers", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ customerId: customer.id, name, phone, email, source, cohort: cohort.trim(), ...(orderId ? { orderId } : {}) }) }); onSaved({ name, phone, email, source }); setEditing(false); window.dispatchEvent(new CustomEvent("sulukera:customer-history-changed", { detail: customer.id })) } catch (e) { setError((e as Error).message) } finally { setSaving(false) } };
   if (!editing) return <button className="customer-edit-trigger" onClick={() => setEditing(true)}>تعديل بيانات العميل</button>;
-  return <div className="customer-edit-form"><label>اسم العميل<input value={name} onChange={e => setName(e.target.value)} /></label><label>رقم الجوال<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label><label>البريد الإلكتروني<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><label>مصدر الشراء<input value={source} onChange={e => setSource(e.target.value)} /></label>{error && <div className="ops-error compact">{error}</div>}<div><button className="primary" disabled={saving || !name || !phone || !email} onClick={save}>{saving ? "جارٍ الحفظ…" : "حفظ التعديلات"}</button><button className="secondary" disabled={saving} onClick={() => setEditing(false)}>إلغاء</button></div></div>
+  return <div className="customer-edit-form"><label>اسم العميل<input value={name} onChange={e => setName(e.target.value)} /></label><label>رقم الجوال<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label><label>البريد الإلكتروني<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><label>مصدر الشراء{orderId ? <select value={source} onChange={e => setSource(e.target.value)}>{Array.from(new Set(["عصارة", "سلة", "دفع مباشر", customer.source].filter(Boolean))).map(option => <option key={option}>{option}</option>)}</select> : <input value={source} onChange={e => setSource(e.target.value)} />}</label>{showCohort && <label>رقم الدفعة<input value={cohort} onChange={e => setCohort(e.target.value)} placeholder="مثال: الدفعة 12" /></label>}{error && <div className="ops-error compact">{error}</div>}<div><button className="primary" disabled={saving || !name || !phone || !email || !source} onClick={save}>{saving ? "جارٍ الحفظ…" : "حفظ التعديلات"}</button><button className="secondary" disabled={saving} onClick={() => setEditing(false)}>إلغاء</button></div></div>
 }
 
 function CustomerCohortEditor({ customer, onSaved }: { customer: EditableCustomer; onSaved: (cohort: string) => void }) {
@@ -2883,6 +2884,8 @@ type FinanceInstallment = {
 };
 type PaymentBehavior = { label: string; tone: string; summary: string };
 type FinanceOrder = {
+  cohort_label?: string;
+  program_delivery?: string;
   order_id: string;
   program_id: string;
   order_type: string;
@@ -6036,7 +6039,7 @@ function TransferReviews() {
   );
 }
 
-function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { initialReviewFilter?: string; searchQuery?: string }) {
+function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "", canEditCustomer = false }: { initialReviewFilter?: string; searchQuery?: string; canEditCustomer?: boolean }) {
   const [rows, setRows] = useState<FinanceOrder[]>([]),
     [financeTab, setFinanceTab] = useState<"sales" | "collections">("sales"),
     [collectionMonth,setCollectionMonth]=useState(riyadhToday().slice(0,7)),
@@ -6628,7 +6631,14 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
                 <div><dt>مصدر الشراء</dt><dd>{selected.purchase_source}</dd></div>
                 <div><dt>المسار</dt><dd>{selected.program_track && !["غير محدد","—"].includes(selected.program_track) ? selected.program_track : "دون مسار"}</dd></div>
                 <div><dt>نمط البرنامج</dt><dd>{selected.program_delivery || "غير محدد"}</dd></div>
+                {selected.program_delivery !== "مسجل" && selected.order_type !== "إشراف" && <div><dt>رقم الدفعة</dt><dd>{selected.cohort_label || "غير متاح"}</dd></div>}
               </dl>
+              {canEditCustomer && <CustomerDataEditor
+                orderId={selected.order_id}
+                showCohort={selected.program_delivery !== "مسجل" && selected.order_type !== "إشراف"}
+                customer={{ id: selected.customer_id, name: selected.customer_name, phone: selected.phone || "", email: selected.email || "", source: selected.purchase_source || "", cohort: selected.cohort_label || "" } as EditableCustomer}
+                onSaved={() => { void load(selected.order_id); window.dispatchEvent(new CustomEvent("sulukera:data-changed")); }}
+              />}
             <div className="finance-reference-strip">
               <PaymentReferenceControl
                 paymentId={selectedReferencePayment?.id}
@@ -6645,6 +6655,9 @@ function LiveFinance({ initialReviewFilter = "الكل", searchQuery = "" }: { i
             </section>
             <Section title="ملاحظات العميل">
               <CustomerNotes customerId={selected.customer_id} />
+            </Section>
+            <Section title="سجل تعديل البيانات">
+              <CustomerEditHistory customerId={selected.customer_id} />
             </Section>
             <div className="finance-action-center">
               <div className="finance-action-toolbar" role="toolbar" aria-label="الإجراءات المالية السريعة">

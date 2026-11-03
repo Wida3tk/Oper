@@ -755,6 +755,18 @@ test("registers customers with a live summary, a real start-over and no future p
   assert.match(page, /mode: !isStandaloneService && form\.journey === "تجربة" \? "trial" : "payment",/);
 });
 
+test("lets finance edit customer data and the source and cohort of the open order", async () => {
+  const page = await read("../app/page.tsx");
+  const api = await read("../app/api/customers/route.ts");
+  assert.match(api, /!can\(auth, "customers\.manage"\) && !\(orderId && auth\.roles\.includes\("finance"\)\)/);
+  assert.match(api, /LEFT JOIN orders o ON o\.customer_id=c\.id AND o\.id=\$\{orderId \? "\?"/);
+  assert.match(api, /الطلب غير موجود لهذا العميل/);
+  assert.match(api, /رقم الجوال مسجل لعميل آخر/);
+  assert.match(page, /canEditCustomer=\{has\("customers\.manage"\) \|\| currentUser\.roles\.includes\("finance"\)\}/);
+  assert.match(page, /\{canEditCustomer && <CustomerDataEditor\s+orderId=\{selected\.order_id\}/);
+  assert.match(page, /\{showCohort && <label>رقم الدفعة/);
+});
+
 test("builds the five-stage B2B partnership lifecycle with gated approvals", async () => {
   const page = await read("../app/page.tsx");
   const b2b = await read("../app/api/b2b/route.ts");
