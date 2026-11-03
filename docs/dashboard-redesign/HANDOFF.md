@@ -72,6 +72,22 @@
   default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
 - **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
 
+## Released: finance edits the customer file (2026-11-03, at the user's request)
+
+- `design/phase-0-shell` fast-forwarded into `main` (`81b5e9f` → `e8fcfc4`) and pushed. The branch push went live as
+  version `14abce57-256c-4185-b356-d8dd5e4eaf34` at 08:51:32 UTC, about 90 seconds later. Nobody ran `wrangler deploy`.
+- Carries four commits:
+  - `93e4455`: shares as donuts with percentages.
+  - `24221e4`: home numbers counted on Riyadh days, with where each comes from.
+  - `546a777`: weekly challenges run Saturday to Friday from the first of the month.
+  - `e8fcfc4`: finance edits customer data, source and cohort from its file. See "Finance can edit the customer's
+    data (2026-11-03)".
+- Checked on the live site without signing in: home 200, the new CSS served, `/api/finance` and `/api/customers` 401.
+  The signed-in screens were tested on synthetic local data only, not on the live site.
+- **Rollback** to the version live before this release (`6f87353c`, deployed 16:49:11 UTC on 2026-11-02):
+  `npx wrangler rollback 6f87353c-037e-43b2-baf3-839534c1d860 --config wrangler.deploy.jsonc`.
+  There is no schema change. A rollback removes the screens only: edits finance already saved stay in the data.
+
 ## Released: Phase 5 B2B and the payment-default pause (2026-10-30, at the user's request)
 
 - `design/phase-0-shell` fast-forwarded into `main` (`fd0945d` → this commit) and pushed. It deploys
