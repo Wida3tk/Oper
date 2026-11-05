@@ -666,7 +666,8 @@ function OperationsApp({b2bPortal=false}:{b2bPortal?:boolean}) {
   const has = (permission: string) =>
     currentUser.roles.includes("admin") ||
     currentUser.permissions.includes("*") ||
-    currentUser.permissions.includes(permission);
+    currentUser.permissions.includes(permission) ||
+    (currentUser.roles.includes("finance") && ["customers.view", "customers.manage", "finance.view", "finance.total.edit", "finance.installments.manage", "finance.payments.record"].includes(permission));
   // POST /api/enrollments/transition accepts academy (and admin) only; other roles get a read-only queue.
   const canAdvanceEnrollments = currentUser.roles.includes("admin") || currentUser.roles.includes("academy");
   // /api/trials: GET allows sales, academy and viewer; POST allows sales only (admin always passes).

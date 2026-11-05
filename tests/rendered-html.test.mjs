@@ -1332,3 +1332,12 @@ test("computes home numbers on Riyadh days and labels where each one comes from"
   assert.match(page, /weekLabels=\["الأول","الثاني","الثالث","الرابع","الخامس","السادس"\]/);
   assert.doesNotMatch(page, /السبت–الخميس/);
 });
+test("gives the finance role its core permissions on the server and in the screens", async () => {
+  const page = await read("../app/page.tsx");
+  const operations = await read("../app/api/_lib/operations.ts");
+  const server = operations.match(/export function can\(.*$/m)?.[0] ?? "";
+  // Exactly these six, so a wider list can't slip in unnoticed.
+  assert.match(server, /auth\.roles\.includes\("finance"\)&&\["customers\.view","customers\.manage","finance\.view","finance\.total\.edit","finance\.installments\.manage","finance\.payments\.record"\]\.includes\(permission\)/);
+  assert.match(page, /currentUser\.roles\.includes\("finance"\) && \["customers\.view", "customers\.manage", "finance\.view", "finance\.total\.edit", "finance\.installments\.manage", "finance\.payments\.record"\]\.includes\(permission\)/);
+  assert.doesNotMatch(server, /"(sales|academy|viewer)"/);
+});

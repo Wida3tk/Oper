@@ -51,14 +51,12 @@
   reservations waiting for their assignment date. The old code moves those waiting reservations into onboarding
   at once (its old behaviour) and ignores the rest.
 
-## Where we stopped (end of day 2026-10-29, home machine): start here tomorrow
+## Where we stopped (2026-11-05): start here next
 
-- **Live = `main` = `81b5e9f`** (Phase 5 B2B and the payment-default pause, see below).
-- **On the branch, not pushed (pushing releases them):**
-  - The charts as percentages ([CHARTS.md](CHARTS.md)): the home page, reports and the collection forecast.
-  - The home numbers audit and its fixes ([HOME-AUDIT.md](HOME-AUDIT.md)): Riyadh days, seat fees left out of
-    the remaining amount, and labels that say what each number counts. The weekly challenge waits for the
-    user's decision.
+- **Live = `main` = `design/phase-0-shell`.** Last release: the finance role's permissions (see below). Everything
+  is pushed and nothing is waiting on the branch.
+- **After the 2026-11-03 release:** check this month's weekly targets. They are stored by week number, and the
+  weeks now run Saturday to Friday from day 1 ([HOME-AUDIT.md](HOME-AUDIT.md)).
 - **Done on 2026-10-29:**
   - Phase 4 Finance ([PHASE-4-FINANCE.md](PHASE-4-FINANCE.md)): list, file layout, transfer card, and
     before/after-VAT amounts.
@@ -71,6 +69,33 @@
 - **Next phases:** 6 (Programs/Users/Control/Reports), 7 (clean-up). Small items: registration's
   default purchase date still uses the device date, and «انتقائية الطعام» has no list price yet.
 - **Remember:** every push to GitHub (any branch) deploys to production. Ask before pushing.
+
+## Released: the finance role's permissions (2026-11-05, at the user's request)
+
+- **What changed.** Anyone with the `finance` role now always has `customers.view`, `customers.manage`,
+  `finance.view`, `finance.total.edit`, `finance.installments.manage` and `finance.payments.record`, on the server
+  (`can()` in `app/api/_lib/operations.ts`) and in the screens (`has()` in `app/page.tsx`).
+- **Consequence.** Unticking those permissions for a finance user in the users screen no longer limits them. To
+  limit such a user, remove the `finance` role. Through these permissions they can also edit discounts and contract
+  totals, edit and undo financial operations, register withdrawals and refunds, and set sales targets. No other
+  role changes.
+- **Where it came from.** The change sat uncommitted in the home machine's checkout from 2026-11-02 21:46 (+05:00)
+  and was not in the 2026-11-03 release. Versions `3d318b82` and `6f87353c` went out minutes later that evening
+  with no matching commit. Whether they carried it could not be confirmed.
+- **Checked on synthetic local data** with accounts that have no individual permissions:
+
+  | Action | Finance role | Sales role |
+  |---|---|---|
+  | View finance | 200 | 403 |
+  | Set the monthly target | 200 | 403 |
+  | Edit a customer without an order | 200 | 403 |
+  | Delete a customer | 403 | 403 |
+  | Manage staff | 403 | 403 |
+
+- **Rollback** to the version live before this release (`1a9051ad`, deployed 08:54:37 UTC on 2026-11-03):
+  `npx wrangler rollback 1a9051ad-cddd-4d30-944b-eb1ba07fd787 --config wrangler.deploy.jsonc`.
+  There is no schema or data change, so a rollback only returns those users to their individual permissions. Edits
+  they already saved stay.
 
 ## Released: finance edits the customer file (2026-11-03, at the user's request)
 

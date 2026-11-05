@@ -138,7 +138,7 @@ export async function authorize(req: Request, allowed: StaffRole[]) {
   return { ok: true as const, email, roles, permissions };
 }
 
-export function can(auth:{roles:StaffRole[];permissions:string[]},permission:string){return auth.roles.includes("admin")||auth.permissions.includes("*")||auth.permissions.includes(permission)}
+export function can(auth:{roles:StaffRole[];permissions:string[]},permission:string){return auth.roles.includes("admin")||auth.permissions.includes("*")||auth.permissions.includes(permission)||(auth.roles.includes("finance")&&["customers.view","customers.manage","finance.view","finance.total.edit","finance.installments.manage","finance.payments.record"].includes(permission))}
 
 export async function authorizeIntegrationRequest(req:Request, expectedToken:string|undefined){
   const headerToken=(req.headers.get("x-sulukera-integration-token")||"").trim();
